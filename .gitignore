@@ -19,6 +19,9 @@
 # Exclude lock files
 *.lock.json
 
+# Exclude environment variables file
+/backend/.env
+
 # Exclude macOS legacy resource forks
 .DS_Store
 
