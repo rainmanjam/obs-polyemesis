@@ -33,13 +33,13 @@
     },
     "platformConfig": {
         "macos": {
-            "bundleId": "com.rainmanjam.polyemesis"
+            "bundleId": "com.example.plugintemplate-for-obs"
         }
     },
-    "name": "polyemesis",
-    "displayName": "Polyemesis",
+    "name": "plugintemplate-for-obs",
+    "displayName": "Plugin Template for OBS",
     "version": "1.0.0",
-    "author": "rainmanjam",
-    "website": "https://Polyemesis.com",
-    "email": "support@polyemesis.com"
+    "author": "Your Name Here",
+    "website": "https://example.com",
+    "email": "me@example.com"
 }
