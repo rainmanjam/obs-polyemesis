@@ -56,7 +56,8 @@ jobs:
             echo "# Release v${{ steps.get_version.outputs.version }}" > release_notes.md
             echo "" >> release_notes.md
             echo "## Changes" >> release_notes.md
-            git log --pretty=format:"- %s" $(git describe --tags --abbrev=0 HEAD^)..HEAD >> release_notes.md 2>/dev/null || echo "- Initial release" >> release_notes.md
+            git log --pretty=format:"- %s" $(git describe --tags --abbrev=0 HEAD^)..HEAD \
+              >> release_notes.md 2>/dev/null || echo "- Initial release" >> release_notes.md
           fi
           echo "Generated release notes"
 
@@ -276,7 +277,8 @@ jobs:
       - name: Generate Checksums
         run: |
           cd artifacts
-          find . -type f \( -name "*.pkg" -o -name "*.exe" -o -name "*.deb" -o -name "*.rpm" \) -exec sha256sum {} \; > SHA256SUMS.txt
+          find . -type f \( -name "*.pkg" -o -name "*.exe" -o -name "*.deb" -o -name "*.rpm" \) \
+            -exec sha256sum {} \; > SHA256SUMS.txt
           cat SHA256SUMS.txt
 
       - name: Upload Checksums
@@ -299,4 +301,5 @@ jobs:
         run: |
           echo "Release v${{ needs.create-release.outputs.version }} completed!"
           echo "Status: ${{ job.status }}"
-          echo "Download: https://github.com/${{ github.repository }}/releases/tag/v${{ needs.create-release.outputs.version }}"
+          URL="https://github.com/${{ github.repository }}/releases/tag/v${{ needs.create-release.outputs.version }}"
+          echo "Download: $URL"

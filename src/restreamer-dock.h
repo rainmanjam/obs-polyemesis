@@ -22,6 +22,7 @@ public:
   RestreamerDock(QWidget *parent = nullptr);
   ~RestreamerDock();
 
+  // cppcheck-suppress unknownMacro
 private slots:
   void onRefreshClicked();
   void onTestConnectionClicked();

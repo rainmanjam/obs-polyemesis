@@ -6,6 +6,7 @@
 static restreamer_connection_t global_connection = {0};
 static bool initialized = false;
 
+// cppcheck-suppress staticFunction
 void restreamer_config_init(void) {
   if (initialized) {
     return;

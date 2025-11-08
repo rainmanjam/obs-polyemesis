@@ -70,12 +70,12 @@ create_package_structure() {
 
     # Clean and create directories
     rm -rf "$PKG_DIR"
-    mkdir -p "$PKG_DIR/root/Library/Application Support/obs-studio/plugins"
+    mkdir -p "$PKG_DIR/root$INSTALL_LOCATION"
     mkdir -p "$PKG_DIR/scripts"
     mkdir -p "$PKG_DIR/resources"
 
     # Copy plugin bundle
-    cp -R "$PLUGIN_BUNDLE" "$PKG_DIR/root/Library/Application Support/obs-studio/plugins/"
+    cp -R "$PLUGIN_BUNDLE" "$PKG_DIR/root$INSTALL_LOCATION/"
 
     log_info "Package structure created"
 }
@@ -112,9 +112,10 @@ if [ -d "/Applications/OBS.app" ]; then
 fi
 
 # Remove old plugin if it exists
-if [ -d "$2/Library/Application Support/obs-studio/plugins/obs-polyemesis.plugin" ]; then
+OLD_PLUGIN="$2/Library/Application Support/obs-studio/plugins/obs-polyemesis.plugin"
+if [ -d "$OLD_PLUGIN" ]; then
     echo "Removing previous installation..."
-    rm -rf "$2/Library/Application Support/obs-studio/plugins/obs-polyemesis.plugin"
+    rm -rf "$OLD_PLUGIN"
 fi
 
 exit 0

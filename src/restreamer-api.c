@@ -20,6 +20,7 @@ struct memory_struct {
   size_t size;
 };
 
+// cppcheck-suppress constParameterCallback
 static size_t write_callback(void *contents, size_t size, size_t nmemb,
                              void *userp) {
   size_t realsize = size * nmemb;
@@ -645,6 +646,7 @@ void restreamer_api_free_log_list(restreamer_log_list_t *list) {
   list->count = 0;
 }
 
+// cppcheck-suppress staticFunction
 void restreamer_api_free_process(restreamer_process_t *process) {
   if (!process) {
     return;

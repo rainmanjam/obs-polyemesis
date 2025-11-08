@@ -265,7 +265,8 @@ jobs:
           if ($obsBinDir) {
             Write-Host "Found OBS bin directory: $obsBinDir"
             Write-Host "Listing key DLLs:"
-            Get-ChildItem $obsBinDir -Filter "*.dll" | Select-Object -First 10 | ForEach-Object { "  " + $_.Name } | Write-Host
+            Get-ChildItem $obsBinDir -Filter "*.dll" | Select-Object -First 10 | `
+              ForEach-Object { "  " + $_.Name } | Write-Host
 
             # Put OBS & deps dirs on PATH so the test EXE can load transitive DLLs
             $env:PATH = "$obsBinDir;$env:PATH"

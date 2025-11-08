@@ -29,6 +29,7 @@ void restreamer_multistream_destroy(multistream_config_t *config) {
   bfree(config);
 }
 
+// cppcheck-suppress staticFunction
 const char *
 restreamer_multistream_get_service_url(streaming_service_t service,
                                        stream_orientation_t orientation) {
@@ -65,6 +66,7 @@ restreamer_multistream_get_service_url(streaming_service_t service,
   }
 }
 
+// cppcheck-suppress staticFunction
 const char *
 restreamer_multistream_get_service_name(streaming_service_t service) {
   switch (service) {
@@ -88,6 +90,7 @@ restreamer_multistream_get_service_name(streaming_service_t service) {
   }
 }
 
+// cppcheck-suppress staticFunction
 bool restreamer_multistream_add_destination(multistream_config_t *config,
                                             streaming_service_t service,
                                             const char *stream_key,
