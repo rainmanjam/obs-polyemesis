@@ -159,11 +159,11 @@ static void *server_thread(void *arg) {
 
     if (bytes_read > 0) {
       buffer[bytes_read] = '\0';
-      printf("[MOCK] Received %zd bytes, handling request\n", bytes_read);
+      printf("[MOCK] Received %d bytes, handling request\n", (int)bytes_read);
       handle_request(client_fd, buffer);
       printf("[MOCK] Response sent\n");
     } else {
-      printf("[MOCK] No data received (bytes_read=%zd)\n", bytes_read);
+      printf("[MOCK] No data received (bytes_read=%d)\n", (int)bytes_read);
     }
 
 #ifdef _WIN32
