@@ -122,22 +122,6 @@ jobs:
         with:
           sarif_file: 'trivy-results.sarif'
 
-  osv-scanner:
-    name: OSV Scanner
-    runs-on: ubuntu-latest
-    continue-on-error: true  # OSV Scanner action has compatibility issues
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-
-      - name: Run OSV Scanner
-        uses: google/osv-scanner-action@v1.8.5
-        with:
-          scan-args: |-
-            --recursive
-            ./
-        continue-on-error: true
-
   gitleaks:
     name: Gitleaks Secret Scan
     runs-on: ubuntu-latest
