@@ -234,7 +234,7 @@ jobs:
                 $folder = $hit.Directory.FullName
 
                 # If we're in ...\64bit, prefer that; otherwise try to bubble up to a bin folder
-                if (Split-Path $folder -Leaf -eq "64bit") {
+                if ((Split-Path $folder -Leaf) -eq "64bit") {
                   $bin = $folder
                 } elseif ((Split-Path $folder -Leaf) -eq "bin") {
                   $bin = $folder
