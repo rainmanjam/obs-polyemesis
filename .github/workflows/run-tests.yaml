@@ -202,6 +202,8 @@ jobs:
           if (Test-Path env:RUNNER_DEBUG) { Set-PSDebug -Trace 1 }
 
           Write-Host '::group::Run Test Suite'
+          # Add obs-deps bin directory to PATH for DLL loading
+          $env:PATH = "$PWD\.deps\obs-deps-2025-07-11-x64\bin;$env:PATH"
           & .build\windows\tests\Release\obs-polyemesis-tests.exe
           Write-Host '::endgroup::'
 
