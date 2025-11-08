@@ -6,7 +6,7 @@
 ;
 ; Requirements:
 ;   - NSIS 3.x or later
-;   - Built plugin files in .build\windows\Release
+;   - Built plugin files in build\Release
 ;
 ; Build command:
 ;   makensis /DVERSION=1.0.0 packaging\windows\installer.nsi
@@ -96,7 +96,8 @@ Section "OBS Polyemesis Plugin (required)" SEC01
   SetOutPath "$INSTDIR"
 
   ; Put files there
-  File /r "..\..\build\windows\Release\obs-polyemesis\*.*"
+  File "..\..\build\Release\obs-polyemesis.dll"
+  File /nonfatal "..\..\build\Release\obs-polyemesis.pdb"
 
   ; Write the installation path into the registry
   WriteRegStr HKCU "${PRODUCT_DIR_REGKEY}" "" "$INSTDIR\obs-polyemesis.dll"

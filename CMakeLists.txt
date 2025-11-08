@@ -56,11 +56,15 @@ endif()
 if(ENABLE_QT)
   # Platform-specific Qt6 handling
   if(APPLE)
-    # On macOS, use Homebrew Qt to avoid deprecated AGL framework in pre-built deps
-    # The pre-built OBS Qt6 has AGL framework issues on modern macOS
-    if(EXISTS "/opt/homebrew/opt/qt")
-      set(CMAKE_PREFIX_PATH "/opt/homebrew/opt/qt" ${CMAKE_PREFIX_PATH})
-      message(STATUS "Using Homebrew Qt6 to avoid AGL framework issues")
+    # Only use Homebrew Qt6 for single-architecture builds (not universal binaries)
+    # Homebrew Qt is arm64-only and won't work for x86_64 or universal binaries
+    if(NOT CMAKE_OSX_ARCHITECTURES MATCHES ";")
+      if(EXISTS "/opt/homebrew/opt/qt")
+        set(CMAKE_PREFIX_PATH "/opt/homebrew/opt/qt" ${CMAKE_PREFIX_PATH})
+        message(STATUS "Using Homebrew Qt6 (single architecture build)")
+      endif()
+    else()
+      message(STATUS "Using OBS pre-built Qt6 (universal binary build)")
     endif()
   endif()
 
