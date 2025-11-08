@@ -39,12 +39,9 @@ jobs:
           sudo xcode-select --switch /Applications/Xcode_16.1.0.app/Contents/Developer
           print '::endgroup::'
 
-          print '::group::Install Homebrew Dependencies'
+          print '::group::Install Dependencies'
           brew install --quiet jansson
           print '::endgroup::'
-
-      - name: Set Up Dependencies 🛠️
-        uses: ./.github/actions/setup-dependencies
 
       - name: Configure Build 🔧
         run: |
@@ -122,9 +119,6 @@ jobs:
             ninja-build
           echo '::endgroup::'
 
-      - name: Set Up Dependencies 🛠️
-        uses: ./.github/actions/setup-dependencies
-
       - name: Configure Build 🔧
         run: |
           : Configure Build
@@ -178,9 +172,6 @@ jobs:
         with:
           submodules: recursive
           fetch-depth: 0
-
-      - name: Set Up Dependencies 🛠️
-        uses: ./.github/actions/setup-dependencies
 
       - name: Configure Build 🔧
         run: |
