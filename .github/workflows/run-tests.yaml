@@ -199,59 +199,113 @@ jobs:
       - name: Run Unit Tests 🧪
         run: |
           # Run Unit Tests
+          $ErrorActionPreference = 'Stop'
           if (Test-Path env:RUNNER_DEBUG) { Set-PSDebug -Trace 1 }
 
           Write-Host '::group::Run Test Suite'
-          # Copy required DLLs to test executable directory for runtime loading
-          Write-Host 'Copying OBS DLLs to test directory...'
-          $testDir = ".build\windows\tests\Release"
+          $testExe = ".build\windows\tests\Release\obs-polyemesis-tests.exe"
+          $testDir = Split-Path $testExe -Parent
           $depsBinDir = ".deps\obs-deps-2025-07-11-x64\bin"
 
-          # Debug: List actual directory structure
-          Write-Host "Debugging: Listing obs-build-dependencies structure..."
-          if (Test-Path ".build\windows\obs-build-dependencies") {
-            Get-ChildItem ".build\windows\obs-build-dependencies" -Recurse -Directory | Where-Object { $_.Name -like "bin" -or $_.Name -like "*64*" -or $_.Name -like "Release" -or $_.Name -like "obs.dll" } | ForEach-Object { Write-Host "  $($_.FullName)" }
-
-            # Try to find obs.dll
-            Write-Host "Searching for obs.dll..."
-            Get-ChildItem ".build\windows\obs-build-dependencies" -Recurse -Filter "obs.dll" -ErrorAction SilentlyContinue | ForEach-Object { Write-Host "  Found: $($_.FullName)" }
+          # Ensure test dir exists
+          if (-not (Test-Path $testDir)) {
+            Write-Host "Creating test dir: $testDir"
+            New-Item -Force -ItemType Directory -Path $testDir | Out-Null
           }
 
-          # Try multiple possible paths
-          $possiblePaths = @(
-            ".build\windows\obs-build-dependencies\obs-studio-31.1.1\build64\rundir\Release\bin\64bit",
-            ".build\windows\obs-build-dependencies\obs-studio-31.1.1\build_x64\bin\Release",
-            ".build\windows\obs-build-dependencies\obs-studio-31.1.1\Release\bin\64bit"
-          )
+          # Helper: Find OBS bin directory by searching for obs.dll/libobs.dll
+          function Find-ObsBinDir {
+            $candidates = @()
 
-          $obsBinDir = $null
-          foreach ($path in $possiblePaths) {
-            if (Test-Path $path) {
-              $obsBinDir = $path
-              Write-Host "Found OBS bin directory at: $obsBinDir"
-              break
+            # Common roots to search
+            $roots = @(
+              ".build\windows\obs-build-dependencies",
+              ".build\windows",
+              "."
+            ) | Where-Object { Test-Path $_ }
+
+            foreach ($root in $roots) {
+              # Find obs.dll or libobs.dll
+              $dllHits = Get-ChildItem $root -Recurse -Filter "obs.dll" -ErrorAction SilentlyContinue
+              $dllHits += Get-ChildItem $root -Recurse -Filter "libobs.dll" -ErrorAction SilentlyContinue
+
+              foreach ($hit in $dllHits) {
+                # Typical layout puts DLLs in ...\rundir\Release\bin\64bit or ...\bin\Release etc.
+                $folder = $hit.Directory.FullName
+
+                # If we're in ...\64bit, prefer that; otherwise try to bubble up to a bin folder
+                if (Split-Path $folder -Leaf -eq "64bit") {
+                  $bin = $folder
+                } elseif ((Split-Path $folder -Leaf) -eq "bin") {
+                  $bin = $folder
+                } else {
+                  # Walk up until we hit a bin dir, if present
+                  $p = $folder
+                  while ($p -and (Split-Path $p -Leaf) -ne "bin") {
+                    $p = Split-Path $p -Parent
+                  }
+                  $bin = if ($p) { $p } else { $folder }
+                }
+
+                if (Test-Path $bin) { $candidates += $bin }
+              }
             }
+
+            # De-duplicate & bias towards 64bit subfolders
+            $candidates = $candidates | Select-Object -Unique
+            $preferred = $candidates | Where-Object { $_ -match "\\64bit$" }
+            if ($preferred) { return $preferred[0] }
+            if ($candidates) { return $candidates[0] }
+            return $null
           }
+
+          Write-Host "Searching for OBS runtime (obs.dll / libobs.dll)..."
+          $obsBinDir = Find-ObsBinDir
 
           if ($obsBinDir) {
-            Write-Host "OBS bin directory exists:"
-            Get-ChildItem $obsBinDir -Filter "*.dll" | Select-Object Name
-            Copy-Item "$obsBinDir\*.dll" $testDir -Force -ErrorAction SilentlyContinue
+            Write-Host "Found OBS bin directory: $obsBinDir"
+            Write-Host "Listing key DLLs:"
+            Get-ChildItem $obsBinDir -Filter "*.dll" | Select-Object -First 10 | ForEach-Object { "  " + $_.Name } | Write-Host
+
+            # Put OBS & deps dirs on PATH so the test EXE can load transitive DLLs
+            $env:PATH = "$obsBinDir;$env:PATH"
           } else {
-            Write-Host "WARNING: OBS bin directory not found in any expected location"
+            Write-Host "##[warning] Could not locate obs.dll/libobs.dll under expected roots."
+            Write-Host "Searched under: .build\\windows\\obs-build-dependencies, .build\\windows, ."
           }
 
           if (Test-Path $depsBinDir) {
-            Write-Host "Deps bin directory exists:"
-            Get-ChildItem $depsBinDir -Filter "*.dll" | Select-Object Name | Select-Object -First 10
-            Copy-Item "$depsBinDir\*.dll" $testDir -Force -ErrorAction SilentlyContinue
+            Write-Host "Deps bin directory: $depsBinDir"
+            $env:PATH = "$depsBinDir;$env:PATH"
           } else {
-            Write-Host "WARNING: Deps bin directory not found: $depsBinDir"
+            Write-Host "##[warning] Deps bin directory not found: $depsBinDir"
+          }
+
+          # Copy all DLLs directly into the test dir (EXE dir is first in DLL search order)
+          if ($obsBinDir) {
+            Write-Host "Copying OBS DLLs into test dir..."
+            Copy-Item (Join-Path $obsBinDir "*.dll") $testDir -Force -ErrorAction SilentlyContinue
+          }
+          if (Test-Path $depsBinDir) {
+            Write-Host "Copying deps DLLs into test dir..."
+            Copy-Item (Join-Path $depsBinDir "*.dll") $testDir -Force -ErrorAction SilentlyContinue
+          }
+
+          # Verify the test EXE exists
+          if (-not (Test-Path $testExe)) {
+            Write-Host "##[error] Test executable not found at: $testExe"
+            exit 1
           }
 
           Write-Host 'Running test executable...'
-          & .build\windows\tests\Release\obs-polyemesis-tests.exe
+          & $testExe
+          $exit = $LASTEXITCODE
           Write-Host '::endgroup::'
+
+          if ($exit -ne 0) {
+            Write-Host "##[error] Test suite failed with exit code $exit"
+            exit $exit
+          }
 
       - name: Run Tests with CTest 📊
         run: |
