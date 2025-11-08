@@ -187,11 +187,13 @@ Generate Reports
 │                  Security Scanners                       │
 ├─────────────────────────────────────────────────────────┤
 │                                                          │
-│  CodeQL (GitHub Native)                                 │
-│    ├─► Deep semantic analysis                           │
-│    ├─► Queries: security-extended + quality             │
-│    ├─► Detects: SQL injection, XSS, buffer overflow     │
-│    └─► Results → GitHub Security Tab                    │
+│  CodeQL (GitHub Native) - SECURITY + QUALITY            │
+│    ├─► Deep semantic code analysis                      │
+│    ├─► Queries: security-extended + security-and-quality│
+│    ├─► Security: SQL injection, XSS, buffer overflow    │
+│    ├─► Quality: Code smells, best practices, bugs       │
+│    ├─► Maintainability & reliability metrics            │
+│    └─► Results → GitHub Security Tab + Code Scanning    │
 │                                                          │
 │  Snyk                                                   │
 │    ├─► Dependency vulnerability scanning               │

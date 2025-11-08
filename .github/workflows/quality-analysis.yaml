@@ -11,6 +11,9 @@ on:
 permissions:
   contents: read
 
+# NOTE: CodeQL Analysis also runs code quality checks
+# See security.yaml for CodeQL (security-extended + security-and-quality queries)
+
 jobs:
   lizard:
     name: Code Complexity Analysis (Lizard)

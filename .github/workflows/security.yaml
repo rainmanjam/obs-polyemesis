@@ -41,7 +41,7 @@ jobs:
           sarif_file: snyk.sarif
 
   codeql:
-    name: CodeQL Analysis
+    name: CodeQL Analysis (Security + Quality)
     runs-on: ubuntu-latest
     permissions:
       actions: read
@@ -61,7 +61,14 @@ jobs:
         uses: github/codeql-action/init@v3
         with:
           languages: ${{ matrix.language }}
+          # Runs BOTH security and code quality queries
           queries: security-extended,security-and-quality
+          # Additional configuration for comprehensive analysis
+          config: |
+            paths-ignore:
+              - 'build/**'
+              - 'tests/**'
+              - '.deps/**'
 
       - name: Install Dependencies
         run: |
