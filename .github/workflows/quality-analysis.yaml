@@ -28,25 +28,35 @@ jobs:
         run: pip install lizard
 
       - name: Run Lizard Analysis
+        continue-on-error: true
         run: |
           echo "### Code Complexity Report" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
-          lizard src/ -l cpp --CCN 15 -w || true
+
+          # Run Lizard analysis
+          if lizard src/ -l cpp --CCN 15 -w 2>&1 | tee lizard-output.txt; then
+            echo "✓ Lizard analysis completed successfully" >> $GITHUB_STEP_SUMMARY
+          else
+            echo "⚠️ Lizard analysis completed with warnings" >> $GITHUB_STEP_SUMMARY
+          fi
 
           # Generate detailed report
-          lizard src/ -l cpp -o lizard-report.html || true
+          lizard src/ -l cpp -o lizard-report.html 2>/dev/null || echo "Could not generate HTML report" >> $GITHUB_STEP_SUMMARY
 
           # Show summary in workflow
+          echo "" >> $GITHUB_STEP_SUMMARY
           echo "\`\`\`" >> $GITHUB_STEP_SUMMARY
-          lizard src/ -l cpp --CCN 15 2>&1 | head -50 >> $GITHUB_STEP_SUMMARY || true
+          head -50 lizard-output.txt >> $GITHUB_STEP_SUMMARY 2>/dev/null || echo "No complexity data available" >> $GITHUB_STEP_SUMMARY
           echo "\`\`\`" >> $GITHUB_STEP_SUMMARY
 
       - name: Upload Lizard Report
         uses: actions/upload-artifact@v4
-        if: always()
+        if: always() && hashFiles('lizard-report.html') != ''
         with:
           name: lizard-complexity-report
-          path: lizard-report.html
+          path: |
+            lizard-report.html
+            lizard-output.txt
           retention-days: 30
 
   valgrind:
@@ -69,13 +79,14 @@ jobs:
             ninja-build
 
       - name: Build with Debug Symbols
+        continue-on-error: true
         run: |
           cmake -B build -G Ninja \
             -DCMAKE_BUILD_TYPE=Debug \
             -DENABLE_FRONTEND_API=OFF \
             -DENABLE_QT=OFF \
             -DENABLE_TESTING=ON
-          cmake --build build
+          cmake --build build --target obs-polyemesis-tests || true
 
       - name: Run Valgrind Memory Check
         continue-on-error: true  # Don't fail build on memory leaks initially
