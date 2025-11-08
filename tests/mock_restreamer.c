@@ -28,13 +28,19 @@
 #ifdef _WIN32
 typedef HANDLE thread_handle_t;
 typedef int ssize_t; /* Windows doesn't define ssize_t */
+typedef SOCKET socket_t;
+#define SOCKET_ERROR_VALUE INVALID_SOCKET
+#define IS_SOCKET_ERROR(s) ((s) == INVALID_SOCKET)
 #else
 typedef pthread_t thread_handle_t;
+typedef int socket_t;
+#define SOCKET_ERROR_VALUE (-1)
+#define IS_SOCKET_ERROR(s) ((s) < 0)
 #endif
 
 /* Mock server state */
 typedef struct {
-  int socket_fd;
+  socket_t socket_fd;
   uint16_t port;
   bool running;
   thread_handle_t thread;
@@ -129,10 +135,10 @@ static void *server_thread(void *arg) {
     struct sockaddr_in client_addr;
     socklen_t client_len = sizeof(client_addr);
 
-    int client_fd = accept(g_server.socket_fd, (struct sockaddr *)&client_addr,
+    socket_t client_fd = accept(g_server.socket_fd, (struct sockaddr *)&client_addr,
                            &client_len);
 
-    if (client_fd < 0) {
+    if (IS_SOCKET_ERROR(client_fd)) {
       if (g_server.running) {
         perror("accept failed");
       }
@@ -173,7 +179,7 @@ bool mock_restreamer_start(uint16_t port) {
 
   /* Create socket */
   g_server.socket_fd = socket(AF_INET, SOCK_STREAM, 0);
-  if (g_server.socket_fd < 0) {
+  if (IS_SOCKET_ERROR(g_server.socket_fd)) {
     return false;
   }
 
