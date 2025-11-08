@@ -2,9 +2,6 @@
 
 cmake_minimum_required(VERSION 3.28)
 
-# Enable testing
-enable_testing()
-
 # Add test executable
 add_executable(
   obs-polyemesis-tests
