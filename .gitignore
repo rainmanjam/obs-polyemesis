@@ -55,3 +55,16 @@ release/
 # Temporary files
 *.log
 *.tmp
+
+# Secrets and credentials
+.secrets
+*.secrets
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+*.p12
+*.pfx
+credentials.json
+auth.json
