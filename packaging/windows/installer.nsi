@@ -1,111 +1,196 @@
-; NSIS Installer Script for OBS Polyemesis
-; Creates Windows installer for OBS Studio plugin
-
-!define PRODUCT_NAME "OBS Polyemesis"
-!define PRODUCT_VERSION "1.0.0"
-!define PRODUCT_PUBLISHER "rainmanjam"
-!define PRODUCT_WEB_SITE "https://github.com/rainmanjam/obs-polyemesis"
-!define PRODUCT_UNINST_KEY "Software\Microsoft\Windows\CurrentVersion\Uninstall\${PRODUCT_NAME}"
-
-SetCompressor lzma
+; OBS Polyemesis - Windows Installer Script
+; NSIS (Nullsoft Scriptable Install System) Script
+;
+; This script creates a Windows installer that installs the plugin
+; into the OBS Studio plugins directory.
+;
+; Requirements:
+;   - NSIS 3.x or later
+;   - Built plugin files in .build\windows\Release
+;
+; Build command:
+;   makensis /DVERSION=1.0.0 packaging\windows\installer.nsi
+;
+;--------------------------------
 
 !include "MUI2.nsh"
-!include "x64.nsh"
+!include "FileFunc.nsh"
+!include "LogicLib.nsh"
 
-; MUI Settings
-!define MUI_ABORTWARNING
-!define MUI_ICON "${NSISDIR}\Contrib\Graphics\Icons\modern-install.ico"
-!define MUI_UNICON "${NSISDIR}\Contrib\Graphics\Icons\modern-uninstall.ico"
+;--------------------------------
+; General Configuration
 
-; Welcome page
-!insertmacro MUI_PAGE_WELCOME
-; License page
-!insertmacro MUI_PAGE_LICENSE "..\..\LICENSE"
-; Directory page
-!insertmacro MUI_PAGE_DIRECTORY
-; Instfiles page
-!insertmacro MUI_PAGE_INSTFILES
-; Finish page
-!define MUI_FINISHPAGE_SHOWREADME "$INSTDIR\README.txt"
-!insertmacro MUI_PAGE_FINISH
+; Plugin information
+!ifndef VERSION
+  !define VERSION "1.0.0"
+!endif
 
-; Uninstaller pages
-!insertmacro MUI_UNPAGE_INSTFILES
+!define PRODUCT_NAME "OBS Polyemesis"
+!define PRODUCT_PUBLISHER "rainmanjam"
+!define PRODUCT_WEB_SITE "https://github.com/rainmanjam/obs-polyemesis"
+!define PRODUCT_DIR_REGKEY "Software\Microsoft\Windows\CurrentVersion\App Paths\obs-polyemesis"
+!define PRODUCT_UNINST_KEY "Software\Microsoft\Windows\CurrentVersion\Uninstall\${PRODUCT_NAME}"
+!define PRODUCT_UNINST_ROOT_KEY "HKLM"
 
-; Language files
-!insertmacro MUI_LANGUAGE "English"
-
-; Installer details
-Name "${PRODUCT_NAME} ${PRODUCT_VERSION}"
-OutFile "..\..\obs-polyemesis-${PRODUCT_VERSION}-windows-x64.exe"
+; Installer properties
+Name "${PRODUCT_NAME} ${VERSION}"
+OutFile "..\..\build\installers\obs-polyemesis-${VERSION}-windows-x64.exe"
 InstallDir "$APPDATA\obs-studio\plugins\obs-polyemesis"
+InstallDirRegKey HKCU "${PRODUCT_DIR_REGKEY}" ""
 ShowInstDetails show
 ShowUnInstDetails show
 
-; Request admin privileges
+; Installer attributes
 RequestExecutionLevel user
+SetCompressor /SOLID lzma
+Unicode True
 
-Section "MainSection" SEC01
+; Version information
+VIProductVersion "${VERSION}.0"
+VIAddVersionKey "ProductName" "${PRODUCT_NAME}"
+VIAddVersionKey "ProductVersion" "${VERSION}"
+VIAddVersionKey "CompanyName" "${PRODUCT_PUBLISHER}"
+VIAddVersionKey "LegalCopyright" "© 2025 ${PRODUCT_PUBLISHER}"
+VIAddVersionKey "FileDescription" "${PRODUCT_NAME} Installer"
+VIAddVersionKey "FileVersion" "${VERSION}"
+
+;--------------------------------
+; Interface Settings
+
+!define MUI_ABORTWARNING
+!define MUI_ICON "${NSISDIR}\Contrib\Graphics\Icons\modern-install.ico"
+!define MUI_UNICON "${NSISDIR}\Contrib\Graphics\Icons\modern-uninstall.ico"
+!define MUI_HEADERIMAGE
+!define MUI_HEADERIMAGE_BITMAP "${NSISDIR}\Contrib\Graphics\Header\nsis.bmp"
+!define MUI_WELCOMEFINISHPAGE_BITMAP "${NSISDIR}\Contrib\Graphics\Wizard\win.bmp"
+
+;--------------------------------
+; Pages
+
+!insertmacro MUI_PAGE_WELCOME
+!insertmacro MUI_PAGE_LICENSE "..\..\LICENSE"
+!insertmacro MUI_PAGE_COMPONENTS
+!insertmacro MUI_PAGE_DIRECTORY
+!insertmacro MUI_PAGE_INSTFILES
+
+!define MUI_FINISHPAGE_TITLE "${PRODUCT_NAME} Installation Complete"
+!define MUI_FINISHPAGE_TEXT "The plugin has been installed to your OBS Studio plugins directory.$\r$\n$\r$\nTo use the plugin:$\r$\n1. Launch OBS Studio$\r$\n2. Go to View → Docks → Restreamer Control$\r$\n3. Configure your restreamer connection"
+!define MUI_FINISHPAGE_LINK "Visit the project on GitHub"
+!define MUI_FINISHPAGE_LINK_LOCATION "${PRODUCT_WEB_SITE}"
+!insertmacro MUI_PAGE_FINISH
+
+!insertmacro MUI_UNPAGE_INSTFILES
+
+;--------------------------------
+; Languages
+
+!insertmacro MUI_LANGUAGE "English"
+
+;--------------------------------
+; Installer Sections
+
+Section "OBS Polyemesis Plugin (required)" SEC01
+  SectionIn RO
+
+  ; Set output path to the installation directory.
   SetOutPath "$INSTDIR"
-  SetOverwrite on
 
-  ; Copy plugin files
-  File /r "..\..\build\Release\bin\64bit\*.*"
-  File /r "..\..\build\Release\data\*.*"
+  ; Put files there
+  File /r "..\..\build\windows\Release\obs-polyemesis\*.*"
 
-  ; Create README
-  FileOpen $0 "$INSTDIR\README.txt" w
-  FileWrite $0 "OBS Polyemesis - Restreamer Control Plugin$\r$\n"
-  FileWrite $0 "$\r$\n"
-  FileWrite $0 "Installation complete!$\r$\n"
-  FileWrite $0 "$\r$\n"
-  FileWrite $0 "To use the plugin:$\r$\n"
-  FileWrite $0 "1. Launch OBS Studio$\r$\n"
-  FileWrite $0 "2. Go to View -> Docks -> Restreamer Control$\r$\n"
-  FileWrite $0 "3. Configure your Restreamer connection$\r$\n"
-  FileWrite $0 "$\r$\n"
-  FileWrite $0 "Documentation: ${PRODUCT_WEB_SITE}$\r$\n"
-  FileClose $0
-SectionEnd
+  ; Write the installation path into the registry
+  WriteRegStr HKCU "${PRODUCT_DIR_REGKEY}" "" "$INSTDIR\obs-polyemesis.dll"
 
-Section -AdditionalIcons
-  CreateDirectory "$SMPROGRAMS\OBS Polyemesis"
-  CreateShortCut "$SMPROGRAMS\OBS Polyemesis\Uninstall.lnk" "$INSTDIR\uninst.exe"
-  CreateShortCut "$SMPROGRAMS\OBS Polyemesis\Website.lnk" "${PRODUCT_WEB_SITE}"
-SectionEnd
-
-Section -Post
+  ; Write the uninstall keys for Windows
+  WriteRegStr ${PRODUCT_UNINST_ROOT_KEY} "${PRODUCT_UNINST_KEY}" "DisplayName" "$(^Name)"
+  WriteRegStr ${PRODUCT_UNINST_ROOT_KEY} "${PRODUCT_UNINST_KEY}" "UninstallString" "$INSTDIR\uninst.exe"
+  WriteRegStr ${PRODUCT_UNINST_ROOT_KEY} "${PRODUCT_UNINST_KEY}" "DisplayIcon" "$INSTDIR\obs-polyemesis.dll"
+  WriteRegStr ${PRODUCT_UNINST_ROOT_KEY} "${PRODUCT_UNINST_KEY}" "DisplayVersion" "${VERSION}"
+  WriteRegStr ${PRODUCT_UNINST_ROOT_KEY} "${PRODUCT_UNINST_KEY}" "URLInfoAbout" "${PRODUCT_WEB_SITE}"
+  WriteRegStr ${PRODUCT_UNINST_ROOT_KEY} "${PRODUCT_UNINST_KEY}" "Publisher" "${PRODUCT_PUBLISHER}"
   WriteUninstaller "$INSTDIR\uninst.exe"
-  WriteRegStr HKCU "${PRODUCT_UNINST_KEY}" "DisplayName" "$(^Name)"
-  WriteRegStr HKCU "${PRODUCT_UNINST_KEY}" "UninstallString" "$INSTDIR\uninst.exe"
-  WriteRegStr HKCU "${PRODUCT_UNINST_KEY}" "DisplayVersion" "${PRODUCT_VERSION}"
-  WriteRegStr HKCU "${PRODUCT_UNINST_KEY}" "URLInfoAbout" "${PRODUCT_WEB_SITE}"
-  WriteRegStr HKCU "${PRODUCT_UNINST_KEY}" "Publisher" "${PRODUCT_PUBLISHER}"
+
+  ; Get installed size
+  ${GetSize} "$INSTDIR" "/S=0K" $0 $1 $2
+  IntFmt $0 "0x%08X" $0
+  WriteRegDWORD ${PRODUCT_UNINST_ROOT_KEY} "${PRODUCT_UNINST_KEY}" "EstimatedSize" "$0"
+
 SectionEnd
+
+Section "Locale Files" SEC02
+  SetOutPath "$INSTDIR\data\locale"
+  File /r "..\..\data\locale\*.*"
+SectionEnd
+
+;--------------------------------
+; Section Descriptions
+
+!insertmacro MUI_FUNCTION_DESCRIPTION_BEGIN
+  !insertmacro MUI_DESCRIPTION_TEXT ${SEC01} "Core plugin files (required)"
+  !insertmacro MUI_DESCRIPTION_TEXT ${SEC02} "Localization files for different languages"
+!insertmacro MUI_FUNCTION_DESCRIPTION_END
+
+;--------------------------------
+; Installer Functions
+
+Function .onInit
+  ; Check if OBS Studio is installed
+  ReadRegStr $0 HKLM "SOFTWARE\OBS Studio" "InstallLocation"
+  ${If} $0 == ""
+    ReadRegStr $0 HKCU "SOFTWARE\OBS Studio" "InstallLocation"
+  ${EndIf}
+
+  ${If} $0 == ""
+    MessageBox MB_YESNO|MB_ICONEXCLAMATION \
+      "OBS Studio does not appear to be installed on this system.$\r$\n$\r$\nThe plugin requires OBS Studio 28.0 or later.$\r$\n$\r$\nDo you want to continue with the installation anyway?" \
+      IDYES +2
+    Abort
+  ${EndIf}
+
+  ; Check if plugin is already installed
+  ${If} ${FileExists} "$INSTDIR\obs-polyemesis.dll"
+    MessageBox MB_YESNO|MB_ICONQUESTION \
+      "An existing installation of ${PRODUCT_NAME} was detected.$\r$\n$\r$\nDo you want to overwrite it?" \
+      IDYES +2
+    Abort
+  ${EndIf}
+FunctionEnd
+
+Function .onInstSuccess
+  MessageBox MB_OK "Installation complete!$\r$\n$\r$\nThe plugin has been installed to:$\r$\n$INSTDIR$\r$\n$\r$\nPlease restart OBS Studio if it is currently running."
+FunctionEnd
+
+;--------------------------------
+; Uninstaller Section
 
 Section Uninstall
+  ; Remove registry keys
+  DeleteRegKey ${PRODUCT_UNINST_ROOT_KEY} "${PRODUCT_UNINST_KEY}"
+  DeleteRegKey HKCU "${PRODUCT_DIR_REGKEY}"
+
+  ; Remove files and directories
+  RMDir /r "$INSTDIR\data"
+  Delete "$INSTDIR\obs-polyemesis.dll"
+  Delete "$INSTDIR\*.pdb"
   Delete "$INSTDIR\uninst.exe"
-  Delete "$INSTDIR\README.txt"
 
-  RMDir /r "$INSTDIR"
-  RMDir /r "$SMPROGRAMS\OBS Polyemesis"
+  ; Remove installation directory if empty
+  RMDir "$INSTDIR"
 
-  DeleteRegKey HKCU "${PRODUCT_UNINST_KEY}"
   SetAutoClose true
 SectionEnd
 
-Function .onInit
-  ; Check if OBS is running
-  FindWindow $0 "" "OBS"
-  StrCmp $0 0 notRunning
-    MessageBox MB_OK|MB_ICONEXCLAMATION "OBS Studio is currently running. Please close it before installing this plugin."
-    Abort
-  notRunning:
+;--------------------------------
+; Uninstaller Functions
 
-  ; Check for OBS installation
-  IfFileExists "$PROGRAMFILES\obs-studio\bin\64bit\obs64.exe" obsFound
-  IfFileExists "$PROGRAMFILES (x86)\obs-studio\bin\64bit\obs64.exe" obsFound
-    MessageBox MB_YESNO|MB_ICONQUESTION "OBS Studio does not appear to be installed.$\n$\nWould you like to continue anyway?" IDYES obsFound
-    Abort
-  obsFound:
+Function un.onInit
+  MessageBox MB_ICONQUESTION|MB_YESNO|MB_DEFBUTTON2 \
+    "Are you sure you want to completely remove ${PRODUCT_NAME} and all of its components?" \
+    IDYES +2
+  Abort
+FunctionEnd
+
+Function un.onUninstSuccess
+  MessageBox MB_ICONINFORMATION|MB_OK \
+    "${PRODUCT_NAME} was successfully removed from your computer."
 FunctionEnd
