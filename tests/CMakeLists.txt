@@ -44,10 +44,17 @@ if(UNIX)
   target_link_libraries(obs-polyemesis-tests PRIVATE pthread)
 endif()
 
-# Add tests
-add_test(NAME api_client_tests COMMAND obs-polyemesis-tests --test-suite=api)
-add_test(NAME config_tests COMMAND obs-polyemesis-tests --test-suite=config)
-add_test(NAME multistream_tests COMMAND obs-polyemesis-tests --test-suite=multistream)
+# Add tests with proper executable path handling
+# Use TARGET_FILE generator expression to handle multi-config generators (Xcode, Visual Studio)
+add_test(NAME api_client_tests COMMAND $<TARGET_FILE:obs-polyemesis-tests> --test-suite=api)
+add_test(NAME config_tests COMMAND $<TARGET_FILE:obs-polyemesis-tests> --test-suite=config)
+add_test(NAME multistream_tests COMMAND $<TARGET_FILE:obs-polyemesis-tests> --test-suite=multistream)
+
+# Set working directory for tests to ensure they run from the correct location
+set_tests_properties(api_client_tests config_tests multistream_tests
+  PROPERTIES
+    WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}
+)
 
 # Code coverage configuration (optional)
 if(ENABLE_COVERAGE)
