@@ -48,9 +48,11 @@ add_test(NAME config_tests COMMAND $<TARGET_FILE:obs-polyemesis-tests> --test-su
 add_test(NAME multistream_tests COMMAND $<TARGET_FILE:obs-polyemesis-tests> --test-suite=multistream)
 
 # Set working directory for tests to ensure they run from the correct location
-set_tests_properties(api_client_tests config_tests multistream_tests
-  PROPERTIES
-    WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}
+set_tests_properties(
+  api_client_tests
+  config_tests
+  multistream_tests
+  PROPERTIES WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}
 )
 
 # Code coverage configuration (optional)

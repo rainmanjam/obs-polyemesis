@@ -108,6 +108,6 @@ set_target_properties_plugin(${CMAKE_PROJECT_NAME} PROPERTIES OUTPUT_NAME ${_nam
 # Add tests (optional, controlled by ENABLE_TESTING option)
 option(ENABLE_TESTING "Build test suite" OFF)
 if(ENABLE_TESTING)
-  enable_testing()  # Required for CTest to find tests
+  enable_testing() # Required for CTest to find tests
   add_subdirectory(tests)
 endif()
