@@ -145,13 +145,17 @@ jobs:
           if ([string]::IsNullOrEmpty($version)) {
             $version = "1.0.0"
           }
-          
+
+          # Strip any suffix from version for NSIS (which requires X.X.X.X format)
+          # E.g., "0.9.0-beta" becomes "0.9.0"
+          $cleanVersion = $version -replace '-.*$', ''
+
           # Create installers directory
           New-Item -ItemType Directory -Force -Path build\installers
-          
+
           # Build NSIS installer
           & "C:\Program Files (x86)\NSIS\makensis.exe" `
-            /DVERSION=$version `
+            /DVERSION=$cleanVersion `
             packaging\windows\installer.nsi
 
       - name: Upload Package
