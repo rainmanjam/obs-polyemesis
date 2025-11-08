@@ -95,21 +95,29 @@ static void handle_request(socket_t client_fd, const char *request) {
   const char *response = RESPONSE_NOT_FOUND;
 
   /* Parse request line */
-  if (strstr(request, "GET /api/v3/process") != NULL) {
+  /* Base API endpoint - used by test_connection() */
+  if (strstr(request, "GET /api/v3/ ") != NULL ||
+      strstr(request, "GET /api/v3 ") != NULL) {
+    response = "HTTP/1.1 200 OK\r\n"
+               "Content-Type: application/json\r\n"
+               "Content-Length: 2\r\n"
+               "\r\n"
+               "{}";
+  } else if (strstr(request, "GET /api/v3/process") != NULL) {
     /* Check for auth header */
     if (strstr(request, "Authorization:") == NULL) {
       response = RESPONSE_UNAUTHORIZED;
     } else {
       response = RESPONSE_PROCESSES;
     }
-  } else if (strstr(request, "PUT /api/v3/process/") != NULL &&
+  } else if (strstr(request, "POST /api/v3/process/") != NULL &&
              strstr(request, "/command/start") != NULL) {
     if (strstr(request, "Authorization:") == NULL) {
       response = RESPONSE_UNAUTHORIZED;
     } else {
       response = RESPONSE_PROCESS_START;
     }
-  } else if (strstr(request, "PUT /api/v3/process/") != NULL &&
+  } else if (strstr(request, "POST /api/v3/process/") != NULL &&
              strstr(request, "/command/stop") != NULL) {
     if (strstr(request, "Authorization:") == NULL) {
       response = RESPONSE_UNAUTHORIZED;
@@ -220,7 +228,7 @@ bool mock_restreamer_start(uint16_t port) {
   printf("[MOCK] Binding to port %d...\n", port);
   struct sockaddr_in server_addr = {0};
   server_addr.sin_family = AF_INET;
-  server_addr.sin_addr.s_addr = INADDR_ANY;
+  server_addr.sin_addr.s_addr = inet_addr("127.0.0.1");
   server_addr.sin_port = htons(port);
 
   if (bind(g_server.socket_fd, (struct sockaddr *)&server_addr,
@@ -284,10 +292,12 @@ void mock_restreamer_stop(void) {
 
   g_server.running = false;
 
-  /* Close socket to unblock accept() */
+  /* Shutdown socket first to unblock accept() */
 #ifdef _WIN32
+  shutdown(g_server.socket_fd, SD_BOTH);
   closesocket(g_server.socket_fd);
 #else
+  shutdown(g_server.socket_fd, SHUT_RDWR);
   close(g_server.socket_fd);
 #endif
 

@@ -4,6 +4,7 @@
  * Simple test framework that runs all test suites
  */
 
+#include <curl/curl.h>
 #include <stdbool.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -92,6 +93,9 @@ static bool run_test_suite(const char *name, bool (*suite_func)(void)) {
 int main(int argc, char **argv) {
   const char *suite_filter = NULL;
 
+  /* Initialize curl globally (required for Windows) */
+  curl_global_init(CURL_GLOBAL_DEFAULT);
+
   /* Parse command line arguments */
   for (int i = 1; i < argc; i++) {
     if (strncmp(argv[i], "--test-suite=", 13) == 0) {
@@ -124,6 +128,9 @@ int main(int argc, char **argv) {
   printf("  ✓ Passed: %d\n", tests_passed);
   printf("  ✗ Failed: %d\n", tests_failed);
   printf("========================================\n");
+
+  /* Cleanup curl */
+  curl_global_cleanup();
 
   return (tests_failed == 0) ? EXIT_SUCCESS : EXIT_FAILURE;
 }
