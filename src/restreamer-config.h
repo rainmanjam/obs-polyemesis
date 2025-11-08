@@ -16,7 +16,8 @@ void restreamer_config_init(void);
 restreamer_connection_t *restreamer_config_get_global_connection(void);
 
 /* Set global connection settings */
-void restreamer_config_set_global_connection(restreamer_connection_t *connection);
+void restreamer_config_set_global_connection(
+    restreamer_connection_t *connection);
 
 /* Create API instance from global settings */
 restreamer_api_t *restreamer_config_create_global_api(void);
@@ -36,11 +37,12 @@ void restreamer_config_destroy(void);
 /* Per-source configuration helpers */
 
 /* Load connection from source settings */
-restreamer_connection_t *restreamer_config_load_from_settings(obs_data_t *settings);
+restreamer_connection_t *
+restreamer_config_load_from_settings(obs_data_t *settings);
 
 /* Save connection to source settings */
 void restreamer_config_save_to_settings(obs_data_t *settings,
-					restreamer_connection_t *connection);
+                                        restreamer_connection_t *connection);
 
 /* Free connection structure */
 void restreamer_config_free_connection(restreamer_connection_t *connection);

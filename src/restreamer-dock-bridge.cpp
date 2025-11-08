@@ -5,29 +5,25 @@
 
 extern "C" {
 
-void *restreamer_dock_create(void)
-{
-	QMainWindow *main_window =
-		(QMainWindow *)obs_frontend_get_main_window();
+void *restreamer_dock_create(void) {
+  QMainWindow *main_window = (QMainWindow *)obs_frontend_get_main_window();
 
-	if (!main_window) {
-		obs_log(LOG_ERROR,
-			"Failed to get main window for dock creation");
-		return nullptr;
-	}
+  if (!main_window) {
+    obs_log(LOG_ERROR, "Failed to get main window for dock creation");
+    return nullptr;
+  }
 
-	RestreamerDock *dock = new RestreamerDock();
-	obs_frontend_add_dock_by_id("RestreamerControl", "Restreamer Control", dock);
+  RestreamerDock *dock = new RestreamerDock();
+  obs_frontend_add_dock_by_id("RestreamerControl", "Restreamer Control", dock);
 
-	return dock;
+  return dock;
 }
 
-void restreamer_dock_destroy(void *dock)
-{
-	if (dock) {
-		RestreamerDock *dockWidget = (RestreamerDock *)dock;
-		delete dockWidget;
-	}
+void restreamer_dock_destroy(void *dock) {
+  if (dock) {
+    RestreamerDock *dockWidget = (RestreamerDock *)dock;
+    delete dockWidget;
+  }
 }
 
 } // extern "C"

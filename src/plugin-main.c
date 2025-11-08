@@ -16,9 +16,9 @@ You should have received a copy of the GNU General Public License along
 with this program. If not, see <https://www.gnu.org/licenses/>
 */
 
+#include "restreamer-config.h"
 #include <obs-module.h>
 #include <plugin-support.h>
-#include "restreamer-config.h"
 
 #ifdef ENABLE_QT
 #include <obs-frontend-api.h>
@@ -47,62 +47,60 @@ extern void restreamer_dock_destroy(void *dock);
 static void *dock_widget = NULL;
 #endif
 
-bool obs_module_load(void)
-{
-	obs_log(LOG_INFO, "obs-polyemesis plugin loaded (version %s)", PLUGIN_VERSION);
+bool obs_module_load(void) {
+  obs_log(LOG_INFO, "obs-polyemesis plugin loaded (version %s)",
+          PLUGIN_VERSION);
 
-	/* Initialize configuration system */
-	restreamer_config_init();
+  /* Initialize configuration system */
+  restreamer_config_init();
 
-	/* Register source */
-	obs_register_source(&restreamer_source_info);
-	obs_log(LOG_INFO, "Registered restreamer source");
+  /* Register source */
+  obs_register_source(&restreamer_source_info);
+  obs_log(LOG_INFO, "Registered restreamer source");
 
-	/* Register output */
-	obs_register_output(&restreamer_output_info);
-	obs_log(LOG_INFO, "Registered restreamer output");
-
-#ifdef ENABLE_QT
-	/* Create and register dock widget */
-	obs_frontend_add_event_callback(
-		[](enum obs_frontend_event event, void *private_data) {
-			if (event == OBS_FRONTEND_EVENT_FINISHED_LOADING) {
-				dock_widget = restreamer_dock_create();
-				obs_log(LOG_INFO, "Restreamer dock created");
-			}
-		},
-		NULL);
-#endif
-
-	obs_log(LOG_INFO, "obs-polyemesis initialized successfully");
-	obs_log(LOG_INFO, "Features: Source, Output, Multistreaming, Dock UI");
-
-	return true;
-}
-
-void obs_module_unload(void)
-{
-	obs_log(LOG_INFO, "Unloading obs-polyemesis plugin");
+  /* Register output */
+  obs_register_output(&restreamer_output_info);
+  obs_log(LOG_INFO, "Registered restreamer output");
 
 #ifdef ENABLE_QT
-	if (dock_widget) {
-		restreamer_dock_destroy(dock_widget);
-		dock_widget = NULL;
-	}
+  /* Create and register dock widget */
+  obs_frontend_add_event_callback(
+      [](enum obs_frontend_event event, void *private_data) {
+        if (event == OBS_FRONTEND_EVENT_FINISHED_LOADING) {
+          dock_widget = restreamer_dock_create();
+          obs_log(LOG_INFO, "Restreamer dock created");
+        }
+      },
+      NULL);
 #endif
 
-	/* Cleanup config */
-	restreamer_config_destroy();
+  obs_log(LOG_INFO, "obs-polyemesis initialized successfully");
+  obs_log(LOG_INFO, "Features: Source, Output, Multistreaming, Dock UI");
 
-	obs_log(LOG_INFO, "obs-polyemesis unloaded");
+  return true;
 }
 
-const char *obs_module_description(void)
-{
-	return "Remote control and monitoring for Restreamer with multistreaming support";
+void obs_module_unload(void) {
+  obs_log(LOG_INFO, "Unloading obs-polyemesis plugin");
+
+#ifdef ENABLE_QT
+  if (dock_widget) {
+    restreamer_dock_destroy(dock_widget);
+    dock_widget = NULL;
+  }
+#endif
+
+  /* Cleanup config */
+  restreamer_config_destroy();
+
+  obs_log(LOG_INFO, "obs-polyemesis unloaded");
 }
 
-const char *obs_module_name(void)
-{
-	return "OBS Polyemesis - Restreamer Control";
+const char *obs_module_description(void) {
+  return "Remote control and monitoring for Restreamer with multistreaming "
+         "support";
+}
+
+const char *obs_module_name(void) {
+  return "OBS Polyemesis - Restreamer Control";
 }
