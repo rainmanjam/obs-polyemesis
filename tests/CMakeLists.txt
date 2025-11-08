@@ -72,17 +72,11 @@ if(ENABLE_ASAN)
 endif()
 
 # Performance benchmarks (separate executable)
-add_executable(
-  obs-polyemesis-benchmarks
-  test_performance.c
-  mock_restreamer.c
-)
+add_executable(obs-polyemesis-benchmarks test_performance.c mock_restreamer.c)
 
 target_sources(
   obs-polyemesis-benchmarks
-  PRIVATE
-    ${CMAKE_SOURCE_DIR}/src/restreamer-api.c
-    ${CMAKE_SOURCE_DIR}/src/restreamer-multistream.c
+  PRIVATE ${CMAKE_SOURCE_DIR}/src/restreamer-api.c ${CMAKE_SOURCE_DIR}/src/restreamer-multistream.c
 )
 
 target_include_directories(
@@ -108,22 +102,13 @@ endif()
 if(ENABLE_QT)
   find_package(Qt6 COMPONENTS Test QUIET)
   if(Qt6Test_FOUND)
-    add_executable(
-      obs-polyemesis-ui-tests
-      test_ui.cpp
-    )
+    add_executable(obs-polyemesis-ui-tests test_ui.cpp)
 
     set_target_properties(obs-polyemesis-ui-tests PROPERTIES AUTOMOC ON)
 
-    target_include_directories(
-      obs-polyemesis-ui-tests
-      PRIVATE ${CMAKE_SOURCE_DIR}/src
-    )
+    target_include_directories(obs-polyemesis-ui-tests PRIVATE ${CMAKE_SOURCE_DIR}/src)
 
-    target_link_libraries(
-      obs-polyemesis-ui-tests
-      PRIVATE Qt6::Test Qt6::Core Qt6::Widgets
-    )
+    target_link_libraries(obs-polyemesis-ui-tests PRIVATE Qt6::Test Qt6::Core Qt6::Widgets)
 
     # Add UI tests to CTest
     add_test(NAME ui_tests COMMAND $<TARGET_FILE:obs-polyemesis-ui-tests>)

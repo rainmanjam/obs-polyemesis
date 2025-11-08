@@ -34,7 +34,7 @@
   do {                                                                         \
     if (strcmp((expected), (actual)) != 0) {                                   \
       fprintf(stderr,                                                          \
-              "  ✗ FAIL: %s\n    Expected: \"%s\", Actual: \"%s\"\n    at "  \
+              "  ✗ FAIL: %s\n    Expected: \"%s\", Actual: \"%s\"\n    at "    \
               "%s:%d\n",                                                       \
               message, (expected), (actual), __FILE__, __LINE__);              \
       return false;                                                            \
