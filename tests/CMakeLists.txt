@@ -71,7 +71,75 @@ if(ENABLE_ASAN)
   endif()
 endif()
 
+# Performance benchmarks (separate executable)
+add_executable(
+  obs-polyemesis-benchmarks
+  test_performance.c
+  mock_restreamer.c
+)
+
+target_sources(
+  obs-polyemesis-benchmarks
+  PRIVATE
+    ${CMAKE_SOURCE_DIR}/src/restreamer-api.c
+    ${CMAKE_SOURCE_DIR}/src/restreamer-multistream.c
+)
+
+target_include_directories(
+  obs-polyemesis-benchmarks
+  PRIVATE ${CMAKE_SOURCE_DIR}/src ${JANSSON_INCLUDE_DIRS} ${CURL_INCLUDE_DIRS}
+)
+
+target_link_libraries(obs-polyemesis-benchmarks PRIVATE ${JANSSON_LIBRARIES} CURL::libcurl OBS::libobs)
+
+if(JANSSON_LIBRARY_DIRS)
+  target_link_directories(obs-polyemesis-benchmarks PRIVATE ${JANSSON_LIBRARY_DIRS})
+endif()
+
+if(UNIX)
+  target_link_libraries(obs-polyemesis-benchmarks PRIVATE pthread)
+endif()
+
+if(WIN32)
+  target_link_libraries(obs-polyemesis-benchmarks PRIVATE psapi)
+endif()
+
+# UI tests (requires Qt, separate executable)
+if(ENABLE_QT)
+  find_package(Qt6 COMPONENTS Test QUIET)
+  if(Qt6Test_FOUND)
+    add_executable(
+      obs-polyemesis-ui-tests
+      test_ui.cpp
+    )
+
+    set_target_properties(obs-polyemesis-ui-tests PROPERTIES AUTOMOC ON)
+
+    target_include_directories(
+      obs-polyemesis-ui-tests
+      PRIVATE ${CMAKE_SOURCE_DIR}/src
+    )
+
+    target_link_libraries(
+      obs-polyemesis-ui-tests
+      PRIVATE Qt6::Test Qt6::Core Qt6::Widgets
+    )
+
+    # Add UI tests to CTest
+    add_test(NAME ui_tests COMMAND $<TARGET_FILE:obs-polyemesis-ui-tests>)
+
+    message(STATUS "UI tests enabled (Qt Test found)")
+  else()
+    message(STATUS "UI tests disabled (Qt Test not found)")
+  endif()
+else()
+  message(STATUS "UI tests disabled (Qt not enabled)")
+endif()
+
 # Print test configuration
 message(STATUS "Test suite configuration:")
+message(STATUS "  - Core tests: ENABLED")
+message(STATUS "  - Performance benchmarks: ENABLED")
+message(STATUS "  - UI tests: ${Qt6Test_FOUND}")
 message(STATUS "  - Coverage: ${ENABLE_COVERAGE}")
 message(STATUS "  - AddressSanitizer: ${ENABLE_ASAN}")
