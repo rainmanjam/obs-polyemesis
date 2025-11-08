@@ -104,3 +104,9 @@ if(ENABLE_QT)
 endif()
 
 set_target_properties_plugin(${CMAKE_PROJECT_NAME} PROPERTIES OUTPUT_NAME ${_name})
+
+# Add tests (optional, controlled by ENABLE_TESTING option)
+option(ENABLE_TESTING "Build test suite" OFF)
+if(ENABLE_TESTING)
+  add_subdirectory(tests)
+endif()
