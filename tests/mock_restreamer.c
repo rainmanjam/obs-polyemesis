@@ -113,7 +113,7 @@ static void handle_request(int client_fd, const char *request) {
   }
 
   /* Send response */
-  send(client_fd, response, strlen(response), 0);
+  send(client_fd, response, (int)strlen(response), 0);
 }
 
 /* Server thread function */

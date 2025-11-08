@@ -40,7 +40,8 @@ jobs:
           print '::endgroup::'
 
           print '::group::Install Dependencies'
-          brew install --quiet jansson obs-studio
+          brew install --quiet jansson
+          brew install --cask --quiet obs
           print '::endgroup::'
 
       - name: Configure Build 🔧

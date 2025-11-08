@@ -13,6 +13,7 @@ add_executable(
   test_config.c
   test_multistream.c
   mock_restreamer.c
+  obs_stubs.c
 )
 
 # Link against main project sources (we'll need to adjust the main CMakeLists.txt)
