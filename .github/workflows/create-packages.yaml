@@ -1,0 +1,226 @@
+name: Create Installation Packages
+
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Version number (e.g., 1.0.0)'
+        required: true
+        default: '1.0.0'
+
+env:
+  PLUGIN_NAME: obs-polyemesis
+
+jobs:
+  macos-package:
+    name: macOS Package
+    runs-on: macos-14
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+          fetch-depth: 0
+
+      - name: Set up Homebrew
+        run: |
+          if ! command -v brew &> /dev/null; then
+            /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
+          fi
+
+      - name: Install dependencies
+        run: |
+          brew install --quiet cmake ninja qt6 jansson curl
+
+      - name: Setup OBS
+        run: |
+          brew install --cask obs
+          
+      - name: Configure and Build
+        run: |
+          cmake -B build -G Ninja \
+            -DCMAKE_BUILD_TYPE=Release \
+            -DENABLE_FRONTEND_API=ON \
+            -DENABLE_QT=ON \
+            -DCMAKE_OSX_ARCHITECTURES="arm64;x86_64"
+          cmake --build build --config Release
+
+      - name: Create Package
+        run: |
+          VERSION="${{ github.event.inputs.version || github.ref_name }}"
+          VERSION="${VERSION#v}"  # Remove 'v' prefix if present
+          chmod +x packaging/macos/create-installer.sh
+          packaging/macos/create-installer.sh "${VERSION}"
+
+      - name: Upload Package
+        uses: actions/upload-artifact@v4
+        with:
+          name: macos-installer
+          path: |
+            build/installers/*.pkg
+            build/installers/*.pkg.sha256
+
+  windows-package:
+    name: Windows Package  
+    runs-on: windows-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+          fetch-depth: 0
+
+      - name: Setup OBS
+        run: |
+          $obsUrl = "https://github.com/obsproject/obs-studio/releases/download/30.0.0/OBS-Studio-30.0.0-Full-Installer-x64.exe"
+          Invoke-WebRequest -Uri $obsUrl -OutFile obs-installer.exe
+          Start-Process -FilePath obs-installer.exe -ArgumentList "/S" -Wait
+          
+      - name: Install dependencies
+        run: |
+          choco install -y nsis
+
+      - name: Configure and Build
+        run: |
+          cmake -B build -G "Visual Studio 17 2022" -A x64 `
+            -DCMAKE_BUILD_TYPE=Release `
+            -DENABLE_FRONTEND_API=ON `
+            -DENABLE_QT=ON
+          cmake --build build --config Release
+
+      - name: Create Package
+        run: |
+          $version = "${{ github.event.inputs.version }}"
+          if ([string]::IsNullOrEmpty($version)) {
+            $version = "${{ github.ref_name }}".TrimStart('v')
+          }
+          if ([string]::IsNullOrEmpty($version)) {
+            $version = "1.0.0"
+          }
+          
+          # Create installers directory
+          New-Item -ItemType Directory -Force -Path build\installers
+          
+          # Build NSIS installer
+          & "C:\Program Files (x86)\NSIS\makensis.exe" `
+            /DVERSION=$version `
+            packaging\windows\installer.nsi
+
+      - name: Upload Package
+        uses: actions/upload-artifact@v4
+        with:
+          name: windows-installer
+          path: build/installers/*.exe
+
+  linux-deb-package:
+    name: Linux Debian Package
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+          fetch-depth: 0
+
+      - name: Install dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            build-essential \
+            cmake \
+            ninja-build \
+            qt6-base-dev \
+            libcurl4-openssl-dev \
+            libjansson-dev \
+            dpkg-dev
+
+      - name: Add OBS PPA
+        run: |
+          sudo add-apt-repository -y ppa:obsproject/obs-studio
+          sudo apt-get update
+          sudo apt-get install -y obs-studio
+
+      - name: Configure and Build
+        run: |
+          cmake -B build -G Ninja \
+            -DCMAKE_BUILD_TYPE=Release \
+            -DENABLE_FRONTEND_API=ON \
+            -DENABLE_QT=ON
+          cmake --build build --config Release
+
+      - name: Create Package
+        run: |
+          VERSION="${{ github.event.inputs.version || github.ref_name }}"
+          VERSION="${VERSION#v}"  # Remove 'v' prefix if present
+          chmod +x packaging/linux/create-deb.sh
+          packaging/linux/create-deb.sh "${VERSION}" amd64
+
+      - name: Upload Package
+        uses: actions/upload-artifact@v4
+        with:
+          name: debian-package
+          path: |
+            build/installers/*.deb
+            build/installers/*.deb.sha256
+
+  create-release:
+    name: Create GitHub Release
+    runs-on: ubuntu-latest
+    needs: [macos-package, windows-package, linux-deb-package]
+    if: startsWith(github.ref, 'refs/tags/v') || github.event_name == 'workflow_dispatch'
+    permissions:
+      contents: write
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Download all artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: installers
+
+      - name: Display structure
+        run: ls -R installers
+
+      - name: Create Release
+        uses: softprops/action-gh-release@v1
+        with:
+          tag_name: ${{ github.event.inputs.version && format('v{0}', github.event.inputs.version) || github.ref_name }}
+          name: Release ${{ github.event.inputs.version || github.ref_name }}
+          draft: false
+          prerelease: false
+          files: |
+            installers/**/*.pkg
+            installers/**/*.exe
+            installers/**/*.deb
+            installers/**/*.sha256
+          body: |
+            # OBS Polyemesis ${{ github.event.inputs.version || github.ref_name }}
+            
+            ## Installation
+            
+            ### macOS
+            Download the `.pkg` file and double-click to install.
+            
+            ### Windows
+            Download the `.exe` file and run the installer.
+            
+            ### Linux (Debian/Ubuntu)
+            ```bash
+            sudo dpkg -i obs-polyemesis_*.deb
+            sudo apt-get install -f  # Fix dependencies if needed
+            ```
+            
+            ## Features
+            - Complete datarhei Restreamer control from within OBS
+            - Advanced multistreaming to multiple platforms
+            - Orientation-aware routing (horizontal/vertical)
+            - Real-time monitoring of CPU, memory, uptime
+            
+            ## Checksums
+            SHA256 checksums are provided for all packages.
+            
+            🤖 Generated with [Claude Code](https://claude.com/claude-code)
