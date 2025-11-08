@@ -16,10 +16,6 @@ permissions:
   security-events: write
   actions: read
 
-concurrency:
-  group: '${{ github.workflow }} @ ${{ github.ref }}'
-  cancel-in-progress: true
-
 jobs:
   snyk:
     name: Snyk Security Scan
