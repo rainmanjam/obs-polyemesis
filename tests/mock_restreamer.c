@@ -111,18 +111,16 @@ static void handle_request(socket_t client_fd, const char *request) {
       response = RESPONSE_PROCESSES;
     }
   } else if (strstr(request, "POST /api/v3/process/") != NULL &&
-             strstr(request, "/command/start") != NULL) {
+             strstr(request, "/command ") != NULL) {
+    /* Check for start or stop in the request body */
     if (strstr(request, "Authorization:") == NULL) {
       response = RESPONSE_UNAUTHORIZED;
-    } else {
+    } else if (strstr(request, "\"start\"") != NULL) {
       response = RESPONSE_PROCESS_START;
-    }
-  } else if (strstr(request, "POST /api/v3/process/") != NULL &&
-             strstr(request, "/command/stop") != NULL) {
-    if (strstr(request, "Authorization:") == NULL) {
-      response = RESPONSE_UNAUTHORIZED;
-    } else {
+    } else if (strstr(request, "\"stop\"") != NULL) {
       response = RESPONSE_PROCESS_STOP;
+    } else {
+      response = RESPONSE_NOT_FOUND;
     }
   }
 
