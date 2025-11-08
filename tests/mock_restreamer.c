@@ -24,12 +24,20 @@
 
 #include "mock_restreamer.h"
 
+/* Platform-specific thread type */
+#ifdef _WIN32
+typedef HANDLE thread_handle_t;
+typedef int ssize_t; /* Windows doesn't define ssize_t */
+#else
+typedef pthread_t thread_handle_t;
+#endif
+
 /* Mock server state */
 typedef struct {
   int socket_fd;
   uint16_t port;
   bool running;
-  pthread_t thread;
+  thread_handle_t thread;
 } mock_server_t;
 
 static mock_server_t g_server = {0};
@@ -109,8 +117,13 @@ static void handle_request(int client_fd, const char *request) {
 }
 
 /* Server thread function */
+#ifdef _WIN32
+static DWORD WINAPI server_thread(LPVOID arg) {
+  (void)arg;
+#else
 static void *server_thread(void *arg) {
   (void)arg;
+#endif
 
   while (g_server.running) {
     struct sockaddr_in client_addr;
@@ -142,7 +155,11 @@ static void *server_thread(void *arg) {
 #endif
   }
 
+#ifdef _WIN32
+  return 0;
+#else
   return NULL;
+#endif
 }
 
 /* Start mock server */
@@ -195,7 +212,12 @@ bool mock_restreamer_start(uint16_t port) {
   g_server.running = true;
 
   /* Start server thread */
+#ifdef _WIN32
+  g_server.thread = CreateThread(NULL, 0, server_thread, NULL, 0, NULL);
+  if (g_server.thread == NULL) {
+#else
   if (pthread_create(&g_server.thread, NULL, server_thread, NULL) != 0) {
+#endif
 #ifdef _WIN32
     closesocket(g_server.socket_fd);
 #else
@@ -224,7 +246,12 @@ void mock_restreamer_stop(void) {
 #endif
 
   /* Wait for thread to finish */
+#ifdef _WIN32
+  WaitForSingleObject(g_server.thread, INFINITE);
+  CloseHandle(g_server.thread);
+#else
   pthread_join(g_server.thread, NULL);
+#endif
 
 #ifdef _WIN32
   WSACleanup();

@@ -8,7 +8,14 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+
+#ifdef _WIN32
+#include <windows.h>
+#define sleep_ms(ms) Sleep(ms)
+#else
 #include <unistd.h>
+#define sleep_ms(ms) usleep((ms) * 1000)
+#endif
 
 #include "mock_restreamer.h"
 #include "restreamer-api.h"
@@ -75,7 +82,7 @@ static bool test_api_connection(void) {
   }
 
   /* Give server time to start */
-  usleep(100000); /* 100ms */
+  sleep_ms(100); /* 100ms */
 
   restreamer_connection_t conn = {
       .host = "localhost",
@@ -109,7 +116,7 @@ static bool test_api_get_processes(void) {
     return false;
   }
 
-  usleep(100000);
+  sleep_ms(100);
 
   restreamer_connection_t conn = {
       .host = "localhost",
@@ -151,7 +158,7 @@ static bool test_api_process_control(void) {
     return false;
   }
 
-  usleep(100000);
+  sleep_ms(100);
 
   restreamer_connection_t conn = {
       .host = "localhost",

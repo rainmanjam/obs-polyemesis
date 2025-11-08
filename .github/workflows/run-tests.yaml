@@ -40,7 +40,7 @@ jobs:
           print '::endgroup::'
 
           print '::group::Install Dependencies'
-          brew install --quiet jansson
+          brew install --quiet jansson obs-studio
           print '::endgroup::'
 
       - name: Configure Build 🔧
@@ -116,6 +116,7 @@ jobs:
             git \
             libcurl4-openssl-dev \
             libjansson-dev \
+            libobs-dev \
             ninja-build
           echo '::endgroup::'
 
