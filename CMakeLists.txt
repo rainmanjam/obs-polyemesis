@@ -94,6 +94,8 @@ target_sources(
     src/restreamer-output.c
     src/restreamer-multistream.c
     src/restreamer-multistream.h
+    src/restreamer-output-profile.c
+    src/restreamer-output-profile.h
 )
 
 if(ENABLE_QT)

@@ -14,6 +14,7 @@
 
 #include "restreamer-api.h"
 #include "restreamer-multistream.h"
+#include "restreamer-output-profile.h"
 
 class RestreamerDock : public QDockWidget {
   Q_OBJECT
@@ -36,6 +37,17 @@ private slots:
   void onSaveSettingsClicked();
   void onUpdateTimer();
 
+  /* Profile management slots */
+  void onCreateProfileClicked();
+  void onDeleteProfileClicked();
+  void onProfileSelected();
+  void onStartProfileClicked();
+  void onStopProfileClicked();
+  void onStartAllProfilesClicked();
+  void onStopAllProfilesClicked();
+  void onConfigureProfileClicked();
+  void onDuplicateProfileClicked();
+
 private:
   void setupUI();
   void loadSettings();
@@ -44,9 +56,14 @@ private:
   void updateProcessDetails();
   void updateSessionList();
   void updateDestinationList();
+  void updateProfileList();
+  void updateProfileDetails();
 
   restreamer_api_t *api;
   QTimer *updateTimer;
+
+  /* Profile manager */
+  profile_manager_t *profileManager;
 
   /* Connection group */
   QLineEdit *hostEdit;
@@ -56,6 +73,19 @@ private:
   QLineEdit *passwordEdit;
   QPushButton *testConnectionButton;
   QLabel *connectionStatusLabel;
+
+  /* Output Profiles group */
+  QListWidget *profileListWidget;
+  QPushButton *createProfileButton;
+  QPushButton *deleteProfileButton;
+  QPushButton *duplicateProfileButton;
+  QPushButton *configureProfileButton;
+  QPushButton *startProfileButton;
+  QPushButton *stopProfileButton;
+  QPushButton *startAllProfilesButton;
+  QPushButton *stopAllProfilesButton;
+  QLabel *profileStatusLabel;
+  QTableWidget *profileDestinationsTable;
 
   /* Process list group */
   QListWidget *processList;
