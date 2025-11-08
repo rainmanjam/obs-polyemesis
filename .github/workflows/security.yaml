@@ -169,9 +169,21 @@ jobs:
           output: bearer-results.sarif
         continue-on-error: true
 
+      - name: Validate Bearer SARIF output
+        id: validate_sarif
+        if: always() && hashFiles('bearer-results.sarif') != ''
+        run: |
+          if jq empty bearer-results.sarif 2>/dev/null; then
+            echo "valid=true" >> $GITHUB_OUTPUT
+          else
+            echo "::warning::Bearer generated invalid SARIF output. Skipping upload."
+            echo "valid=false" >> $GITHUB_OUTPUT
+          fi
+        continue-on-error: true
+
       - name: Upload Bearer results
         uses: github/codeql-action/upload-sarif@v3
-        if: always() && hashFiles('bearer-results.sarif') != ''
+        if: always() && steps.validate_sarif.outputs.valid == 'true'
         with:
           sarif_file: bearer-results.sarif
 
