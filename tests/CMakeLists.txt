@@ -72,7 +72,7 @@ if(ENABLE_ASAN)
 endif()
 
 # Performance benchmarks (separate executable)
-add_executable(obs-polyemesis-benchmarks test_performance.c mock_restreamer.c)
+add_executable(obs-polyemesis-benchmarks test_performance.c mock_restreamer.c obs_stubs.c)
 
 target_sources(
   obs-polyemesis-benchmarks

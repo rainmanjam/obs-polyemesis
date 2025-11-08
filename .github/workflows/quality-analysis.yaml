@@ -41,12 +41,14 @@ jobs:
           fi
 
           # Generate detailed report
-          lizard src/ -l cpp -o lizard-report.html 2>/dev/null || echo "Could not generate HTML report" >> $GITHUB_STEP_SUMMARY
+          lizard src/ -l cpp -o lizard-report.html 2>/dev/null || \
+            echo "Could not generate HTML report" >> $GITHUB_STEP_SUMMARY
 
           # Show summary in workflow
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "\`\`\`" >> $GITHUB_STEP_SUMMARY
-          head -50 lizard-output.txt >> $GITHUB_STEP_SUMMARY 2>/dev/null || echo "No complexity data available" >> $GITHUB_STEP_SUMMARY
+          head -50 lizard-output.txt >> $GITHUB_STEP_SUMMARY 2>/dev/null || \
+            echo "No complexity data available" >> $GITHUB_STEP_SUMMARY
           echo "\`\`\`" >> $GITHUB_STEP_SUMMARY
 
       - name: Upload Lizard Report
@@ -79,14 +81,13 @@ jobs:
             ninja-build
 
       - name: Build with Debug Symbols
-        continue-on-error: true
         run: |
           cmake -B build -G Ninja \
             -DCMAKE_BUILD_TYPE=Debug \
             -DENABLE_FRONTEND_API=OFF \
             -DENABLE_QT=OFF \
             -DENABLE_TESTING=ON
-          cmake --build build --target obs-polyemesis-tests || true
+          cmake --build build
 
       - name: Run Valgrind Memory Check
         continue-on-error: true  # Don't fail build on memory leaks initially
