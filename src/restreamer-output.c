@@ -3,6 +3,7 @@
 #include "restreamer-multistream.h"
 #include <obs-module.h>
 #include <obs-output.h>
+#include <plugin-support.h>
 #include <util/platform.h>
 #include <util/threading.h>
 #include <util/dstr.h>

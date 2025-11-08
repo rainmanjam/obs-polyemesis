@@ -1,6 +1,7 @@
 #include "restreamer-api.h"
 #include "restreamer-config.h"
 #include <obs-module.h>
+#include <plugin-support.h>
 #include <media-io/video-io.h>
 #include <util/platform.h>
 #include <util/threading.h>
@@ -187,18 +188,14 @@ static obs_properties_t *restreamer_source_get_properties(void *data)
 	obs_properties_add_bool(props, "use_global_connection",
 				"Use Global Connection Settings");
 
-	obs_property_t *host =
-		obs_properties_add_text(props, "host", "Restreamer Host",
-					OBS_TEXT_DEFAULT);
-	obs_property_t *port =
-		obs_properties_add_int(props, "port", "Port", 1, 65535, 1);
-	obs_property_t *use_https =
-		obs_properties_add_bool(props, "use_https", "Use HTTPS");
-	obs_property_t *username = obs_properties_add_text(
-		props, "username", "Username (optional)", OBS_TEXT_DEFAULT);
-	obs_property_t *password =
-		obs_properties_add_text(props, "password", "Password (optional)",
-					OBS_TEXT_PASSWORD);
+	obs_properties_add_text(props, "host", "Restreamer Host",
+				OBS_TEXT_DEFAULT);
+	obs_properties_add_int(props, "port", "Port", 1, 65535, 1);
+	obs_properties_add_bool(props, "use_https", "Use HTTPS");
+	obs_properties_add_text(props, "username", "Username (optional)",
+				OBS_TEXT_DEFAULT);
+	obs_properties_add_text(props, "password", "Password (optional)",
+				OBS_TEXT_PASSWORD);
 
 	/* Process selection */
 	obs_property_t *process_list = obs_properties_add_list(

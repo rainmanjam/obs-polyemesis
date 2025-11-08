@@ -344,7 +344,7 @@ void RestreamerDock::updateProcessList()
 					      .arg(list.processes[i].state);
 
 		QListWidgetItem *item = new QListWidgetItem(displayText);
-		item->setData(Qt::UserRole, list.processes[i].id);
+		item->setData(Qt::UserRole, QString(list.processes[i].id));
 		processList->addItem(item);
 	}
 

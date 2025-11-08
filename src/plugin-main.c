@@ -40,7 +40,9 @@ extern void restreamer_dock_destroy(void *dock);
 }
 #endif
 
+#ifdef ENABLE_QT
 static void *dock_widget = NULL;
+#endif
 
 bool obs_module_load(void)
 {

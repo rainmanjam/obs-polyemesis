@@ -1,7 +1,9 @@
 #include "restreamer-multistream.h"
 #include <obs-module.h>
+#include <plugin-support.h>
 #include <util/bmem.h>
 #include <util/dstr.h>
+#include <util/platform.h>
 #include <math.h>
 
 multistream_config_t *restreamer_multistream_create(void)

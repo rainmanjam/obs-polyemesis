@@ -16,17 +16,36 @@ add_library(${CMAKE_PROJECT_NAME} MODULE)
 find_package(libobs REQUIRED)
 target_link_libraries(${CMAKE_PROJECT_NAME} PRIVATE OBS::libobs)
 
-# Find CURL
+# Find CURL - handle cross-platform
 find_package(CURL REQUIRED)
 target_link_libraries(${CMAKE_PROJECT_NAME} PRIVATE CURL::libcurl)
-target_include_directories(${CMAKE_PROJECT_NAME} PRIVATE ${CURL_INCLUDE_DIRS})
 
-# Find jansson for JSON parsing
+# Find jansson for JSON parsing - cross-platform approach
 find_package(PkgConfig QUIET)
 if(PKG_CONFIG_FOUND)
-  pkg_check_modules(JANSSON REQUIRED jansson)
+  pkg_check_modules(JANSSON jansson)
+endif()
+
+if(NOT JANSSON_FOUND)
+  # Fallback: try to find jansson via find_library
+  find_path(JANSSON_INCLUDE_DIR jansson.h)
+  find_library(JANSSON_LIBRARY NAMES jansson)
+
+  if(JANSSON_INCLUDE_DIR AND JANSSON_LIBRARY)
+    set(JANSSON_FOUND TRUE)
+    set(JANSSON_LIBRARIES ${JANSSON_LIBRARY})
+    set(JANSSON_INCLUDE_DIRS ${JANSSON_INCLUDE_DIR})
+  endif()
+endif()
+
+if(JANSSON_FOUND)
   target_link_libraries(${CMAKE_PROJECT_NAME} PRIVATE ${JANSSON_LIBRARIES})
   target_include_directories(${CMAKE_PROJECT_NAME} PRIVATE ${JANSSON_INCLUDE_DIRS})
+  if(JANSSON_LIBRARY_DIRS)
+    target_link_directories(${CMAKE_PROJECT_NAME} PRIVATE ${JANSSON_LIBRARY_DIRS})
+  endif()
+else()
+  message(FATAL_ERROR "jansson library not found. Please install jansson.")
 endif()
 
 if(ENABLE_FRONTEND_API)
@@ -35,12 +54,26 @@ if(ENABLE_FRONTEND_API)
 endif()
 
 if(ENABLE_QT)
-  find_package(Qt6 COMPONENTS Widgets Core)
+  # Platform-specific Qt6 handling
+  if(APPLE)
+    # On macOS, use Homebrew Qt to avoid deprecated AGL framework in pre-built deps
+    # The pre-built OBS Qt6 has AGL framework issues on modern macOS
+    if(EXISTS "/opt/homebrew/opt/qt")
+      set(CMAKE_PREFIX_PATH "/opt/homebrew/opt/qt" ${CMAKE_PREFIX_PATH})
+      message(STATUS "Using Homebrew Qt6 to avoid AGL framework issues")
+    endif()
+  endif()
+
+  find_package(Qt6 COMPONENTS Widgets Core REQUIRED)
   target_link_libraries(${CMAKE_PROJECT_NAME} PRIVATE Qt6::Core Qt6::Widgets)
+
+  # Platform-specific compiler options
   target_compile_options(
     ${CMAKE_PROJECT_NAME}
     PRIVATE $<$<C_COMPILER_ID:Clang,AppleClang>:-Wno-quoted-include-in-framework-header -Wno-comma>
+            $<$<C_COMPILER_ID:MSVC>:/wd4996>
   )
+
   set_target_properties(
     ${CMAKE_PROJECT_NAME}
     PROPERTIES AUTOMOC ON AUTOUIC ON AUTORCC ON

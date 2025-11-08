@@ -1,6 +1,7 @@
 #include "restreamer-dock.h"
 #include <obs-frontend-api.h>
 #include <obs-module.h>
+#include <plugin-support.h>
 
 extern "C" {
 
@@ -15,8 +16,8 @@ void *restreamer_dock_create(void)
 		return nullptr;
 	}
 
-	RestreamerDock *dock = new RestreamerDock(main_window);
-	obs_frontend_add_dock(dock);
+	RestreamerDock *dock = new RestreamerDock();
+	obs_frontend_add_dock_by_id("RestreamerControl", "Restreamer Control", dock);
 
 	return dock;
 }
@@ -25,7 +26,6 @@ void restreamer_dock_destroy(void *dock)
 {
 	if (dock) {
 		RestreamerDock *dockWidget = (RestreamerDock *)dock;
-		obs_frontend_remove_dock(dockWidget);
 		delete dockWidget;
 	}
 }
