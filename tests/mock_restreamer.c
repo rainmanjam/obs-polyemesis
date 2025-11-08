@@ -91,7 +91,7 @@ static const char *RESPONSE_NOT_FOUND = "HTTP/1.1 404 Not Found\r\n"
                                         "{\"error\": \"not_found\"}";
 
 /* Handle HTTP request */
-static void handle_request(int client_fd, const char *request) {
+static void handle_request(socket_t client_fd, const char *request) {
   const char *response = RESPONSE_NOT_FOUND;
 
   /* Parse request line */
