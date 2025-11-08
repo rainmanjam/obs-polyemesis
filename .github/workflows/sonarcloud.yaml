@@ -91,7 +91,13 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+        continue-on-error: true  # Allow failure if SONAR_TOKEN not configured
         run: |
+          if [ -z "$SONAR_TOKEN" ]; then
+            echo "::warning::SONAR_TOKEN not configured. Skipping SonarCloud analysis."
+            echo "To enable SonarCloud, add SONAR_TOKEN to repository secrets."
+            exit 0
+          fi
           sonar-scanner \
             --define sonar.organization=rainmanjam \
             --define sonar.projectKey=rainmanjam_obs-polyemesis \
