@@ -205,16 +205,40 @@ jobs:
           # Copy required DLLs to test executable directory for runtime loading
           Write-Host 'Copying OBS DLLs to test directory...'
           $testDir = ".build\windows\tests\Release"
-          $obsBinDir = ".build\windows\obs-build-dependencies\obs-studio-31.1.1\build64\rundir\Release\bin\64bit"
           $depsBinDir = ".deps\obs-deps-2025-07-11-x64\bin"
 
-          # Check if directories exist and list contents
-          if (Test-Path $obsBinDir) {
+          # Debug: List actual directory structure
+          Write-Host "Debugging: Listing obs-build-dependencies structure..."
+          if (Test-Path ".build\windows\obs-build-dependencies") {
+            Get-ChildItem ".build\windows\obs-build-dependencies" -Recurse -Directory | Where-Object { $_.Name -like "bin" -or $_.Name -like "*64*" -or $_.Name -like "Release" -or $_.Name -like "obs.dll" } | ForEach-Object { Write-Host "  $($_.FullName)" }
+
+            # Try to find obs.dll
+            Write-Host "Searching for obs.dll..."
+            Get-ChildItem ".build\windows\obs-build-dependencies" -Recurse -Filter "obs.dll" -ErrorAction SilentlyContinue | ForEach-Object { Write-Host "  Found: $($_.FullName)" }
+          }
+
+          # Try multiple possible paths
+          $possiblePaths = @(
+            ".build\windows\obs-build-dependencies\obs-studio-31.1.1\build64\rundir\Release\bin\64bit",
+            ".build\windows\obs-build-dependencies\obs-studio-31.1.1\build_x64\bin\Release",
+            ".build\windows\obs-build-dependencies\obs-studio-31.1.1\Release\bin\64bit"
+          )
+
+          $obsBinDir = $null
+          foreach ($path in $possiblePaths) {
+            if (Test-Path $path) {
+              $obsBinDir = $path
+              Write-Host "Found OBS bin directory at: $obsBinDir"
+              break
+            }
+          }
+
+          if ($obsBinDir) {
             Write-Host "OBS bin directory exists:"
             Get-ChildItem $obsBinDir -Filter "*.dll" | Select-Object Name
             Copy-Item "$obsBinDir\*.dll" $testDir -Force -ErrorAction SilentlyContinue
           } else {
-            Write-Host "WARNING: OBS bin directory not found: $obsBinDir"
+            Write-Host "WARNING: OBS bin directory not found in any expected location"
           }
 
           if (Test-Path $depsBinDir) {
