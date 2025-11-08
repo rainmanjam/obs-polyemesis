@@ -28,15 +28,18 @@ jobs:
         uses: actions/checkout@v4
 
       - name: Run Snyk to check for vulnerabilities
-        uses: snyk/actions/gcc@master
+        uses: snyk/actions/setup@master
         continue-on-error: true
+
+      - name: Snyk test
+        run: snyk test --severity-threshold=high --sarif-file-output=snyk.sarif || true
         env:
           SNYK_TOKEN: ${{ secrets.SNYK_TOKEN }}
-        with:
-          args: --severity-threshold=high --sarif-file-output=snyk.sarif
+        continue-on-error: true
 
       - name: Upload Snyk results to GitHub Code Scanning
         uses: github/codeql-action/upload-sarif@v3
+        if: always()
         with:
           sarif_file: snyk.sarif
 
@@ -87,18 +90,19 @@ jobs:
         with:
           category: "/language:${{ matrix.language }}"
 
-  dependency-review:
-    name: Dependency Review
-    runs-on: ubuntu-latest
-    if: github.event_name == 'pull_request'
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-
-      - name: Dependency Review
-        uses: actions/dependency-review-action@v4
-        with:
-          fail-on-severity: moderate
+  # dependency-review:
+  #   name: Dependency Review
+  #   runs-on: ubuntu-latest
+  #   if: github.event_name == 'pull_request'
+  #   steps:
+  #     - name: Checkout
+  #       uses: actions/checkout@v4
+  #
+  #     - name: Dependency Review
+  #       uses: actions/dependency-review-action@v4
+  #       with:
+  #         fail-on-severity: moderate
+  # NOTE: Dependency Review requires GitHub Advanced Security (not enabled on this repo)
 
   trivy:
     name: Trivy Security Scan
@@ -129,10 +133,9 @@ jobs:
         uses: actions/checkout@v4
 
       - name: Run OSV Scanner
-        uses: google/osv-scanner-action@v1
+        uses: google/osv-scanner-action@v1.9.0
         with:
           scan-args: |-
-            --lockfile=package-lock.json
             --recursive
             ./
         continue-on-error: true

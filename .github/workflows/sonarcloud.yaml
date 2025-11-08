@@ -73,7 +73,7 @@ jobs:
       - name: Run build-wrapper
         run: |
           build-wrapper-linux-x86-64 --out-dir ${{ env.BUILD_WRAPPER_OUT_DIR }} \
-            cmake --build build
+            cmake --build build --target obs-polyemesis-tests
 
       - name: Run Tests with Coverage
         run: |
