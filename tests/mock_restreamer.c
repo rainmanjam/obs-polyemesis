@@ -52,7 +52,7 @@ static mock_server_t g_server = {0};
 static const char *RESPONSE_PROCESSES =
     "HTTP/1.1 200 OK\r\n"
     "Content-Type: application/json\r\n"
-    "Content-Length: 253\r\n"
+    "Content-Length: 221\r\n"
     "\r\n"
     "["
     "  {"
@@ -68,25 +68,25 @@ static const char *RESPONSE_PROCESSES =
 
 static const char *RESPONSE_PROCESS_START = "HTTP/1.1 200 OK\r\n"
                                             "Content-Type: application/json\r\n"
-                                            "Content-Length: 34\r\n"
+                                            "Content-Length: 29\r\n"
                                             "\r\n"
                                             "{\"status\": \"process_started\"}";
 
 static const char *RESPONSE_PROCESS_STOP = "HTTP/1.1 200 OK\r\n"
                                            "Content-Type: application/json\r\n"
-                                           "Content-Length: 33\r\n"
+                                           "Content-Length: 29\r\n"
                                            "\r\n"
                                            "{\"status\": \"process_stopped\"}";
 
 static const char *RESPONSE_UNAUTHORIZED = "HTTP/1.1 401 Unauthorized\r\n"
                                            "Content-Type: application/json\r\n"
-                                           "Content-Length: 30\r\n"
+                                           "Content-Length: 25\r\n"
                                            "\r\n"
                                            "{\"error\": \"unauthorized\"}";
 
 static const char *RESPONSE_NOT_FOUND = "HTTP/1.1 404 Not Found\r\n"
                                         "Content-Type: application/json\r\n"
-                                        "Content-Length: 26\r\n"
+                                        "Content-Length: 22\r\n"
                                         "\r\n"
                                         "{\"error\": \"not_found\"}";
 
