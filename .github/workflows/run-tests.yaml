@@ -202,9 +202,30 @@ jobs:
           if (Test-Path env:RUNNER_DEBUG) { Set-PSDebug -Trace 1 }
 
           Write-Host '::group::Run Test Suite'
-          # Add obs-deps and OBS Studio bin directories to PATH for DLL loading
-          $env:PATH = "$PWD\.deps\obs-deps-2025-07-11-x64\bin;$env:PATH"
-          $env:PATH = "$PWD\.build\windows\obs-build-dependencies\obs-studio-31.1.1\build64\rundir\Release\bin\64bit;$env:PATH"
+          # Copy required DLLs to test executable directory for runtime loading
+          Write-Host 'Copying OBS DLLs to test directory...'
+          $testDir = ".build\windows\tests\Release"
+          $obsBinDir = ".build\windows\obs-build-dependencies\obs-studio-31.1.1\build64\rundir\Release\bin\64bit"
+          $depsBinDir = ".deps\obs-deps-2025-07-11-x64\bin"
+
+          # Check if directories exist and list contents
+          if (Test-Path $obsBinDir) {
+            Write-Host "OBS bin directory exists:"
+            Get-ChildItem $obsBinDir -Filter "*.dll" | Select-Object Name
+            Copy-Item "$obsBinDir\*.dll" $testDir -Force -ErrorAction SilentlyContinue
+          } else {
+            Write-Host "WARNING: OBS bin directory not found: $obsBinDir"
+          }
+
+          if (Test-Path $depsBinDir) {
+            Write-Host "Deps bin directory exists:"
+            Get-ChildItem $depsBinDir -Filter "*.dll" | Select-Object Name | Select-Object -First 10
+            Copy-Item "$depsBinDir\*.dll" $testDir -Force -ErrorAction SilentlyContinue
+          } else {
+            Write-Host "WARNING: Deps bin directory not found: $depsBinDir"
+          }
+
+          Write-Host 'Running test executable...'
           & .build\windows\tests\Release\obs-polyemesis-tests.exe
           Write-Host '::endgroup::'
 
