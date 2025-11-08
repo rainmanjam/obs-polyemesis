@@ -18,6 +18,7 @@ struct restreamer_output {
 	bool active;
 
 	pthread_t status_thread;
+	bool status_thread_created;
 	volatile bool stop_thread;
 };
 
@@ -57,8 +58,9 @@ static void restreamer_output_destroy(void *data)
 
 	if (context->active) {
 		context->stop_thread = true;
-		if (context->status_thread) {
+		if (context->status_thread_created) {
 			pthread_join(context->status_thread, NULL);
+			context->status_thread_created = false;
 		}
 	}
 
