@@ -33,15 +33,15 @@ jobs:
           echo "### Code Complexity Report" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
 
-          # Run Lizard analysis
-          if lizard src/ -l cpp --CCN 15 -w 2>&1 | tee lizard-output.txt; then
+          # Run Lizard analysis (auto-detect languages for both .c and .cpp files)
+          if lizard src/ --CCN 15 -w 2>&1 | tee lizard-output.txt; then
             echo "✓ Lizard analysis completed successfully" >> $GITHUB_STEP_SUMMARY
           else
             echo "⚠️ Lizard analysis completed with warnings" >> $GITHUB_STEP_SUMMARY
           fi
 
           # Generate detailed report
-          lizard src/ -l cpp -o lizard-report.html 2>/dev/null || \
+          lizard src/ -o lizard-report.html 2>/dev/null || \
             echo "Could not generate HTML report" >> $GITHUB_STEP_SUMMARY
 
           # Show summary in workflow
