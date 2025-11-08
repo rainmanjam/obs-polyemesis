@@ -1,9 +1,21 @@
 # OBS Polyemesis - Restreamer Control Plugin
 
-![License](https://img.shields.io/badge/license-GPL--2.0-blue.svg)
-![OBS Studio](https://img.shields.io/badge/OBS%20Studio-28%2B-green.svg)
+[![License](https://img.shields.io/badge/license-GPL--2.0-blue.svg)](LICENSE)
+[![OBS Studio](https://img.shields.io/badge/OBS%20Studio-28%2B-green.svg)](https://obsproject.com/)
+[![CI Pipeline](https://github.com/rainmanjam/obs-polyemesis/actions/workflows/ci.yaml/badge.svg)](https://github.com/rainmanjam/obs-polyemesis/actions/workflows/ci.yaml)
+[![Security](https://github.com/rainmanjam/obs-polyemesis/actions/workflows/security.yaml/badge.svg)](https://github.com/rainmanjam/obs-polyemesis/actions/workflows/security.yaml)
+[![CodeQL](https://github.com/rainmanjam/obs-polyemesis/actions/workflows/security.yaml/badge.svg?event=schedule)](https://github.com/rainmanjam/obs-polyemesis/security/code-scanning)
 
 A comprehensive OBS Studio plugin for controlling and monitoring [datarhei Restreamer](https://github.com/datarhei/restreamer) with advanced multistreaming capabilities including orientation-aware routing.
+
+```
+┌─────────────────┐      ┌──────────────┐      ┌─────────────────┐
+│   OBS Studio    │─────►│  Restreamer  │─────►│  YouTube        │
+│                 │      │   (API)      │      │  Twitch         │
+│  Polyemesis     │      │              │      │  TikTok         │
+│  Plugin ⚡      │◄─────│  Monitoring  │      │  Instagram      │
+└─────────────────┘      └──────────────┘      └─────────────────┘
+```
 
 ## ✨ Key Features
 
@@ -42,13 +54,11 @@ cmake --install build
 
 ## 📖 Documentation
 
-See [PLUGIN_DOCUMENTATION.md](PLUGIN_DOCUMENTATION.md) for comprehensive documentation including:
-- Detailed feature descriptions
-- Configuration guide
-- Multistreaming setup
-- Orientation handling examples
-- API reference
-- Troubleshooting
+- **[User Guide](USER_GUIDE.md)** - Installation, setup, and usage instructions
+- **[Building](BUILDING.md)** - Developer build instructions for all platforms
+- **[Contributing](CONTRIBUTING.md)** - Development workflow and contribution guidelines
+- **[CI/CD Workflow](docs/CICD_WORKFLOW.md)** - Pipeline architecture and automation
+- **[Plugin Documentation](PLUGIN_DOCUMENTATION.md)** - Detailed feature descriptions and API reference
 
 ## 🎯 Use Cases
 
@@ -72,7 +82,11 @@ One OBS setup, multiple platforms, correct orientations - automatically.
 
 ## 🤝 Contributing
 
-Contributions welcome! Please check out [PLUGIN_DOCUMENTATION.md](PLUGIN_DOCUMENTATION.md) for development guidelines.
+We welcome contributions! Please see our [Contributing Guide](CONTRIBUTING.md) for details on:
+- Development workflow (GitHub Flow)
+- Code quality standards
+- Testing requirements
+- Pull request process
 
 ## 📝 License
 
