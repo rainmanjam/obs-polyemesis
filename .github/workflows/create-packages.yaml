@@ -38,10 +38,10 @@ jobs:
       - name: Setup OBS
         run: |
           brew install --cask obs
-          
+
       - name: Configure and Build
         run: |
-          cmake -B build -G Ninja \
+          cmake -B build -G Xcode \
             -DCMAKE_BUILD_TYPE=Release \
             -DENABLE_FRONTEND_API=ON \
             -DENABLE_QT=ON \
@@ -73,12 +73,6 @@ jobs:
           submodules: recursive
           fetch-depth: 0
 
-      - name: Setup OBS
-        run: |
-          $obsUrl = "https://github.com/obsproject/obs-studio/releases/download/30.0.0/OBS-Studio-30.0.0-Full-Installer-x64.exe"
-          Invoke-WebRequest -Uri $obsUrl -OutFile obs-installer.exe
-          Start-Process -FilePath obs-installer.exe -ArgumentList "/S" -Wait
-          
       - name: Install dependencies
         run: |
           choco install -y nsis
@@ -135,6 +129,7 @@ jobs:
             qt6-base-dev \
             libcurl4-openssl-dev \
             libjansson-dev \
+            libsimde-dev \
             dpkg-dev
 
       - name: Add OBS PPA
