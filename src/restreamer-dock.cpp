@@ -487,14 +487,15 @@ void RestreamerDock::updateSessionList() {
     return;
   }
 
-  sessionTable->setRowCount(sessions.count);
+  sessionTable->setRowCount(static_cast<int>(sessions.count));
 
   for (size_t i = 0; i < sessions.count; i++) {
+    int row = static_cast<int>(i);
     sessionTable->setItem(
-        i, 0, new QTableWidgetItem(sessions.sessions[i].session_id));
+        row, 0, new QTableWidgetItem(sessions.sessions[i].session_id));
     sessionTable->setItem(
-        i, 1, new QTableWidgetItem(sessions.sessions[i].remote_addr));
-    sessionTable->setItem(i, 2,
+        row, 1, new QTableWidgetItem(sessions.sessions[i].remote_addr));
+    sessionTable->setItem(row, 2,
                           new QTableWidgetItem(QString::number(
                               sessions.sessions[i].bytes_sent / 1024 / 1024)));
   }
@@ -552,13 +553,14 @@ void RestreamerDock::updateDestinationList() {
     return;
   }
 
-  destinationsTable->setRowCount(multistreamConfig->destination_count);
+  destinationsTable->setRowCount(static_cast<int>(multistreamConfig->destination_count));
 
   for (size_t i = 0; i < multistreamConfig->destination_count; i++) {
+    int row = static_cast<int>(i);
     stream_destination_t *dest = &multistreamConfig->destinations[i];
 
-    destinationsTable->setItem(i, 0, new QTableWidgetItem(dest->service_name));
-    destinationsTable->setItem(i, 1, new QTableWidgetItem(dest->stream_key));
+    destinationsTable->setItem(row, 0, new QTableWidgetItem(dest->service_name));
+    destinationsTable->setItem(row, 1, new QTableWidgetItem(dest->stream_key));
 
     const char *orientation_str = "Unknown";
     switch (dest->supported_orientation) {
@@ -575,11 +577,11 @@ void RestreamerDock::updateDestinationList() {
       break;
     }
 
-    destinationsTable->setItem(i, 2, new QTableWidgetItem(orientation_str));
+    destinationsTable->setItem(row, 2, new QTableWidgetItem(orientation_str));
 
     QCheckBox *enabledCheck = new QCheckBox();
     enabledCheck->setChecked(dest->enabled);
-    destinationsTable->setCellWidget(i, 3, enabledCheck);
+    destinationsTable->setCellWidget(row, 3, enabledCheck);
   }
 }
 
@@ -792,14 +794,15 @@ void RestreamerDock::updateProfileDetails() {
                                  profile->status == PROFILE_STATUS_STARTING);
 
   /* Populate destinations table */
-  profileDestinationsTable->setRowCount(profile->destination_count);
+  profileDestinationsTable->setRowCount(static_cast<int>(profile->destination_count));
 
   for (size_t i = 0; i < profile->destination_count; i++) {
+    int row = static_cast<int>(i);
     profile_destination_t *dest = &profile->destinations[i];
 
     /* Destination name */
     QTableWidgetItem *nameItem = new QTableWidgetItem(dest->service_name);
-    profileDestinationsTable->setItem(i, 0, nameItem);
+    profileDestinationsTable->setItem(row, 0, nameItem);
 
     /* Resolution */
     QString resolution;
@@ -811,7 +814,7 @@ void RestreamerDock::updateProfileDetails() {
                        .arg(dest->encoding.height);
     }
     QTableWidgetItem *resItem = new QTableWidgetItem(resolution);
-    profileDestinationsTable->setItem(i, 1, resItem);
+    profileDestinationsTable->setItem(row, 1, resItem);
 
     /* Bitrate */
     QString bitrate;
@@ -821,12 +824,12 @@ void RestreamerDock::updateProfileDetails() {
       bitrate = QString("%1 kbps").arg(dest->encoding.bitrate);
     }
     QTableWidgetItem *bitrateItem = new QTableWidgetItem(bitrate);
-    profileDestinationsTable->setItem(i, 2, bitrateItem);
+    profileDestinationsTable->setItem(row, 2, bitrateItem);
 
     /* Status */
     QString status = dest->enabled ? "Enabled" : "Disabled";
     QTableWidgetItem *statusItem = new QTableWidgetItem(status);
-    profileDestinationsTable->setItem(i, 3, statusItem);
+    profileDestinationsTable->setItem(row, 3, statusItem);
   }
 }
 
