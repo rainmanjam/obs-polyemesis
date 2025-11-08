@@ -130,20 +130,28 @@ static DWORD WINAPI server_thread(LPVOID arg) {
 static void *server_thread(void *arg) {
   (void)arg;
 #endif
+  printf("[MOCK] Server thread started, entering accept loop\n");
 
   while (g_server.running) {
     struct sockaddr_in client_addr;
     socklen_t client_len = sizeof(client_addr);
 
+    printf("[MOCK] Waiting for client connection...\n");
     socket_t client_fd = accept(g_server.socket_fd, (struct sockaddr *)&client_addr,
                            &client_len);
 
     if (IS_SOCKET_ERROR(client_fd)) {
       if (g_server.running) {
-        perror("accept failed");
+#ifdef _WIN32
+        fprintf(stderr, "[MOCK] ERROR: accept() failed with error %d\n", WSAGetLastError());
+#else
+        perror("[MOCK] ERROR: accept() failed");
+#endif
       }
       continue;
     }
+
+    printf("[MOCK] Client connected, reading request...\n");
 
     /* Read request */
     char buffer[4096] = {0};
@@ -151,7 +159,11 @@ static void *server_thread(void *arg) {
 
     if (bytes_read > 0) {
       buffer[bytes_read] = '\0';
+      printf("[MOCK] Received %zd bytes, handling request\n", bytes_read);
       handle_request(client_fd, buffer);
+      printf("[MOCK] Response sent\n");
+    } else {
+      printf("[MOCK] No data received (bytes_read=%zd)\n", bytes_read);
     }
 
 #ifdef _WIN32
@@ -159,7 +171,10 @@ static void *server_thread(void *arg) {
 #else
     close(client_fd);
 #endif
+    printf("[MOCK] Client connection closed\n");
   }
+
+  printf("[MOCK] Server thread exiting\n");
 
 #ifdef _WIN32
   return 0;
@@ -170,25 +185,39 @@ static void *server_thread(void *arg) {
 
 /* Start mock server */
 bool mock_restreamer_start(uint16_t port) {
+  printf("[MOCK] Starting mock server on port %d...\n", port);
+
 #ifdef _WIN32
   WSADATA wsa_data;
+  printf("[MOCK] Initializing Winsock...\n");
   if (WSAStartup(MAKEWORD(2, 2), &wsa_data) != 0) {
+    fprintf(stderr, "[MOCK] ERROR: WSAStartup failed\n");
     return false;
   }
+  printf("[MOCK] Winsock initialized\n");
 #endif
 
   /* Create socket */
+  printf("[MOCK] Creating socket...\n");
   g_server.socket_fd = socket(AF_INET, SOCK_STREAM, 0);
   if (IS_SOCKET_ERROR(g_server.socket_fd)) {
+#ifdef _WIN32
+    fprintf(stderr, "[MOCK] ERROR: socket() failed with error %d\n", WSAGetLastError());
+#else
+    perror("[MOCK] ERROR: socket() failed");
+#endif
     return false;
   }
+  printf("[MOCK] Socket created successfully\n");
 
   /* Set socket options */
+  printf("[MOCK] Setting SO_REUSEADDR...\n");
   int opt = 1;
   setsockopt(g_server.socket_fd, SOL_SOCKET, SO_REUSEADDR, (const char *)&opt,
              sizeof(opt));
 
   /* Bind to port */
+  printf("[MOCK] Binding to port %d...\n", port);
   struct sockaddr_in server_addr = {0};
   server_addr.sin_family = AF_INET;
   server_addr.sin_addr.s_addr = INADDR_ANY;
@@ -197,32 +226,42 @@ bool mock_restreamer_start(uint16_t port) {
   if (bind(g_server.socket_fd, (struct sockaddr *)&server_addr,
            sizeof(server_addr)) < 0) {
 #ifdef _WIN32
+    fprintf(stderr, "[MOCK] ERROR: bind() failed with error %d\n", WSAGetLastError());
     closesocket(g_server.socket_fd);
 #else
+    perror("[MOCK] ERROR: bind() failed");
     close(g_server.socket_fd);
 #endif
     return false;
   }
+  printf("[MOCK] Bound to port %d\n", port);
 
   /* Listen for connections */
+  printf("[MOCK] Starting listen...\n");
   if (listen(g_server.socket_fd, 5) < 0) {
 #ifdef _WIN32
+    fprintf(stderr, "[MOCK] ERROR: listen() failed with error %d\n", WSAGetLastError());
     closesocket(g_server.socket_fd);
 #else
+    perror("[MOCK] ERROR: listen() failed");
     close(g_server.socket_fd);
 #endif
     return false;
   }
+  printf("[MOCK] Listening for connections\n");
 
   g_server.port = port;
   g_server.running = true;
 
   /* Start server thread */
+  printf("[MOCK] Creating server thread...\n");
 #ifdef _WIN32
   g_server.thread = CreateThread(NULL, 0, server_thread, NULL, 0, NULL);
   if (g_server.thread == NULL) {
+    fprintf(stderr, "[MOCK] ERROR: CreateThread failed with error %lu\n", GetLastError());
 #else
   if (pthread_create(&g_server.thread, NULL, server_thread, NULL) != 0) {
+    perror("[MOCK] ERROR: pthread_create failed");
 #endif
 #ifdef _WIN32
     closesocket(g_server.socket_fd);
@@ -232,6 +271,7 @@ bool mock_restreamer_start(uint16_t port) {
     g_server.running = false;
     return false;
   }
+  printf("[MOCK] Server thread created, mock server ready\n");
 
   return true;
 }

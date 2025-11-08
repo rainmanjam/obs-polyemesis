@@ -96,7 +96,12 @@ static bool test_api_connection(void) {
   TEST_ASSERT_NOT_NULL(api, "API client should be created");
 
   /* Test connection (this will make actual HTTP request to mock server) */
+  printf("[TEST] Attempting connection to mock server at localhost:%d...\n", 9090);
   bool connected = restreamer_api_test_connection(api);
+  if (!connected) {
+    const char *error = restreamer_api_get_error(api);
+    fprintf(stderr, "[TEST] Connection failed: %s\n", error ? error : "unknown error");
+  }
   TEST_ASSERT(connected, "Should connect to mock server");
 
   restreamer_api_destroy(api);
