@@ -37,3 +37,8 @@ jobs:
     needs: build-and-test
     uses: ./.github/workflows/sonarcloud.yaml
     secrets: inherit
+
+  # Stage 5: Advanced Quality Analysis (depends on build, runs in parallel)
+  quality-analysis:
+    needs: build-and-test
+    uses: ./.github/workflows/quality-analysis.yaml
