@@ -111,6 +111,7 @@ jobs:
       - name: Create Package
         env:
           VERSION: ${{ needs.create-release.outputs.version }}
+          BUILD_DIR: ${{ github.workspace }}/build/Release
         run: |
           chmod +x packaging/macos/create-pkg.sh
           cd packaging/macos
@@ -164,7 +165,7 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
           upload_url: ${{ needs.create-release.outputs.upload_url }}
-          asset_path: ./obs-polyemesis-${{ needs.create-release.outputs.version }}-windows-x64.exe
+          asset_path: ./build/installers/obs-polyemesis-${{ needs.create-release.outputs.version }}-windows-x64.exe
           asset_name: obs-polyemesis-${{ needs.create-release.outputs.version }}-windows-x64.exe
           asset_content_type: application/octet-stream
 
@@ -172,19 +173,18 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: windows-installer
-          path: ./obs-polyemesis-${{ needs.create-release.outputs.version }}-windows-x64.exe
+          path: ./build/installers/obs-polyemesis-${{ needs.create-release.outputs.version }}-windows-x64.exe
 
   build-linux:
     name: Build Linux Packages
     needs: create-release
     runs-on: ubuntu-24.04
     strategy:
+      fail-fast: false
       matrix:
         include:
           - format: deb
             builder: dpkg-deb
-          - format: rpm
-            builder: rpmbuild
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -200,8 +200,7 @@ jobs:
             libcurl4-openssl-dev \
             libjansson-dev \
             libobs-dev \
-            ninja-build \
-            ${{ matrix.format == 'rpm' && 'rpm' || '' }}
+            ninja-build
 
       - name: Build Plugin
         run: |
@@ -212,7 +211,6 @@ jobs:
           cmake --build build
 
       - name: Create DEB Package
-        if: matrix.format == 'deb'
         env:
           VERSION: ${{ needs.create-release.outputs.version }}
         run: |
@@ -229,26 +227,7 @@ jobs:
           dpkg-deb --build obs-polyemesis_${VERSION}
           mv obs-polyemesis_${VERSION}.deb obs-polyemesis_${VERSION}_amd64.deb
 
-      - name: Create RPM Package
-        if: matrix.format == 'rpm'
-        env:
-          VERSION: ${{ needs.create-release.outputs.version }}
-        run: |
-          mkdir -p ~/rpmbuild/{BUILD,RPMS,SOURCES,SPECS,SRPMS}
-          cp packaging/linux/rpm/obs-polyemesis.spec ~/rpmbuild/SPECS/
-
-          # Create source tarball
-          tar czf ~/rpmbuild/SOURCES/obs-polyemesis-${VERSION}.tar.gz \
-            --transform "s,^,obs-polyemesis-${VERSION}/," \
-            --exclude='.git' \
-            --exclude='build' \
-            .
-
-          rpmbuild -ba ~/rpmbuild/SPECS/obs-polyemesis.spec
-          cp ~/rpmbuild/RPMS/x86_64/obs-polyemesis-${VERSION}-1.*.rpm .
-
       - name: Upload DEB Package
-        if: matrix.format == 'deb'
         uses: actions/upload-release-asset@v1
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -258,24 +237,11 @@ jobs:
           asset_name: obs-polyemesis_${{ needs.create-release.outputs.version }}_amd64.deb
           asset_content_type: application/octet-stream
 
-      - name: Upload RPM Package
-        if: matrix.format == 'rpm'
-        uses: actions/upload-release-asset@v1
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        with:
-          upload_url: ${{ needs.create-release.outputs.upload_url }}
-          asset_path: ./obs-polyemesis-${{ needs.create-release.outputs.version }}-1.x86_64.rpm
-          asset_name: obs-polyemesis-${{ needs.create-release.outputs.version }}-1.x86_64.rpm
-          asset_content_type: application/octet-stream
-
       - name: Upload Package as Artifact
         uses: actions/upload-artifact@v4
         with:
-          name: linux-${{ matrix.format }}-package
-          path: |
-            ./*.deb
-            ./*.rpm
+          name: linux-deb-package
+          path: ./*.deb
 
   update-checksums:
     name: Update Release Checksums
