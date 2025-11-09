@@ -68,7 +68,13 @@ if(ENABLE_QT)
   if(APPLE)
     # Always use OBS pre-built Qt6 for better compatibility
     # OBS bundles its own Qt, so we should use that instead of Homebrew
-    message(STATUS "Using OBS pre-built Qt6 for plugin compatibility")
+    set(OBS_QT_PATH "/Applications/OBS.app/Contents/Frameworks")
+    if(EXISTS "${OBS_QT_PATH}/QtCore.framework")
+      message(STATUS "Using OBS bundled Qt6 from: ${OBS_QT_PATH}")
+      set(CMAKE_PREFIX_PATH "${OBS_QT_PATH}" ${CMAKE_PREFIX_PATH})
+    else()
+      message(WARNING "OBS Qt6 not found at ${OBS_QT_PATH}, falling back to system Qt")
+    endif()
   endif()
 
   find_package(Qt6 COMPONENTS Widgets Core REQUIRED)
