@@ -90,14 +90,25 @@ static const char *RESPONSE_NOT_FOUND = "HTTP/1.1 404 Not Found\r\n"
                                         "\r\n"
                                         "{\"error\": \"not_found\"}";
 
+static const char *RESPONSE_LOGIN = "HTTP/1.1 200 OK\r\n"
+                                    "Content-Type: application/json\r\n"
+                                    "Content-Length: 122\r\n"
+                                    "\r\n"
+                                    "{\"access_token\": \"mock_access_token_12345\", "
+                                    "\"refresh_token\": \"mock_refresh_token_67890\", "
+                                    "\"expires_at\": 9999999999}";
+
 /* Handle HTTP request */
 static void handle_request(socket_t client_fd, const char *request) {
   const char *response = RESPONSE_NOT_FOUND;
 
   /* Parse request line */
-  /* Base API endpoint - used by test_connection() */
-  if (strstr(request, "GET /api/v3/ ") != NULL ||
+  /* JWT Login endpoint */
+  if (strstr(request, "POST /api/login") != NULL) {
+    response = RESPONSE_LOGIN;
+  } else if (strstr(request, "GET /api/v3/ ") != NULL ||
       strstr(request, "GET /api/v3 ") != NULL) {
+    /* Base API endpoint - used by test_connection() */
     response = "HTTP/1.1 200 OK\r\n"
                "Content-Type: application/json\r\n"
                "Content-Length: 2\r\n"
