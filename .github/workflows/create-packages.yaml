@@ -75,6 +75,11 @@ jobs:
           submodules: recursive
           fetch-depth: 0
 
+      - name: Setup Xcode
+        uses: maxim-lobanov/setup-xcode@v1
+        with:
+          xcode-version: latest-stable
+
       - name: Set up Homebrew
         run: |
           if ! command -v brew &> /dev/null; then
