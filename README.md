@@ -99,6 +99,12 @@ Stream landscape gameplay to Twitch and YouTube in native 16:9, with automatic c
 ### Universal Broadcasting
 One OBS setup, multiple platforms, correct orientations - automatically.
 
+## ⚠️ Known Limitations
+
+- **macOS**: Apple Silicon only (Intel Macs not supported in 0.9.0)
+- **macOS**: Unsigned packages show security warning (right-click → Open to install)
+- **Requires datarhei Restreamer instance** (tested with v16.16.0)
+
 ## 🛠️ Requirements
 
 - **OBS Studio**: 28.0 or later
