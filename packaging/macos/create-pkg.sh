@@ -78,15 +78,15 @@ create_package_structure() {
 
     # Clean and create directories
     rm -rf "$PKG_DIR"
-    mkdir -p "$PKG_DIR/root$INSTALL_LOCATION"
+    mkdir -p "$PKG_DIR/root/$INSTALL_LOCATION"
     mkdir -p "$PKG_DIR/scripts"
     mkdir -p "$PKG_DIR/resources"
 
     # Copy plugin bundle (preserving all attributes and architectures)
-    cp -RPp "$PLUGIN_BUNDLE" "$PKG_DIR/root$INSTALL_LOCATION/"
+    cp -RPp "$PLUGIN_BUNDLE" "$PKG_DIR/root/$INSTALL_LOCATION/"
 
     # Verify architecture after copy
-    COPIED_BINARY="$PKG_DIR/root$INSTALL_LOCATION/obs-polyemesis.plugin/Contents/MacOS/obs-polyemesis"
+    COPIED_BINARY="$PKG_DIR/root/$INSTALL_LOCATION/obs-polyemesis.plugin/Contents/MacOS/obs-polyemesis"
     if [ -f "$COPIED_BINARY" ]; then
         log_info "Copied binary architectures:"
         lipo -info "$COPIED_BINARY" || file "$COPIED_BINARY"
