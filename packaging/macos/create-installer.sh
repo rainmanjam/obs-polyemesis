@@ -104,9 +104,16 @@ prepare_package_structure() {
     # OBS plugins go to ~/Library/Application Support/obs-studio/plugins/
     mkdir -p "${PACKAGE_ROOT}/Library/Application Support/obs-studio/plugins"
 
-    # Copy plugin bundle
+    # Copy plugin bundle (preserving all attributes and architectures)
     log_info "Copying plugin bundle..."
-    cp -R "${PLUGIN_BUNDLE}" "${PACKAGE_ROOT}/Library/Application Support/obs-studio/plugins/"
+    cp -RPp "${PLUGIN_BUNDLE}" "${PACKAGE_ROOT}/Library/Application Support/obs-studio/plugins/"
+
+    # Verify plugin binary architecture
+    PLUGIN_BINARY="${PACKAGE_ROOT}/Library/Application Support/obs-studio/plugins/${PLUGIN_NAME}.plugin/Contents/MacOS/${PLUGIN_NAME}"
+    if [[ -f "${PLUGIN_BINARY}" ]]; then
+        log_info "Plugin binary architectures:"
+        lipo -info "${PLUGIN_BINARY}" || file "${PLUGIN_BINARY}"
+    fi
 
     # Set proper permissions
     chmod -R 755 "${PACKAGE_ROOT}/Library/Application Support/obs-studio/plugins/${PLUGIN_NAME}.plugin"
@@ -208,7 +215,7 @@ build_product_package() {
 <installer-gui-script minSpecVersion="1">
     <title>OBS Polyemesis ${VERSION}</title>
     <organization>com.github.rainmanjam</organization>
-    <domains enable_localSystem="false"/>
+    <domains enable_anywhere="false" enable_currentUserHome="true" enable_localSystem="false"/>
     <options customize="never" require-scripts="true" hostArchitectures="arm64,x86_64"/>
 
     <!-- Define documents displayed at various steps -->
