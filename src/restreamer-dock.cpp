@@ -27,21 +27,39 @@ RestreamerDock::RestreamerDock(QWidget *parent)
 }
 
 RestreamerDock::~RestreamerDock() {
-  saveSettings();
-
-  if (profileManager) {
-    profile_manager_destroy(profileManager);
+  /* Stop timer first to prevent callbacks during destruction */
+  if (updateTimer) {
+    updateTimer->stop();
+    updateTimer->deleteLater();
+    updateTimer = nullptr;
   }
 
-  if (api) {
-    restreamer_api_destroy(api);
+  saveSettings();
+
+  /* Clean up resources with mutex protection */
+  {
+    std::lock_guard<std::recursive_mutex> lock(apiMutex);
+    if (api) {
+      restreamer_api_destroy(api);
+      api = nullptr;
+    }
+  }
+
+  {
+    std::lock_guard<std::recursive_mutex> lock(profileMutex);
+    if (profileManager) {
+      profile_manager_destroy(profileManager);
+      profileManager = nullptr;
+    }
   }
 
   if (multistreamConfig) {
     restreamer_multistream_destroy(multistreamConfig);
+    multistreamConfig = nullptr;
   }
 
   bfree(selectedProcessId);
+  selectedProcessId = nullptr;
 }
 
 void RestreamerDock::setupUI() {
@@ -92,8 +110,11 @@ void RestreamerDock::setupUI() {
 
   /* Profile list */
   profileListWidget = new QListWidget();
+  profileListWidget->setContextMenuPolicy(Qt::CustomContextMenu);
   connect(profileListWidget, &QListWidget::currentRowChanged, this,
           &RestreamerDock::onProfileSelected);
+  connect(profileListWidget, &QListWidget::customContextMenuRequested, this,
+          &RestreamerDock::onProfileListContextMenu);
 
   /* Profile buttons - Top row: Create, Delete, Duplicate, Configure */
   QHBoxLayout *profileButtonsRow1 = new QHBoxLayout();
@@ -366,8 +387,12 @@ void RestreamerDock::saveSettings() {
     restreamer_multistream_save_to_settings(multistreamConfig, settings);
   }
 
-  obs_data_save_json_safe(settings, obs_module_config_path("config.json"),
-                          "tmp", "bak");
+  /* Safe file writing: writes to .tmp first, then creates .bak backup,
+   * then renames .tmp to actual file. Prevents corruption on crash/power loss. */
+  const char *config_path = obs_module_config_path("config.json");
+  if (!obs_data_save_json_safe(settings, config_path, "tmp", "bak")) {
+    blog(LOG_ERROR, "[obs-polyemesis] Failed to save settings to %s", config_path);
+  }
   obs_data_release(settings);
 
   /* Update global config */
@@ -698,7 +723,15 @@ void RestreamerDock::onCreateMultistreamClicked() {
 }
 
 void RestreamerDock::onUpdateTimer() {
+  /* Lock mutex to ensure thread-safe API access */
+  std::lock_guard<std::recursive_mutex> lock(apiMutex);
+
   if (!api) {
+    return;
+  }
+
+  /* Only update if we're connected */
+  if (!restreamer_api_is_connected(api)) {
     return;
   }
 
@@ -1208,4 +1241,114 @@ void RestreamerDock::onConfigureProfileClicked() {
 
     QMessageBox::information(this, "Success", "Profile settings updated.");
   }
+}
+
+void RestreamerDock::onProfileListContextMenu(const QPoint &pos) {
+  QMenu contextMenu(tr("Profile Actions"), this);
+
+  /* Get the item at the clicked position */
+  QListWidgetItem *item = profileListWidget->itemAt(pos);
+
+  if (item) {
+    /* Right-clicked on an item - show full menu */
+    QString profileId = item->data(Qt::UserRole).toString();
+    output_profile_t *profile =
+        profileManager ? profile_manager_get_profile(profileManager, profileId.toUtf8().constData()) : nullptr;
+
+    /* Create profile */
+    QAction *createAction = contextMenu.addAction("Create...");
+    connect(createAction, &QAction::triggered, this,
+            &RestreamerDock::onCreateProfileClicked);
+
+    contextMenu.addSeparator();
+
+    /* Delete profile (only if inactive) */
+    QAction *deleteAction = contextMenu.addAction("Delete");
+    deleteAction->setEnabled(profile && profile->status == PROFILE_STATUS_INACTIVE);
+    connect(deleteAction, &QAction::triggered, this,
+            &RestreamerDock::onDeleteProfileClicked);
+
+    /* Duplicate profile */
+    QAction *duplicateAction = contextMenu.addAction("Duplicate...");
+    duplicateAction->setEnabled(profile != nullptr);
+    connect(duplicateAction, &QAction::triggered, this,
+            &RestreamerDock::onDuplicateProfileClicked);
+
+    /* Configure profile (only if inactive) */
+    QAction *configureAction = contextMenu.addAction("Configure...");
+    configureAction->setEnabled(profile && profile->status == PROFILE_STATUS_INACTIVE);
+    connect(configureAction, &QAction::triggered, this,
+            &RestreamerDock::onConfigureProfileClicked);
+
+    contextMenu.addSeparator();
+
+    /* Start profile (only if inactive) */
+    QAction *startAction = contextMenu.addAction("Start");
+    startAction->setEnabled(profile && profile->status == PROFILE_STATUS_INACTIVE);
+    connect(startAction, &QAction::triggered, this,
+            &RestreamerDock::onStartProfileClicked);
+
+    /* Stop profile (only if active or starting) */
+    QAction *stopAction = contextMenu.addAction("Stop");
+    stopAction->setEnabled(profile && (profile->status == PROFILE_STATUS_ACTIVE ||
+                                       profile->status == PROFILE_STATUS_STARTING));
+    connect(stopAction, &QAction::triggered, this,
+            &RestreamerDock::onStopProfileClicked);
+
+    contextMenu.addSeparator();
+
+    /* Start all profiles */
+    QAction *startAllAction = contextMenu.addAction("Start All");
+    startAllAction->setEnabled(profileManager && profileManager->profile_count > 0);
+    connect(startAllAction, &QAction::triggered, this,
+            &RestreamerDock::onStartAllProfilesClicked);
+
+    /* Stop all profiles */
+    QAction *stopAllAction = contextMenu.addAction("Stop All");
+    bool hasActiveProfile = false;
+    if (profileManager) {
+      for (size_t i = 0; i < profileManager->profile_count; i++) {
+        if (profileManager->profiles[i]->status == PROFILE_STATUS_ACTIVE ||
+            profileManager->profiles[i]->status == PROFILE_STATUS_STARTING) {
+          hasActiveProfile = true;
+          break;
+        }
+      }
+    }
+    stopAllAction->setEnabled(hasActiveProfile);
+    connect(stopAllAction, &QAction::triggered, this,
+            &RestreamerDock::onStopAllProfilesClicked);
+
+  } else {
+    /* Right-clicked on empty space - show limited menu */
+    QAction *createAction = contextMenu.addAction("Create...");
+    connect(createAction, &QAction::triggered, this,
+            &RestreamerDock::onCreateProfileClicked);
+
+    contextMenu.addSeparator();
+
+    /* Start all profiles */
+    QAction *startAllAction = contextMenu.addAction("Start All");
+    startAllAction->setEnabled(profileManager && profileManager->profile_count > 0);
+    connect(startAllAction, &QAction::triggered, this,
+            &RestreamerDock::onStartAllProfilesClicked);
+
+    /* Stop all profiles */
+    QAction *stopAllAction = contextMenu.addAction("Stop All");
+    bool hasActiveProfile = false;
+    if (profileManager) {
+      for (size_t i = 0; i < profileManager->profile_count; i++) {
+        if (profileManager->profiles[i]->status == PROFILE_STATUS_ACTIVE ||
+            profileManager->profiles[i]->status == PROFILE_STATUS_STARTING) {
+          hasActiveProfile = true;
+          break;
+        }
+      }
+    }
+    stopAllAction->setEnabled(hasActiveProfile);
+    connect(stopAllAction, &QAction::triggered, this,
+            &RestreamerDock::onStopAllProfilesClicked);
+  }
+
+  contextMenu.exec(profileListWidget->mapToGlobal(pos));
 }

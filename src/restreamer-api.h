@@ -77,6 +77,9 @@ void restreamer_api_destroy(restreamer_api_t *api);
 /* Test connection */
 bool restreamer_api_test_connection(restreamer_api_t *api);
 
+/* Check if API is connected (has valid access token) */
+bool restreamer_api_is_connected(restreamer_api_t *api);
+
 /* Get list of processes */
 bool restreamer_api_get_processes(restreamer_api_t *api,
                                   restreamer_process_list_t *list);

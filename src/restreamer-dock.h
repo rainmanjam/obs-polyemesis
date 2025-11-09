@@ -7,11 +7,13 @@
 #include <QLabel>
 #include <QLineEdit>
 #include <QListWidget>
+#include <QMenu>
 #include <QPushButton>
 #include <QTabWidget>
 #include <QTableWidget>
 #include <QTimer>
 #include <QVBoxLayout>
+#include <mutex>
 
 #include "restreamer-api.h"
 #include "restreamer-multistream.h"
@@ -48,6 +50,7 @@ private slots:
   void onStopAllProfilesClicked();
   void onConfigureProfileClicked();
   void onDuplicateProfileClicked();
+  void onProfileListContextMenu(const QPoint &pos);
 
 private:
   void setupUI();
@@ -62,6 +65,10 @@ private:
 
   restreamer_api_t *api;
   QTimer *updateTimer;
+
+  /* Thread safety */
+  std::recursive_mutex apiMutex;
+  std::recursive_mutex profileMutex;
 
   /* Profile manager */
   profile_manager_t *profileManager;

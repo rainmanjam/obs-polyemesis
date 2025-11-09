@@ -263,7 +263,11 @@ static bool make_request(restreamer_api_t *api, const char *endpoint,
 
   if (res != CURLE_OK) {
     dstr_copy(&api->last_error, api->error_buffer);
-    bfree(response->memory);
+    if (response->memory) {
+      bfree(response->memory);
+      response->memory = NULL;
+    }
+    response->size = 0;
     return false;
   }
 
@@ -272,7 +276,11 @@ static bool make_request(restreamer_api_t *api, const char *endpoint,
 
   if (http_code < 200 || http_code >= 300) {
     dstr_printf(&api->last_error, "HTTP Error: %ld", http_code);
-    bfree(response->memory);
+    if (response->memory) {
+      bfree(response->memory);
+      response->memory = NULL;
+    }
+    response->size = 0;
     return false;
   }
 
@@ -284,14 +292,16 @@ bool restreamer_api_test_connection(restreamer_api_t *api) {
     return false;
   }
 
-  struct memory_struct response;
-  bool result = make_request(api, "/api/v3/", "GET", NULL, &response);
+  /* Test connection by attempting to login, which validates credentials */
+  return restreamer_api_login(api);
+}
 
-  if (result) {
-    bfree(response.memory);
+bool restreamer_api_is_connected(restreamer_api_t *api) {
+  if (!api) {
+    return false;
   }
 
-  return result;
+  return (api->access_token != NULL);
 }
 
 bool restreamer_api_get_processes(restreamer_api_t *api,
@@ -300,8 +310,18 @@ bool restreamer_api_get_processes(restreamer_api_t *api,
     return false;
   }
 
+  /* Initialize list to safe defaults */
+  list->processes = NULL;
+  list->count = 0;
+
   struct memory_struct response;
   if (!make_request(api, "/api/v3/process", "GET", NULL, &response)) {
+    return false;
+  }
+
+  /* Check if we have a valid response */
+  if (!response.memory || response.size == 0) {
+    dstr_copy(&api->last_error, "Empty response from server");
     return false;
   }
 
@@ -321,7 +341,21 @@ bool restreamer_api_get_processes(restreamer_api_t *api,
   }
 
   size_t count = json_array_size(root);
+
+  /* Handle empty array case */
+  if (count == 0) {
+    json_decref(root);
+    return true;
+  }
+
+  /* Allocate memory for processes */
   list->processes = bzalloc(sizeof(restreamer_process_t) * count);
+  if (!list->processes) {
+    json_decref(root);
+    dstr_copy(&api->last_error, "Failed to allocate memory for processes");
+    return false;
+  }
+
   list->count = count;
 
   for (size_t i = 0; i < count; i++) {
