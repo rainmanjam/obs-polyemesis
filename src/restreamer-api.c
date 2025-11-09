@@ -2,7 +2,9 @@
 #include <curl/curl.h>
 #include <jansson.h>
 #include <obs-module.h>
+#include <plugin-support.h>
 #include <string.h>
+#include <time.h>
 #include <util/bmem.h>
 #include <util/dstr.h>
 
@@ -12,6 +14,9 @@ struct restreamer_api {
   struct curl_slist *headers;
   char error_buffer[CURL_ERROR_SIZE];
   struct dstr last_error;
+  char *access_token;     /* JWT access token */
+  char *refresh_token;    /* JWT refresh token */
+  time_t token_expires;   /* Token expiration timestamp */
 };
 
 /* Memory write callback for curl */
@@ -73,15 +78,10 @@ restreamer_api_t *restreamer_api_create(restreamer_connection_t *connection) {
   curl_easy_setopt(api->curl, CURLOPT_WRITEFUNCTION, write_callback);
   curl_easy_setopt(api->curl, CURLOPT_TIMEOUT, 10L);
 
-  /* Set up authentication if provided */
-  if (api->connection.username && api->connection.password) {
-    struct dstr auth;
-    dstr_init(&auth);
-    dstr_printf(&auth, "%s:%s", api->connection.username,
-                api->connection.password);
-    curl_easy_setopt(api->curl, CURLOPT_USERPWD, auth.array);
-    dstr_free(&auth);
-  }
+  /* Initialize JWT token fields */
+  api->access_token = NULL;
+  api->refresh_token = NULL;
+  api->token_expires = 0;
 
   return api;
 }
@@ -102,14 +102,126 @@ void restreamer_api_destroy(restreamer_api_t *api) {
   bfree(api->connection.host);
   bfree(api->connection.username);
   bfree(api->connection.password);
+  bfree(api->access_token);
+  bfree(api->refresh_token);
   dstr_free(&api->last_error);
 
   bfree(api);
 }
 
+/* Login to get JWT token */
+static bool restreamer_api_login(restreamer_api_t *api) {
+  if (!api || !api->connection.username || !api->connection.password) {
+    dstr_copy(&api->last_error, "Username and password required for login");
+    return false;
+  }
+
+  /* Build login request */
+  json_t *login_data = json_object();
+  json_object_set_new(login_data, "username", json_string(api->connection.username));
+  json_object_set_new(login_data, "password", json_string(api->connection.password));
+
+  char *post_data = json_dumps(login_data, 0);
+  json_decref(login_data);
+
+  /* Make request without token (login doesn't need auth) */
+  struct dstr url;
+  dstr_init(&url);
+
+  const char *protocol = api->connection.use_https ? "https" : "http";
+  dstr_printf(&url, "%s://%s:%d/api/login", protocol, api->connection.host,
+              api->connection.port);
+
+  struct memory_struct response;
+  response.memory = bmalloc(1);
+  response.size = 0;
+
+  curl_easy_setopt(api->curl, CURLOPT_URL, url.array);
+  curl_easy_setopt(api->curl, CURLOPT_WRITEDATA, (void *)&response);
+  curl_easy_setopt(api->curl, CURLOPT_POST, 1L);
+  curl_easy_setopt(api->curl, CURLOPT_POSTFIELDS, post_data);
+
+  CURLcode res = curl_easy_perform(api->curl);
+  free(post_data);
+  dstr_free(&url);
+
+  if (res != CURLE_OK) {
+    dstr_copy(&api->last_error, api->error_buffer);
+    bfree(response.memory);
+    return false;
+  }
+
+  long http_code = 0;
+  curl_easy_getinfo(api->curl, CURLINFO_RESPONSE_CODE, &http_code);
+
+  if (http_code < 200 || http_code >= 300) {
+    dstr_printf(&api->last_error, "Login failed: HTTP %ld", http_code);
+    bfree(response.memory);
+    return false;
+  }
+
+  /* Parse response to get tokens */
+  json_error_t error;
+  json_t *root = json_loads(response.memory, 0, &error);
+  bfree(response.memory);
+
+  if (!root) {
+    dstr_printf(&api->last_error, "JSON parse error: %s", error.text);
+    return false;
+  }
+
+  json_t *access_token = json_object_get(root, "access_token");
+  json_t *refresh_token = json_object_get(root, "refresh_token");
+  json_t *expires_at = json_object_get(root, "expires_at");
+
+  if (!access_token || !json_is_string(access_token)) {
+    dstr_copy(&api->last_error, "No access token in login response");
+    json_decref(root);
+    return false;
+  }
+
+  /* Store tokens */
+  bfree(api->access_token);
+  api->access_token = bstrdup(json_string_value(access_token));
+
+  if (refresh_token && json_is_string(refresh_token)) {
+    bfree(api->refresh_token);
+    api->refresh_token = bstrdup(json_string_value(refresh_token));
+  }
+
+  if (expires_at && json_is_integer(expires_at)) {
+    api->token_expires = (time_t)json_integer_value(expires_at);
+  } else {
+    /* Default to 1 hour from now if no expiry provided */
+    api->token_expires = time(NULL) + 3600;
+  }
+
+  json_decref(root);
+
+  obs_log(LOG_INFO, "[obs-polyemesis] Successfully logged in to Restreamer");
+
+  return true;
+}
+
 static bool make_request(restreamer_api_t *api, const char *endpoint,
                          const char *method, const char *post_data,
                          struct memory_struct *response) {
+  /* Check if we need to login or refresh token */
+  if (!api->access_token || time(NULL) >= api->token_expires) {
+    if (!restreamer_api_login(api)) {
+      return false;
+    }
+  }
+
+  /* Add Authorization header with Bearer token */
+  struct dstr auth_header;
+  dstr_init(&auth_header);
+  dstr_printf(&auth_header, "Authorization: Bearer %s", api->access_token);
+
+  struct curl_slist *headers = api->headers;
+  headers = curl_slist_append(headers, auth_header.array);
+  curl_easy_setopt(api->curl, CURLOPT_HTTPHEADER, headers);
+
   struct dstr url;
   dstr_init(&url);
 
@@ -141,6 +253,10 @@ static bool make_request(restreamer_api_t *api, const char *endpoint,
 
   CURLcode res = curl_easy_perform(api->curl);
 
+  /* Clean up temporary headers */
+  curl_slist_free_all(headers);
+  curl_easy_setopt(api->curl, CURLOPT_HTTPHEADER, api->headers);
+  dstr_free(&auth_header);
   dstr_free(&url);
 
   if (res != CURLE_OK) {
