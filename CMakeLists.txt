@@ -37,7 +37,14 @@ if(NOT JANSSON_FOUND)
     set(JANSSON_FOUND TRUE)
     set(JANSSON_LIBRARIES ${JANSSON_LIBRARY})
     set(JANSSON_INCLUDE_DIRS ${JANSSON_INCLUDE_DIR})
-    message(STATUS "Found jansson: ${JANSSON_LIBRARY}")
+    
+    # Detect and report which variant was found
+    get_filename_component(JANSSON_LIB_NAME ${JANSSON_LIBRARY} NAME)
+    if(JANSSON_LIB_NAME MATCHES "\\.(a|lib)$")
+      message(STATUS "Found jansson (static): ${JANSSON_LIBRARY}")
+    else()
+      message(STATUS "Found jansson (shared): ${JANSSON_LIBRARY}")
+    endif()
   endif()
 endif()
 
