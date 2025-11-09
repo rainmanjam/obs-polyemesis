@@ -218,9 +218,11 @@ static bool make_request(restreamer_api_t *api, const char *endpoint,
   dstr_init(&auth_header);
   dstr_printf(&auth_header, "Authorization: Bearer %s", api->access_token);
 
-  struct curl_slist *headers = api->headers;
-  headers = curl_slist_append(headers, auth_header.array);
-  curl_easy_setopt(api->curl, CURLOPT_HTTPHEADER, headers);
+  /* Create temporary headers list for this request */
+  struct curl_slist *temp_headers = NULL;
+  temp_headers = curl_slist_append(temp_headers, "Content-Type: application/json");
+  temp_headers = curl_slist_append(temp_headers, auth_header.array);
+  curl_easy_setopt(api->curl, CURLOPT_HTTPHEADER, temp_headers);
 
   struct dstr url;
   dstr_init(&url);
@@ -254,8 +256,8 @@ static bool make_request(restreamer_api_t *api, const char *endpoint,
   CURLcode res = curl_easy_perform(api->curl);
 
   /* Clean up temporary headers */
-  curl_slist_free_all(headers);
-  curl_easy_setopt(api->curl, CURLOPT_HTTPHEADER, api->headers);
+  curl_slist_free_all(temp_headers);
+  curl_easy_setopt(api->curl, CURLOPT_HTTPHEADER, NULL);
   dstr_free(&auth_header);
   dstr_free(&url);
 
