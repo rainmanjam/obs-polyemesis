@@ -127,12 +127,23 @@ if [ -d "/Applications/OBS.app" ]; then
 fi
 
 # Remove old plugin if it exists (user directory)
-OLD_PLUGIN="$HOME/Library/Application Support/obs-studio/plugins/obs-polyemesis.plugin"
-if [ -d "$OLD_PLUGIN" ]; then
-    echo "Removing previous installation..."
-    rm -rf "$OLD_PLUGIN"
+# Determine user home directory robustly
+if [ -n "$HOME" ]; then
+    USER_HOME="$HOME"
+elif [ -n "$USER" ]; then
+    USER_HOME="/Users/$USER"
+else
+    echo "WARNING: Could not determine user home directory. Skipping user plugin removal."
+    USER_HOME=""
 fi
 
+if [ -n "$USER_HOME" ]; then
+    OLD_PLUGIN="$USER_HOME/Library/Application Support/obs-studio/plugins/obs-polyemesis.plugin"
+    if [ -d "$OLD_PLUGIN" ]; then
+        echo "Removing previous installation..."
+        rm -rf "$OLD_PLUGIN"
+    fi
+fi
 # Also check system-wide location (old installation path)
 OLD_SYSTEM_PLUGIN="/Library/Application Support/obs-studio/plugins/obs-polyemesis.plugin"
 if [ -d "$OLD_SYSTEM_PLUGIN" ]; then
