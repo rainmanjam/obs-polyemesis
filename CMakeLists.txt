@@ -129,8 +129,34 @@ if(APPLE)
   )
 
   # Remove AGL framework completely - it's deprecated and removed from modern macOS SDKs
-  # This is a workaround for older OBS/Qt dependencies that still reference it
-  target_link_options(${CMAKE_PROJECT_NAME} PRIVATE "LINKER:-U,_CGLChoosePixelFormat"  "LINKER:-U,_aglChoosePixelFormat")
+  # This is a workaround for OBS Studio < 29.1 and Qt < 6.2, which may reference deprecated AGL symbols.
+  # Only apply if OBS/Qt versions are known to require it.
+  if(TARGET OBS::libobs)
+    get_target_property(_obs_version OBS::libobs VERSION)
+  endif()
+  if(TARGET Qt6::Core)
+    get_target_property(_qt_version Qt6::Core VERSION)
+  elseif(TARGET Qt5::Core)
+    get_target_property(_qt_version Qt5::Core VERSION)
+  endif()
+  # Set default values if not found
+  if(NOT _obs_version)
+    set(_obs_version "0.0.0")
+  endif()
+  if(NOT _qt_version)
+    set(_qt_version "0.0.0")
+  endif()
+  # Apply workaround only for OBS < 29.1 and Qt < 6.2
+  if(
+    (ENABLE_QT)
+    AND (
+      ("${_obs_version}" VERSION_LESS "29.1")
+      OR ("${_qt_version}" VERSION_LESS "6.2")
+    )
+  )
+    message(WARNING "Applying AGL linker workaround for OBS Studio < 29.1 or Qt < 6.2. This may be fragile; upgrade dependencies if possible.")
+    target_link_options(${CMAKE_PROJECT_NAME} PRIVATE "LINKER:-U,_CGLChoosePixelFormat"  "LINKER:-U,_aglChoosePixelFormat")
+  endif()
 
   # Post-build step to fix library dependencies on macOS
   add_custom_command(
