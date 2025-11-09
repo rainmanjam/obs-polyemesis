@@ -11,7 +11,8 @@ PROJECT_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
 PLUGIN_NAME="obs-polyemesis"
 VERSION="${VERSION:-1.0.0}"
 IDENTIFIER="com.rainmanjam.obs-polyemesis"
-INSTALL_LOCATION="/Library/Application Support/obs-studio/plugins"
+# User-specific installation (OBS searches ~/Library, not /Library)
+INSTALL_LOCATION="Library/Application Support/obs-studio/plugins"
 BUILD_DIR="${BUILD_DIR:-${PROJECT_ROOT}/build}"
 PKG_DIR="$SCRIPT_DIR/build"
 PLUGIN_BUNDLE="${BUILD_DIR}/obs-polyemesis.plugin"
@@ -62,6 +63,13 @@ verify_plugin() {
     fi
 
     log_info "Plugin bundle verified: $PLUGIN_BUNDLE"
+
+    # Check binary architecture
+    PLUGIN_BINARY="$PLUGIN_BUNDLE/Contents/MacOS/obs-polyemesis"
+    if [ -f "$PLUGIN_BINARY" ]; then
+        log_info "Plugin binary architectures:"
+        lipo -info "$PLUGIN_BINARY" || file "$PLUGIN_BINARY"
+    fi
 }
 
 # Create package structure
@@ -74,8 +82,15 @@ create_package_structure() {
     mkdir -p "$PKG_DIR/scripts"
     mkdir -p "$PKG_DIR/resources"
 
-    # Copy plugin bundle
-    cp -R "$PLUGIN_BUNDLE" "$PKG_DIR/root$INSTALL_LOCATION/"
+    # Copy plugin bundle (preserving all attributes and architectures)
+    cp -RPp "$PLUGIN_BUNDLE" "$PKG_DIR/root$INSTALL_LOCATION/"
+
+    # Verify architecture after copy
+    COPIED_BINARY="$PKG_DIR/root$INSTALL_LOCATION/obs-polyemesis.plugin/Contents/MacOS/obs-polyemesis"
+    if [ -f "$COPIED_BINARY" ]; then
+        log_info "Copied binary architectures:"
+        lipo -info "$COPIED_BINARY" || file "$COPIED_BINARY"
+    fi
 
     log_info "Package structure created"
 }
@@ -111,11 +126,29 @@ if [ -d "/Applications/OBS.app" ]; then
     fi
 fi
 
-# Remove old plugin if it exists
-OLD_PLUGIN="$2/Library/Application Support/obs-studio/plugins/obs-polyemesis.plugin"
-if [ -d "$OLD_PLUGIN" ]; then
-    echo "Removing previous installation..."
-    rm -rf "$OLD_PLUGIN"
+# Remove old plugin if it exists (user directory)
+# Determine user home directory robustly
+if [ -n "$HOME" ]; then
+    USER_HOME="$HOME"
+elif [ -n "$USER" ]; then
+    USER_HOME="/Users/$USER"
+else
+    echo "WARNING: Could not determine user home directory. Skipping user plugin removal."
+    USER_HOME=""
+fi
+
+if [ -n "$USER_HOME" ]; then
+    OLD_PLUGIN="$USER_HOME/Library/Application Support/obs-studio/plugins/obs-polyemesis.plugin"
+    if [ -d "$OLD_PLUGIN" ]; then
+        echo "Removing previous installation..."
+        rm -rf "$OLD_PLUGIN"
+    fi
+fi
+# Also check system-wide location (old installation path)
+OLD_SYSTEM_PLUGIN="/Library/Application Support/obs-studio/plugins/obs-polyemesis.plugin"
+if [ -d "$OLD_SYSTEM_PLUGIN" ]; then
+    echo "Removing old system-wide installation..."
+    rm -rf "$OLD_SYSTEM_PLUGIN"
 fi
 
 exit 0
@@ -186,9 +219,9 @@ OBS Polyemesis - Restreamer Control Plugin
 INSTALLATION
 
 This package will install the OBS Polyemesis plugin to:
-/Library/Application Support/obs-studio/plugins/
+~/Library/Application Support/obs-studio/plugins/
 
-The plugin will be available to all users on this Mac.
+The plugin will be installed for your user account.
 
 FIRST USE
 
@@ -242,7 +275,7 @@ create_distribution_xml() {
 <installer-gui-script minSpecVersion="1">
     <title>OBS Polyemesis ${VERSION}</title>
     <organization>com.rainmanjam</organization>
-    <domains enable_anywhere="false" enable_currentUserHome="false" enable_localSystem="true"/>
+    <domains enable_anywhere="false" enable_currentUserHome="true" enable_localSystem="false"/>
     <options customize="never" require-scripts="false" hostArchitectures="arm64,x86_64"/>
 
     <!-- Welcome and README -->

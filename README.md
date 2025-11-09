@@ -31,14 +31,41 @@ A comprehensive OBS Studio plugin for controlling and monitoring [datarhei Restr
 
 ### Installation
 
+#### Pre-built Packages (Recommended)
+
+Download the latest release for your platform from the [Releases page](https://github.com/rainmanjam/obs-polyemesis/releases):
+
+**macOS** (Apple Silicon, arm64 only)
+```bash
+# Download obs-polyemesis-X.X.X-macos.pkg
+# Right-click → Open (or double-click)
+# If blocked: System Settings → Privacy & Security → "Open Anyway"
+```
+> ⚠️ **Note**: Packages are unsigned. The plugin installs to `~/Library/Application Support/obs-studio/plugins/`
+
+**Windows** (x64)
+```bash
+# Download obs-polyemesis-X.X.X-windows-x64.exe
+# Run installer
+```
+
+**Linux** (Ubuntu/Debian)
+```bash
+# Download obs-polyemesis_X.X.X_amd64.deb
+sudo dpkg -i obs-polyemesis_X.X.X_amd64.deb
+```
+
+#### Build from Source
+
 ```bash
 # Clone the repository
 git clone https://github.com/rainmanjam/obs-polyemesis.git
 cd obs-polyemesis
 
-# Build
-cmake -B build -DCMAKE_BUILD_TYPE=Release
-cmake --build build
+# Build (macOS universal binary)
+cmake -B build -DCMAKE_BUILD_TYPE=Release \
+  -DCMAKE_OSX_ARCHITECTURES="arm64;x86_64"
+cmake --build build --config Release
 
 # Install
 cmake --install build
@@ -71,6 +98,12 @@ Stream landscape gameplay to Twitch and YouTube in native 16:9, with automatic c
 
 ### Universal Broadcasting
 One OBS setup, multiple platforms, correct orientations - automatically.
+
+## ⚠️ Known Limitations
+
+- **macOS**: Apple Silicon only (Intel Macs not supported in 0.9.0)
+- **macOS**: Unsigned packages show security warning (right-click → Open to install)
+- **Requires datarhei Restreamer instance** (tested with v16.16.0)
 
 ## 🛠️ Requirements
 
