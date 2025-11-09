@@ -267,9 +267,6 @@ create_readme() {
             margin: 0 0 10px 0;
         }
         code {
-            background-color: #f5f5f5;
-            padding: 2px 6px;
-            border-radius: 3px;
             font-family: "SF Mono", Menlo, Monaco, Consolas, monospace;
             font-size: 12px;
         }
