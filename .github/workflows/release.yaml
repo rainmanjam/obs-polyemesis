@@ -218,8 +218,20 @@ jobs:
           mkdir -p obs-polyemesis_${VERSION}/usr/lib/obs-plugins
           mkdir -p obs-polyemesis_${VERSION}/usr/share/obs/obs-plugins/obs-polyemesis
 
-          cp packaging/linux/debian/control obs-polyemesis_${VERSION}/DEBIAN/
-          sed -i "s/Version:.*/Version: ${VERSION}/" obs-polyemesis_${VERSION}/DEBIAN/control
+          # Create binary control file (not source control)
+          cat > obs-polyemesis_${VERSION}/DEBIAN/control << EOF
+          Package: obs-polyemesis
+          Version: ${VERSION}
+          Architecture: amd64
+          Maintainer: rainmanjam <noreply@github.com>
+          Depends: obs-studio (>= 28.0), libcurl4, libjansson4
+          Section: video
+          Priority: optional
+          Homepage: https://github.com/rainmanjam/obs-polyemesis
+          Description: datarhei Restreamer control plugin for OBS Studio
+           OBS Polyemesis is a comprehensive plugin for controlling and monitoring
+           datarhei Restreamer instances with advanced multistreaming capabilities.
+          EOF
 
           cp build/obs-polyemesis.so obs-polyemesis_${VERSION}/usr/lib/obs-plugins/
           cp -r data/* obs-polyemesis_${VERSION}/usr/share/obs/obs-plugins/obs-polyemesis/
