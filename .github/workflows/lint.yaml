@@ -157,4 +157,4 @@ jobs:
         with:
           check_filenames: true
           skip: .git,*.png,*.jpg,*.svg,build,*.lock
-          ignore_words_list: SectionIn
+          ignore_words_list: SectionIn,pard
