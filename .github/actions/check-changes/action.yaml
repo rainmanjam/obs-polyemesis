@@ -39,6 +39,7 @@ runs:
         GITHUB_REF_BEFORE: ${{ github.event.before }}
         USE_FALLBACK: ${{ inputs.useFallback }}
         DIFF_FILTER: ${{ inputs.diffFilter }}
+        INPUT_CHECK_GLOB: ${{ inputs.checkGlob }}
       run: |
         : Check for Changed Files ✅
         if [[ "${RUNNER_DEBUG}" ]]; then set -x; fi
@@ -65,7 +66,7 @@ runs:
           esac
         fi
 
-        changes=($(git diff --name-only --diff-filter="${DIFF_FILTER}" ${GIT_BASE_REF} ${GIT_REF} -- ${{ inputs.checkGlob }}))
+        changes=($(git diff --name-only --diff-filter="${DIFF_FILTER}" ${GIT_BASE_REF} ${GIT_REF} -- ${INPUT_CHECK_GLOB}))
 
         if (( ${#changes[@]} )); then
           file_string="${changes[*]}"

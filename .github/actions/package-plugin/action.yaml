@@ -57,15 +57,19 @@ runs:
         CODESIGN_TEAM: ${{ inputs.codesignTeam }}
         CODESIGN_IDENT_USER: ${{ inputs.codesignUser }}
         CODESIGN_IDENT_PASS: ${{ inputs.codesignPass }}
+        INPUT_CONFIG: ${{ inputs.config }}
+        INPUT_CODESIGN: ${{ inputs.codesign }}
+        INPUT_NOTARIZE: ${{ inputs.notarize }}
+        INPUT_PACKAGE: ${{ inputs.package }}
       run: |
         : Run macOS Packaging
 
-        local -a package_args=(--config ${{ inputs.config }})
+        local -a package_args=(--config "$INPUT_CONFIG")
         if (( ${+RUNNER_DEBUG} )) package_args+=(--debug)
 
-        if [[ '${{ inputs.codesign }}' == 'true' ]] package_args+=(--codesign)
-        if [[ '${{ inputs.notarize }}' == 'true' ]] package_args+=(--notarize)
-        if [[ '${{ inputs.package }}' == 'true' ]] package_args+=(--package)
+        if [[ "$INPUT_CODESIGN" == 'true' ]] package_args+=(--codesign)
+        if [[ "$INPUT_NOTARIZE" == 'true' ]] package_args+=(--notarize)
+        if [[ "$INPUT_PACKAGE" == 'true' ]] package_args+=(--package)
 
         .github/scripts/package-macos ${package_args}
 
@@ -84,21 +88,28 @@ runs:
       if: runner.os == 'Linux'
       shell: zsh --no-rcs --errexit --pipefail {0}
       working-directory: ${{ inputs.workingDirectory }}
+      env:
+        INPUT_TARGET: ${{ inputs.target }}
+        INPUT_CONFIG: ${{ inputs.config }}
+        INPUT_PACKAGE: ${{ inputs.package }}
       run: |
         : Run Ubuntu Packaging
         package_args=(
-          --target ubuntu-${{ inputs.target }}
-          --config ${{ inputs.config }}
+          --target ubuntu-"$INPUT_TARGET"
+          --config "$INPUT_CONFIG"
         )
         if (( ${+RUNNER_DEBUG} )) build_args+=(--debug)
 
-        if [[ '${{ inputs.package }}' == 'true' ]] package_args+=(--package)
+        if [[ "$INPUT_PACKAGE" == 'true' ]] package_args+=(--package)
 
         .github/scripts/package-ubuntu ${package_args}
 
     - name: Run Windows Packaging
       if: runner.os == 'Windows'
       shell: pwsh
+      env:
+        INPUT_TARGET: ${{ inputs.target }}
+        INPUT_CONFIG: ${{ inputs.config }}
       run: |
         # Run Windows Packaging
         if ( $Env:RUNNER_DEBUG -ne $null ) {
@@ -106,8 +117,8 @@ runs:
         }
 
         $PackageArgs = @{
-          Target = '${{ inputs.target }}'
-          Configuration = '${{ inputs.config }}'
+          Target = $Env:INPUT_TARGET
+          Configuration = $Env:INPUT_CONFIG
         }
 
         .github/scripts/Package-Windows.ps1 @PackageArgs

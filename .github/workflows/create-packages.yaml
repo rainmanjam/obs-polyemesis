@@ -104,8 +104,10 @@ jobs:
           cmake --build build --config Release
 
       - name: Create Package
+        env:
+          INPUT_VERSION: ${{ github.event.inputs.version || github.ref_name }}
         run: |
-          VERSION="${{ github.event.inputs.version || github.ref_name }}"
+          VERSION="$INPUT_VERSION"
           VERSION="${VERSION#v}"  # Remove 'v' prefix if present
           chmod +x packaging/macos/create-installer.sh
           packaging/macos/create-installer.sh "${VERSION}"
@@ -142,10 +144,13 @@ jobs:
           cmake --build build --config Release
 
       - name: Create Package
+        env:
+          INPUT_VERSION: ${{ github.event.inputs.version }}
+          GITHUB_REF_NAME: ${{ github.ref_name }}
         run: |
-          $version = "${{ github.event.inputs.version }}"
+          $version = $Env:INPUT_VERSION
           if ([string]::IsNullOrEmpty($version)) {
-            $version = "${{ github.ref_name }}".TrimStart('v')
+            $version = $Env:GITHUB_REF_NAME.TrimStart('v')
           }
           if ([string]::IsNullOrEmpty($version)) {
             $version = "1.0.0"
@@ -208,8 +213,10 @@ jobs:
           cmake --build build --config Release
 
       - name: Create Package
+        env:
+          INPUT_VERSION: ${{ github.event.inputs.version || github.ref_name }}
         run: |
-          VERSION="${{ github.event.inputs.version || github.ref_name }}"
+          VERSION="$INPUT_VERSION"
           VERSION="${VERSION#v}"  # Remove 'v' prefix if present
           chmod +x packaging/linux/create-deb.sh
           packaging/linux/create-deb.sh "${VERSION}" amd64
