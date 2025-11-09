@@ -1,0 +1,32 @@
+Source: obs-polyemesis
+Section: video
+Priority: optional
+Maintainer: rainmanjam <noreply@github.com>
+Build-Depends: debhelper (>= 11),
+               cmake (>= 3.28),
+               obs-studio-dev | libobs-dev,
+               libcurl4-openssl-dev,
+               libjansson-dev,
+               qtbase5-dev | qt6-base-dev,
+               pkg-config
+Standards-Version: 4.5.0
+Homepage: https://github.com/rainmanjam/obs-polyemesis
+
+Package: obs-polyemesis
+Architecture: any
+Depends: ${shlibs:Depends}, ${misc:Depends},
+         obs-studio (>= 28.0),
+         libcurl4 | libcurl3-gnutls,
+         libjansson4,
+         libqt6core6 | libqt5core5a
+Description: datarhei Restreamer control plugin for OBS Studio
+ OBS Polyemesis is a comprehensive plugin for controlling and monitoring
+ datarhei Restreamer instances with advanced multistreaming capabilities.
+ .
+ Features:
+  * Full Restreamer process control and monitoring
+  * Real-time statistics and session tracking
+  * Advanced multistreaming with orientation detection
+  * Support for major platforms (Twitch, YouTube, TikTok, Instagram)
+  * Qt-based control panel with intuitive UI
+  * Multiple plugin types (Source, Output, Dock)

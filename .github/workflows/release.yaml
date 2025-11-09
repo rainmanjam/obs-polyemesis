@@ -1,0 +1,308 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*.*.*'
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Release version (e.g., 1.0.0)'
+        required: true
+        type: string
+      prerelease:
+        description: 'Mark as pre-release'
+        required: false
+        type: boolean
+        default: false
+
+concurrency:
+  group: '${{ github.workflow }} @ ${{ github.ref }}'
+  cancel-in-progress: false
+
+env:
+  PLUGIN_NAME: obs-polyemesis
+
+jobs:
+  create-release:
+    name: Create GitHub Release
+    runs-on: ubuntu-latest
+    outputs:
+      upload_url: ${{ steps.create_release.outputs.upload_url }}
+      version: ${{ steps.get_version.outputs.version }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Get Version
+        id: get_version
+        env:
+          GITHUB_EVENT_NAME: ${{ github.event_name }}
+          INPUT_VERSION: ${{ github.event.inputs.version }}
+        run: |
+          if [ "$GITHUB_EVENT_NAME" = "workflow_dispatch" ]; then
+            VERSION="$INPUT_VERSION"
+          else
+            VERSION=${GITHUB_REF#refs/tags/v}
+          fi
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+          echo "Version: $VERSION"
+
+      - name: Generate Release Notes
+        id: release_notes
+        run: |
+          if [ -f "RELEASE_NOTES_${{ steps.get_version.outputs.version }}.md" ]; then
+            cat "RELEASE_NOTES_${{ steps.get_version.outputs.version }}.md" > release_notes.md
+          else
+            echo "# Release v${{ steps.get_version.outputs.version }}" > release_notes.md
+            echo "" >> release_notes.md
+            echo "## Changes" >> release_notes.md
+            git log --pretty=format:"- %s" $(git describe --tags --abbrev=0 HEAD^)..HEAD \
+              >> release_notes.md 2>/dev/null || echo "- Initial release" >> release_notes.md
+          fi
+          echo "Generated release notes"
+
+      - name: Create Release
+        id: create_release
+        uses: actions/create-release@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          tag_name: v${{ steps.get_version.outputs.version }}
+          release_name: OBS Polyemesis v${{ steps.get_version.outputs.version }}
+          body_path: release_notes.md
+          draft: false
+          prerelease: ${{ github.event.inputs.prerelease || false }}
+
+  build-macos:
+    name: Build macOS Package
+    needs: create-release
+    runs-on: macos-14
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: Setup Environment
+        run: |
+          brew install jansson
+          brew install --cask obs
+
+      - name: Build Plugin
+        run: |
+          cmake -B build -G Xcode \
+            -DCMAKE_BUILD_TYPE=Release \
+            -DENABLE_FRONTEND_API=ON \
+            -DENABLE_QT=ON
+          cmake --build build --config Release
+
+      - name: Create Package
+        env:
+          VERSION: ${{ needs.create-release.outputs.version }}
+        run: |
+          chmod +x packaging/macos/create-pkg.sh
+          cd packaging/macos
+          ./create-pkg.sh
+
+      - name: Upload Package
+        uses: actions/upload-release-asset@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          upload_url: ${{ needs.create-release.outputs.upload_url }}
+          asset_path: ./obs-polyemesis-${{ needs.create-release.outputs.version }}-macos.pkg
+          asset_name: obs-polyemesis-${{ needs.create-release.outputs.version }}-macos.pkg
+          asset_content_type: application/octet-stream
+
+      - name: Upload Package as Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: macos-package
+          path: ./obs-polyemesis-${{ needs.create-release.outputs.version }}-macos.pkg
+
+  build-windows:
+    name: Build Windows Package
+    needs: create-release
+    runs-on: windows-2022
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: Setup NSIS
+        run: |
+          choco install nsis -y
+
+      - name: Build Plugin
+        run: |
+          cmake -B build -DENABLE_FRONTEND_API=OFF -DENABLE_QT=OFF
+          cmake --build build --config Release
+
+      - name: Create Installer
+        env:
+          VERSION: ${{ needs.create-release.outputs.version }}
+        run: |
+          makensis packaging/windows/installer.nsi
+
+      - name: Upload Installer
+        uses: actions/upload-release-asset@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          upload_url: ${{ needs.create-release.outputs.upload_url }}
+          asset_path: ./obs-polyemesis-${{ needs.create-release.outputs.version }}-windows-x64.exe
+          asset_name: obs-polyemesis-${{ needs.create-release.outputs.version }}-windows-x64.exe
+          asset_content_type: application/octet-stream
+
+      - name: Upload Installer as Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: windows-installer
+          path: ./obs-polyemesis-${{ needs.create-release.outputs.version }}-windows-x64.exe
+
+  build-linux:
+    name: Build Linux Packages
+    needs: create-release
+    runs-on: ubuntu-24.04
+    strategy:
+      matrix:
+        include:
+          - format: deb
+            builder: dpkg-deb
+          - format: rpm
+            builder: rpmbuild
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: Install Dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            build-essential \
+            cmake \
+            libcurl4-openssl-dev \
+            libjansson-dev \
+            libobs-dev \
+            ninja-build \
+            ${{ matrix.format == 'rpm' && 'rpm' || '' }}
+
+      - name: Build Plugin
+        run: |
+          cmake -B build -G Ninja \
+            -DCMAKE_BUILD_TYPE=Release \
+            -DENABLE_FRONTEND_API=OFF \
+            -DENABLE_QT=OFF
+          cmake --build build
+
+      - name: Create DEB Package
+        if: matrix.format == 'deb'
+        env:
+          VERSION: ${{ needs.create-release.outputs.version }}
+        run: |
+          mkdir -p obs-polyemesis_${VERSION}/DEBIAN
+          mkdir -p obs-polyemesis_${VERSION}/usr/lib/obs-plugins
+          mkdir -p obs-polyemesis_${VERSION}/usr/share/obs/obs-plugins/obs-polyemesis
+
+          cp packaging/linux/debian/control obs-polyemesis_${VERSION}/DEBIAN/
+          sed -i "s/Version:.*/Version: ${VERSION}/" obs-polyemesis_${VERSION}/DEBIAN/control
+
+          cp build/obs-polyemesis.so obs-polyemesis_${VERSION}/usr/lib/obs-plugins/
+          cp -r data/* obs-polyemesis_${VERSION}/usr/share/obs/obs-plugins/obs-polyemesis/
+
+          dpkg-deb --build obs-polyemesis_${VERSION}
+          mv obs-polyemesis_${VERSION}.deb obs-polyemesis_${VERSION}_amd64.deb
+
+      - name: Create RPM Package
+        if: matrix.format == 'rpm'
+        env:
+          VERSION: ${{ needs.create-release.outputs.version }}
+        run: |
+          mkdir -p ~/rpmbuild/{BUILD,RPMS,SOURCES,SPECS,SRPMS}
+          cp packaging/linux/rpm/obs-polyemesis.spec ~/rpmbuild/SPECS/
+
+          # Create source tarball
+          tar czf ~/rpmbuild/SOURCES/obs-polyemesis-${VERSION}.tar.gz \
+            --transform "s,^,obs-polyemesis-${VERSION}/," \
+            --exclude='.git' \
+            --exclude='build' \
+            .
+
+          rpmbuild -ba ~/rpmbuild/SPECS/obs-polyemesis.spec
+          cp ~/rpmbuild/RPMS/x86_64/obs-polyemesis-${VERSION}-1.*.rpm .
+
+      - name: Upload DEB Package
+        if: matrix.format == 'deb'
+        uses: actions/upload-release-asset@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          upload_url: ${{ needs.create-release.outputs.upload_url }}
+          asset_path: ./obs-polyemesis_${{ needs.create-release.outputs.version }}_amd64.deb
+          asset_name: obs-polyemesis_${{ needs.create-release.outputs.version }}_amd64.deb
+          asset_content_type: application/octet-stream
+
+      - name: Upload RPM Package
+        if: matrix.format == 'rpm'
+        uses: actions/upload-release-asset@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          upload_url: ${{ needs.create-release.outputs.upload_url }}
+          asset_path: ./obs-polyemesis-${{ needs.create-release.outputs.version }}-1.x86_64.rpm
+          asset_name: obs-polyemesis-${{ needs.create-release.outputs.version }}-1.x86_64.rpm
+          asset_content_type: application/octet-stream
+
+      - name: Upload Package as Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: linux-${{ matrix.format }}-package
+          path: |
+            ./*.deb
+            ./*.rpm
+
+  update-checksums:
+    name: Update Release Checksums
+    needs: [create-release, build-macos, build-windows, build-linux]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Download All Artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+
+      - name: Generate Checksums
+        run: |
+          cd artifacts
+          find . -type f \( -name "*.pkg" -o -name "*.exe" -o -name "*.deb" -o -name "*.rpm" \) \
+            -exec sha256sum {} \; > SHA256SUMS.txt
+          cat SHA256SUMS.txt
+
+      - name: Upload Checksums
+        uses: actions/upload-release-asset@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          upload_url: ${{ needs.create-release.outputs.upload_url }}
+          asset_path: ./artifacts/SHA256SUMS.txt
+          asset_name: SHA256SUMS.txt
+          asset_content_type: text/plain
+
+  notify:
+    name: Send Release Notification
+    needs: [create-release, build-macos, build-windows, build-linux, update-checksums]
+    runs-on: ubuntu-latest
+    if: always()
+    steps:
+      - name: Release Status
+        run: |
+          echo "Release v${{ needs.create-release.outputs.version }} completed!"
+          echo "Status: ${{ job.status }}"
+          URL="https://github.com/${{ github.repository }}/releases/tag/v${{ needs.create-release.outputs.version }}"
+          echo "Download: $URL"

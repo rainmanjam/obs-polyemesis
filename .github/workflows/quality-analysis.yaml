@@ -1,0 +1,128 @@
+name: Code Quality Analysis
+
+on:
+  push:
+    branches: [main, develop]
+  pull_request:
+    branches: [main, develop]
+  workflow_dispatch:
+  workflow_call:
+
+permissions:
+  contents: read
+
+# NOTE: CodeQL Analysis also runs code quality checks
+# See security.yaml for CodeQL (security-extended + security-and-quality queries)
+
+jobs:
+  lizard:
+    name: Code Complexity Analysis (Lizard)
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.x'
+
+      - name: Install Lizard
+        run: pip install lizard
+
+      - name: Run Lizard Analysis
+        continue-on-error: true
+        run: |
+          echo "### Code Complexity Report" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+
+          # Run Lizard analysis (auto-detect languages for both .c and .cpp files)
+          if lizard src/ --CCN 15 -w 2>&1 | tee lizard-output.txt; then
+            echo "✓ Lizard analysis completed successfully" >> $GITHUB_STEP_SUMMARY
+          else
+            echo "⚠️ Lizard analysis completed with warnings" >> $GITHUB_STEP_SUMMARY
+          fi
+
+          # Generate detailed report
+          lizard src/ -o lizard-report.html 2>/dev/null || \
+            echo "Could not generate HTML report" >> $GITHUB_STEP_SUMMARY
+
+          # Show summary in workflow
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "\`\`\`" >> $GITHUB_STEP_SUMMARY
+          head -50 lizard-output.txt >> $GITHUB_STEP_SUMMARY 2>/dev/null || \
+            echo "No complexity data available" >> $GITHUB_STEP_SUMMARY
+          echo "\`\`\`" >> $GITHUB_STEP_SUMMARY
+
+      - name: Upload Lizard Report
+        uses: actions/upload-artifact@v4
+        if: always() && hashFiles('lizard-report.html') != ''
+        with:
+          name: lizard-complexity-report
+          path: |
+            lizard-report.html
+            lizard-output.txt
+          retention-days: 30
+
+  valgrind:
+    name: Memory Analysis (Valgrind)
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install Dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            valgrind \
+            build-essential \
+            cmake \
+            libcurl4-openssl-dev \
+            libjansson-dev \
+            libobs-dev \
+            ninja-build
+
+      - name: Build with Debug Symbols
+        run: |
+          cmake -B build -G Ninja \
+            -DCMAKE_BUILD_TYPE=Debug \
+            -DENABLE_FRONTEND_API=OFF \
+            -DENABLE_QT=OFF \
+            -DENABLE_TESTING=ON
+          cmake --build build
+
+      - name: Run Valgrind Memory Check
+        continue-on-error: true  # Don't fail build on memory leaks initially
+        run: |
+          echo "### Valgrind Memory Analysis Report" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+
+          if [ -f build/tests/obs-polyemesis-tests ]; then
+            valgrind --leak-check=full \
+                     --show-leak-kinds=all \
+                     --track-origins=yes \
+                     --verbose \
+                     --log-file=valgrind-output.txt \
+                     ./build/tests/obs-polyemesis-tests || true
+
+            echo "\`\`\`" >> $GITHUB_STEP_SUMMARY
+            head -100 valgrind-output.txt >> $GITHUB_STEP_SUMMARY || true
+            echo "\`\`\`" >> $GITHUB_STEP_SUMMARY
+
+            # Check for memory leaks
+            if grep -q "definitely lost" valgrind-output.txt; then
+              echo "::warning::Memory leaks detected by Valgrind"
+            fi
+          else
+            echo "::warning::Test executable not found. Skipping Valgrind analysis."
+            echo "Test executable not found at build/tests/obs-polyemesis-tests" >> $GITHUB_STEP_SUMMARY
+          fi
+
+      - name: Upload Valgrind Report
+        uses: actions/upload-artifact@v4
+        if: always() && hashFiles('valgrind-output.txt') != ''
+        with:
+          name: valgrind-memory-report
+          path: valgrind-output.txt
+          retention-days: 30

@@ -1,0 +1,44 @@
+name: CI Pipeline
+
+on:
+  push:
+    branches: [main, develop]
+  pull_request:
+    branches: [main, develop]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  security-events: write
+  actions: read
+
+concurrency:
+  group: '${{ github.workflow }} @ ${{ github.ref }}'
+  cancel-in-progress: true
+
+jobs:
+  # Stage 1: Lint and Format Checks (fastest, fail fast)
+  lint:
+    uses: ./.github/workflows/lint.yaml
+
+  # Stage 2: Build and Test (depends on lint)
+  build-and-test:
+    needs: lint
+    uses: ./.github/workflows/build-project.yaml
+
+  # Stage 3: Security Scanning (depends on build)
+  security:
+    needs: build-and-test
+    uses: ./.github/workflows/security.yaml
+    secrets: inherit
+
+  # Stage 4: Code Quality Analysis (depends on build, runs in parallel with security)
+  sonarcloud:
+    needs: build-and-test
+    uses: ./.github/workflows/sonarcloud.yaml
+    secrets: inherit
+
+  # Stage 5: Advanced Quality Analysis (depends on build, runs in parallel)
+  quality-analysis:
+    needs: build-and-test
+    uses: ./.github/workflows/quality-analysis.yaml
