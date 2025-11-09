@@ -293,7 +293,6 @@ jobs:
           version: ${{ env.QT_VERSION }}
           target: 'desktop'
           arch: 'win64_msvc2019_64'
-          modules: 'qtbase'
 
       - name: Build Plugin
         run: |
@@ -351,7 +350,6 @@ jobs:
             libcurl4-openssl-dev \
             libjansson-dev \
             libobs-dev \
-            libqt6-dev \
             qt6-base-dev \
             ninja-build
 
