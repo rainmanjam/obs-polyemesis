@@ -253,27 +253,47 @@ EOF
 <head>
     <meta charset="UTF-8">
     <style>
-        body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; padding: 20px; }
-        h1 { color: #333; }
-        .info { background-color: #f0f0f0; padding: 15px; border-radius: 5px; margin: 15px 0; }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Helvetica Neue", Helvetica, Arial, sans-serif;
+            font-size: 13px;
+            line-height: 1.5;
+            margin: 0;
+            padding: 0;
+        }
+        p {
+            margin: 0 0 10px 0;
+        }
+        ul {
+            margin: 10px 0;
+            padding-left: 20px;
+        }
+        li {
+            margin: 5px 0;
+        }
+        h3 {
+            font-size: 14px;
+            font-weight: 600;
+            margin: 15px 0 10px 0;
+        }
     </style>
 </head>
 <body>
-    <h1>Welcome to OBS Polyemesis ${VERSION}</h1>
-    <p>This installer will install the OBS Polyemesis plugin for OBS Studio.</p>
+    <p>This installer will install the OBS Polyemesis plugin for controlling datarhei Restreamer.</p>
 
-    <div class="info">
-        <strong>Prerequisites:</strong>
-        <ul>
-            <li>OBS Studio 28.0 or later must be installed</li>
-            <li>datarhei Restreamer instance (local or remote)</li>
-        </ul>
-    </div>
+    <h3>Requirements:</h3>
+    <ul>
+        <li>OBS Studio 28.0 or later</li>
+        <li>macOS 11.0 (Big Sur) or later</li>
+        <li>datarhei Restreamer instance (local or remote)</li>
+    </ul>
 
-    <p><strong>What is OBS Polyemesis?</strong></p>
-    <p>OBS Polyemesis is a comprehensive plugin for controlling and monitoring datarhei Restreamer with advanced multistreaming capabilities including orientation-aware routing.</p>
-
-    <p>Click Continue to proceed with the installation.</p>
+    <h3>Features:</h3>
+    <ul>
+        <li>Full Restreamer process control</li>
+        <li>Real-time monitoring and statistics</li>
+        <li>Advanced multistreaming with orientation detection</li>
+        <li>Support for Twitch, YouTube, TikTok, Instagram, and more</li>
+    </ul>
 </body>
 </html>
 EOF
@@ -285,34 +305,58 @@ EOF
 <head>
     <meta charset="UTF-8">
     <style>
-        body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; padding: 20px; }
-        h1 { color: #333; }
-        .success { background-color: #d4edda; padding: 15px; border-radius: 5px; margin: 15px 0; border-left: 4px solid #28a745; }
-        .next-steps { background-color: #f8f9fa; padding: 15px; border-radius: 5px; margin: 15px 0; }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Helvetica Neue", Helvetica, Arial, sans-serif;
+            font-size: 13px;
+            line-height: 1.5;
+            margin: 0;
+            padding: 0;
+        }
+        h2 {
+            font-size: 16px;
+            font-weight: 600;
+            margin: 20px 0 10px 0;
+        }
+        p {
+            margin: 0 0 10px 0;
+        }
+        ol {
+            margin: 10px 0;
+            padding-left: 25px;
+        }
+        ul {
+            margin: 10px 0;
+            padding-left: 20px;
+        }
+        li {
+            margin: 5px 0;
+        }
+        a {
+            color: #007aff;
+            text-decoration: none;
+        }
+        a:hover {
+            text-decoration: underline;
+        }
     </style>
 </head>
 <body>
-    <h1>Installation Complete!</h1>
+    <p><strong>OBS Polyemesis ${VERSION} has been successfully installed!</strong></p>
 
-    <div class="success">
-        <strong>✓ OBS Polyemesis ${VERSION} has been successfully installed!</strong>
-    </div>
+    <h2>Next Steps</h2>
+    <ol>
+        <li>Launch OBS Studio</li>
+        <li>Go to View → Docks → Restreamer Control</li>
+        <li>Configure your restreamer connection (host, port)</li>
+        <li>Click "Test Connection" to verify</li>
+        <li>Start controlling your restreamer processes!</li>
+    </ol>
 
-    <div class="next-steps">
-        <strong>Next Steps:</strong>
-        <ol>
-            <li>Launch OBS Studio</li>
-            <li>Go to <strong>View → Docks → Restreamer Control</strong></li>
-            <li>Configure your restreamer connection (host, port)</li>
-            <li>Click "Test Connection" to verify</li>
-            <li>Start controlling your restreamer processes!</li>
-        </ol>
-    </div>
-
-    <p>For documentation and support:</p>
+    <h2>Documentation</h2>
+    <p>For help and support:</p>
     <ul>
-        <li>GitHub: <a href="https://github.com/rainmanjam/obs-polyemesis">github.com/rainmanjam/obs-polyemesis</a></li>
-        <li>User Guide: See README.md and USER_GUIDE.md in the repository</li>
+        <li><a href="https://github.com/rainmanjam/obs-polyemesis">github.com/rainmanjam/obs-polyemesis</a></li>
+        <li><a href="https://github.com/rainmanjam/obs-polyemesis/issues">Report issues</a></li>
     </ul>
 </body>
 </html>
@@ -325,30 +369,53 @@ EOF
 <head>
     <meta charset="UTF-8">
     <style>
-        body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; padding: 20px; }
-        h2 { color: #333; }
-        code { background-color: #f0f0f0; padding: 2px 6px; border-radius: 3px; }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Helvetica Neue", Helvetica, Arial, sans-serif;
+            font-size: 13px;
+            line-height: 1.5;
+            margin: 0;
+            padding: 0;
+        }
+        h2 {
+            font-size: 16px;
+            font-weight: 600;
+            margin: 20px 0 10px 0;
+        }
+        p {
+            margin: 0 0 10px 0;
+        }
+        code {
+            font-family: "SF Mono", Menlo, Monaco, Consolas, monospace;
+            font-size: 12px;
+        }
+        ul {
+            margin: 10px 0;
+            padding-left: 20px;
+        }
+        li {
+            margin: 5px 0;
+        }
     </style>
 </head>
 <body>
-    <h2>Installation Location</h2>
-    <p>The plugin will be installed to:</p>
-    <code>~/Library/Application Support/obs-studio/plugins/obs-polyemesis.plugin</code>
+    <h2>Installation</h2>
+    <p>This package will install the OBS Polyemesis plugin to:</p>
+    <p><code>~/Library/Application Support/obs-studio/plugins/</code></p>
+    <p>The plugin will be installed for your user account.</p>
 
     <h2>Requirements</h2>
     <ul>
-        <li>macOS 11.0 or later (Apple Silicon or Intel)</li>
+        <li>macOS 11.0 or later</li>
         <li>OBS Studio 28.0 or later</li>
         <li>datarhei Restreamer instance</li>
     </ul>
 
     <h2>Features</h2>
     <ul>
-        <li>Complete Restreamer control from within OBS</li>
-        <li>Multiple plugin types: Source, Output, and Dock UI</li>
-        <li>Advanced multistreaming to multiple platforms simultaneously</li>
-        <li>Orientation-aware routing (horizontal/vertical)</li>
-        <li>Real-time monitoring of CPU, memory, uptime</li>
+        <li>Full Restreamer process control</li>
+        <li>Real-time monitoring and statistics</li>
+        <li>Advanced multistreaming with orientation detection</li>
+        <li>Support for Twitch, YouTube, TikTok, Instagram, and more</li>
     </ul>
 </body>
 </html>
