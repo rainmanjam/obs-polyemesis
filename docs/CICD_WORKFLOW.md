@@ -2,7 +2,7 @@
 
 ## Pipeline Architecture
 
-```
+```text
                          GitHub Push/PR Event
                                   │
                                   ▼
@@ -61,7 +61,7 @@
 
 **Purpose**: Fast failure for code style and format issues
 
-```
+```text
 Format Check (clang-format)
     │
     ├─► Checks C/C++ code formatting
@@ -108,7 +108,7 @@ Spell Check (codespell)
 
 **Purpose**: Verify code compiles and tests pass on all platforms
 
-```
+```text
 ┌──────────────────────────────────────────────────────────┐
 │              Multi-Platform Build Matrix                  │
 ├──────────────────────────────────────────────────────────┤
@@ -139,7 +139,8 @@ Spell Check (codespell)
 ```
 
 **Build Process**:
-```
+
+```text
 Install Dependencies
     │
     ├─► libobs-dev
@@ -182,7 +183,7 @@ Generate Reports
 
 **Purpose**: Identify security vulnerabilities and secrets
 
-```
+```text
 ┌─────────────────────────────────────────────────────────┐
 │                  Security Scanners                       │
 ├─────────────────────────────────────────────────────────┤
@@ -233,7 +234,8 @@ Generate Reports
 ```
 
 **Security Flow**:
-```
+
+```text
 PR/Push Event
     │
     ├─► Run 7 security scanners in parallel
@@ -253,7 +255,7 @@ PR/Push Event
 
 **Purpose**: Ensure code maintainability and performance
 
-```
+```text
 ┌─────────────────────────────────────────────────────────┐
 │               Code Quality Tools                         │
 ├─────────────────────────────────────────────────────────┤
@@ -284,7 +286,8 @@ PR/Push Event
 ```
 
 **Quality Metrics**:
-```
+
+```text
 SonarCloud Quality Gate
     │
     ├─► Coverage: > 80%
@@ -311,7 +314,7 @@ Memory Safety
 
 ## Release Workflow
 
-```
+```text
 Tag Created (v*.*.*)
     │
     ▼
@@ -340,7 +343,7 @@ Tag Created (v*.*.*)
 
 ## Artifact Management
 
-```
+```text
 Build Artifacts
     │
     ├─► Build Outputs
@@ -379,7 +382,7 @@ Typical pipeline execution times:
 
 ## Branch Protection Rules
 
-```
+```text
 main branch
     │
     ├─► Require pull request
@@ -419,7 +422,7 @@ gh run download <run-id>
 
 ### Failed Pipeline Debugging
 
-```
+```text
 1. Check which job failed:
    gh run view <run-id>
 

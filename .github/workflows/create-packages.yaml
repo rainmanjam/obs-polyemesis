@@ -256,28 +256,28 @@ jobs:
             installers/**/*.sha256
           body: |
             # OBS Polyemesis ${{ github.event.inputs.version || github.ref_name }}
-            
+
             ## Installation
-            
+
             ### macOS
             Download the `.pkg` file and double-click to install.
-            
+
             ### Windows
             Download the `.exe` file and run the installer.
-            
+
             ### Linux (Debian/Ubuntu)
             ```bash
             sudo dpkg -i obs-polyemesis_*.deb
             sudo apt-get install -f  # Fix dependencies if needed
             ```
-            
+
             ## Features
             - Complete datarhei Restreamer control from within OBS
             - Advanced multistreaming to multiple platforms
             - Orientation-aware routing (horizontal/vertical)
             - Real-time monitoring of CPU, memory, uptime
-            
+
             ## Checksums
             SHA256 checksums are provided for all packages.
-            
+
             🤖 Generated with [Claude Code](https://claude.com/claude-code)
