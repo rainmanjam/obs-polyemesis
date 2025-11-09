@@ -145,11 +145,16 @@ jobs:
           echo "Dependencies bundled successfully"
 
       - name: Import Code Signing Certificate
-        if: ${{ secrets.APPLE_CERT_P12_BASE64 != '' }}
         env:
           APPLE_CERT_P12_BASE64: ${{ secrets.APPLE_CERT_P12_BASE64 }}
           APPLE_CERT_PASSWORD: ${{ secrets.APPLE_CERT_PASSWORD }}
         run: |
+          if [ -z "$APPLE_CERT_P12_BASE64" ]; then
+            echo "Code signing certificate not configured, skipping..."
+            exit 0
+          fi
+
+
           # Create temporary keychain
           KEYCHAIN_PATH=$RUNNER_TEMP/app-signing.keychain-db
           KEYCHAIN_PASSWORD=$(openssl rand -base64 32)
@@ -170,10 +175,15 @@ jobs:
           echo "Certificate imported successfully"
 
       - name: Sign Plugin Bundle
-        if: ${{ secrets.APPLE_CERT_P12_BASE64 != '' }}
         env:
           APPLE_DEVELOPER_ID_APPLICATION: ${{ secrets.APPLE_DEVELOPER_ID_APPLICATION }}
         run: |
+          if [ -z "$APPLE_DEVELOPER_ID_APPLICATION" ]; then
+            echo "Code signing identity not configured, skipping..."
+            exit 0
+          fi
+
+
           PLUGIN_PATH="build/Release/obs-polyemesis.plugin"
 
           # Sign the plugin bundle
@@ -196,11 +206,15 @@ jobs:
           ./create-pkg.sh
 
       - name: Sign Package
-        if: ${{ secrets.APPLE_CERT_P12_BASE64 != '' }}
         env:
           APPLE_DEVELOPER_ID_INSTALLER: ${{ secrets.APPLE_DEVELOPER_ID_INSTALLER }}
           VERSION: ${{ needs.create-release.outputs.version }}
         run: |
+          if [ -z "$APPLE_DEVELOPER_ID_INSTALLER" ]; then
+            echo "Installer signing identity not configured, skipping..."
+            exit 0
+          fi
+
           PKG_PATH="obs-polyemesis-${VERSION}-macos.pkg"
 
           if [ -f "$PKG_PATH" ]; then
@@ -215,13 +229,17 @@ jobs:
           fi
 
       - name: Notarize Package
-        if: ${{ secrets.APPLE_CERT_P12_BASE64 != '' && secrets.APPLE_ID != '' }}
         env:
           APPLE_ID: ${{ secrets.APPLE_ID }}
           APPLE_APP_PASSWORD: ${{ secrets.APPLE_APP_PASSWORD }}
           APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
           VERSION: ${{ needs.create-release.outputs.version }}
         run: |
+          if [ -z "$APPLE_ID" ] || [ -z "$APPLE_APP_PASSWORD" ]; then
+            echo "Notarization credentials not configured, skipping..."
+            exit 0
+          fi
+
           PKG_PATH="obs-polyemesis-${VERSION}-macos.pkg"
 
           if [ -f "$PKG_PATH" ]; then
