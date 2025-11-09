@@ -48,14 +48,8 @@ void RestreamerDock::setupUI() {
   QWidget *mainWidget = new QWidget(this);
   QVBoxLayout *mainLayout = new QVBoxLayout(mainWidget);
 
-  /* Create tab widget for compact layout */
-  QTabWidget *tabWidget = new QTabWidget();
-
-  /* ===== Tab 1: Connection ===== */
-  QWidget *connectionTab = new QWidget();
-  QVBoxLayout *connectionTabLayout = new QVBoxLayout(connectionTab);
-
-  QGroupBox *connectionGroup = new QGroupBox("Server Connection");
+  /* Connection Settings Group */
+  QGroupBox *connectionGroup = new QGroupBox("Connection Settings");
   QFormLayout *connectionLayout = new QFormLayout();
 
   hostEdit = new QLineEdit();
@@ -82,13 +76,11 @@ void RestreamerDock::setupUI() {
 
   connectionLayout->addRow(connectionButtonLayout);
   connectionGroup->setLayout(connectionLayout);
-  connectionTabLayout->addWidget(connectionGroup);
-  connectionTabLayout->addStretch();
-  tabWidget->addTab(connectionTab, "Connection");
+  mainLayout->addWidget(connectionGroup);
 
-  /* ===== Tab 2: Output Profiles ===== */
-  QWidget *profilesTab = new QWidget();
-  QVBoxLayout *profilesTabLayout = new QVBoxLayout(profilesTab);
+  /* Output Profiles Group - Aitum Multi style */
+  QGroupBox *profilesGroup = new QGroupBox("Output Profiles");
+  QVBoxLayout *profilesLayout = new QVBoxLayout();
 
   /* Profile list */
   profileListWidget = new QListWidget();
@@ -97,7 +89,7 @@ void RestreamerDock::setupUI() {
 
   /* Profile buttons - Top row: Create, Delete, Duplicate, Configure */
   QHBoxLayout *profileButtonsRow1 = new QHBoxLayout();
-  createProfileButton = new QPushButton("Create");
+  createProfileButton = new QPushButton("Create Profile");
   deleteProfileButton = new QPushButton("Delete");
   duplicateProfileButton = new QPushButton("Duplicate");
   configureProfileButton = new QPushButton("Configure");
@@ -154,25 +146,21 @@ void RestreamerDock::setupUI() {
   profileDestinationsTable->setHorizontalHeaderLabels(
       {"Destination", "Resolution", "Bitrate", "Status"});
   profileDestinationsTable->horizontalHeader()->setStretchLastSection(true);
-  profileDestinationsTable->setMaximumHeight(120);
+  profileDestinationsTable->setMaximumHeight(150);
 
-  profilesTabLayout->addWidget(profileListWidget);
-  profilesTabLayout->addLayout(profileButtonsRow1);
-  profilesTabLayout->addLayout(profileButtonsRow2);
-  profilesTabLayout->addWidget(profileStatusLabel);
-  profilesTabLayout->addWidget(profileDestinationsTable);
-  tabWidget->addTab(profilesTab, "Profiles");
-
-  /* ===== Tab 3: Processes ===== */
-  QWidget *processesTab = new QWidget();
-  QVBoxLayout *processesTabLayout = new QVBoxLayout(processesTab);
+  profilesLayout->addWidget(profileListWidget);
+  profilesLayout->addLayout(profileButtonsRow1);
+  profilesLayout->addLayout(profileButtonsRow2);
+  profilesLayout->addWidget(profileStatusLabel);
+  profilesLayout->addWidget(profileDestinationsTable);
+  profilesGroup->setLayout(profilesLayout);
+  mainLayout->addWidget(profilesGroup);
 
   /* Process List Group */
-  QGroupBox *processGroup = new QGroupBox("Process List");
+  QGroupBox *processGroup = new QGroupBox("Processes");
   QVBoxLayout *processLayout = new QVBoxLayout();
 
   processList = new QListWidget();
-  processList->setMaximumHeight(150);
   connect(processList, &QListWidget::currentRowChanged, this,
           &RestreamerDock::onProcessSelected);
 
@@ -203,7 +191,7 @@ void RestreamerDock::setupUI() {
   processLayout->addWidget(processList);
   processLayout->addLayout(processButtonLayout);
   processGroup->setLayout(processLayout);
-  processesTabLayout->addWidget(processGroup);
+  mainLayout->addWidget(processGroup);
 
   /* Process Details Group */
   QGroupBox *detailsGroup = new QGroupBox("Process Details");
@@ -222,7 +210,7 @@ void RestreamerDock::setupUI() {
   detailsLayout->addRow("Memory:", processMemoryLabel);
 
   detailsGroup->setLayout(detailsLayout);
-  processesTabLayout->addWidget(detailsGroup);
+  mainLayout->addWidget(detailsGroup);
 
   /* Sessions Group */
   QGroupBox *sessionsGroup = new QGroupBox("Active Sessions");
@@ -233,18 +221,12 @@ void RestreamerDock::setupUI() {
   sessionTable->setHorizontalHeaderLabels(
       {"Session ID", "Remote Address", "Bytes Sent"});
   sessionTable->horizontalHeader()->setStretchLastSection(true);
-  sessionTable->setMaximumHeight(120);
 
   sessionsLayout->addWidget(sessionTable);
   sessionsGroup->setLayout(sessionsLayout);
-  processesTabLayout->addWidget(sessionsGroup);
-  processesTabLayout->addStretch();
-  tabWidget->addTab(processesTab, "Processes");
+  mainLayout->addWidget(sessionsGroup);
 
-  /* ===== Tab 4: Multistream ===== */
-  QWidget *multistreamTab = new QWidget();
-  QVBoxLayout *multistreamTabLayout = new QVBoxLayout(multistreamTab);
-
+  /* Multistream Configuration Group */
   QGroupBox *multistreamGroup = new QGroupBox("Multistream Configuration");
   QVBoxLayout *multistreamLayout = new QVBoxLayout();
 
@@ -287,12 +269,9 @@ void RestreamerDock::setupUI() {
   multistreamLayout->addWidget(destinationsTable);
   multistreamLayout->addLayout(destButtonLayout);
   multistreamGroup->setLayout(multistreamLayout);
-  multistreamTabLayout->addWidget(multistreamGroup);
-  multistreamTabLayout->addStretch();
-  tabWidget->addTab(multistreamTab, "Multistream");
+  mainLayout->addWidget(multistreamGroup);
 
-  /* Add tab widget to main layout */
-  mainLayout->addWidget(tabWidget);
+  mainLayout->addStretch();
 
   setWidget(mainWidget);
   setMinimumWidth(400);
