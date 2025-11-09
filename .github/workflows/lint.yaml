@@ -111,8 +111,9 @@ jobs:
           find . -name '*.sh' -type f \
             -not -path '*/build/*' \
             -not -path '*/build_*/*' \
-            -not -path '*/.git/*' | \
-          xargs shellcheck --severity=warning
+            -not -path '*/.git/*' \
+            -not -path '*/.deps/*' | \
+          xargs -r shellcheck --severity=warning
 
   yaml-lint:
     name: YAML Lint
