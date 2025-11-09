@@ -1,0 +1,122 @@
+name: Set up and build plugin
+description: Builds the plugin for specified architecture and build config
+inputs:
+  target:
+    description: Target architecture for dependencies
+    required: true
+  config:
+    description: Build configuration
+    required: false
+    default: RelWithDebInfo
+  codesign:
+    description: Enable codesigning (macOS only)
+    required: false
+    default: 'false'
+  codesignIdent:
+    description: Developer ID for application codesigning (macOS only)
+    required: false
+    default: '-'
+  codesignTeam:
+    description: Team ID for application codesigning (macOS only)
+    required: false
+    default: ''
+  workingDirectory:
+    description: Working directory for packaging
+    required: false
+    default: ${{ github.workspace }}
+runs:
+  using: composite
+  steps:
+    - name: Run macOS Build
+      if: runner.os == 'macOS'
+      shell: zsh --no-rcs --errexit --pipefail {0}
+      working-directory: ${{ inputs.workingDirectory }}
+      env:
+        CCACHE_DIR: ${{ inputs.workingDirectory }}/.ccache
+        CODESIGN_IDENT: ${{ inputs.codesignIdent }}
+        CODESIGN_TEAM: ${{ inputs.codesignTeam }}
+        INPUT_CONFIG: ${{ inputs.config }}
+        INPUT_CODESIGN: ${{ inputs.codesign }}
+      run: |
+        : Run macOS Build
+
+        local -a build_args=(--config "$INPUT_CONFIG")
+        if (( ${+RUNNER_DEBUG} )) build_args+=(--debug)
+
+        if [[ "$INPUT_CODESIGN" == 'true' ]] build_args+=(--codesign)
+
+        .github/scripts/build-macos ${build_args}
+
+    - name: Install Dependencies 🛍️
+      if: runner.os == 'Linux'
+      shell: bash
+      run: |
+        : Install Dependencies 🛍️
+        echo ::group::Install Dependencies
+        eval "$(/home/linuxbrew/.linuxbrew/bin/brew shellenv)"
+        echo "/home/linuxbrew/.linuxbrew/bin:/home/linuxbrew/.linuxbrew/sbin" >> $GITHUB_PATH
+        brew install --quiet zsh
+        echo ::endgroup::
+
+    - name: Run Ubuntu Build
+      if: runner.os == 'Linux'
+      shell: zsh --no-rcs --errexit --pipefail {0}
+      working-directory: ${{ inputs.workingDirectory }}
+      env:
+        CCACHE_DIR: ${{ inputs.workingDirectory }}/.ccache
+        INPUT_TARGET: ${{ inputs.target }}
+        INPUT_CONFIG: ${{ inputs.config }}
+      run: |
+        : Run Ubuntu Build
+
+        local -a build_args=(
+          --target ubuntu-"$INPUT_TARGET"
+          --config "$INPUT_CONFIG"
+        )
+        if (( ${+RUNNER_DEBUG} )) build_args+=(--debug)
+
+        .github/scripts/build-ubuntu ${build_args}
+
+    - name: Run Windows Build
+      if: runner.os == 'Windows'
+      shell: pwsh
+      env:
+        INPUT_TARGET: ${{ inputs.target }}
+        INPUT_CONFIG: ${{ inputs.config }}
+      run: |
+        # Run Windows Build
+        if ( $Env:RUNNER_DEBUG -ne $null ) {
+          Set-PSDebug -Trace 1
+        }
+
+        $BuildArgs = @{
+          Target = $Env:INPUT_TARGET
+          Configuration = $Env:INPUT_CONFIG
+        }
+
+        .github/scripts/Build-Windows.ps1 @BuildArgs
+
+    - name: Create Summary 📊
+      if: contains(fromJSON('["Linux", "macOS"]'),runner.os)
+      shell: zsh --no-rcs --errexit --pipefail {0}
+      env:
+        CCACHE_DIR: ${{ inputs.workingDirectory }}/.ccache
+        RUNNER_OS_NAME: ${{ runner.os }}
+        INPUT_TARGET: ${{ inputs.target }}
+      run: |
+        : Create Summary 📊
+
+        local -a ccache_data
+        if (( ${+RUNNER_DEBUG} )) {
+          setopt XTRACE
+          ccache_data=("${(fA)$(ccache -s -vv)}")
+        } else {
+          ccache_data=("${(fA)$(ccache -s)}")
+        }
+
+        print "### $RUNNER_OS_NAME Ccache Stats ($INPUT_TARGET)" >> $GITHUB_STEP_SUMMARY
+        print '```' >> $GITHUB_STEP_SUMMARY
+        for line (${ccache_data}) {
+          print ${line} >> $GITHUB_STEP_SUMMARY
+        }
+        print '```' >> $GITHUB_STEP_SUMMARY
