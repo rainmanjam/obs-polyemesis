@@ -35,7 +35,7 @@ A comprehensive OBS Studio plugin for controlling and monitoring [datarhei Restr
 
 Download the latest release for your platform from the [Releases page](https://github.com/rainmanjam/obs-polyemesis/releases):
 
-**macOS** (Universal: Apple Silicon + Intel)
+**macOS** (Apple Silicon, arm64 only)
 ```bash
 # Download obs-polyemesis-X.X.X-macos.pkg
 # Right-click → Open (or double-click)
