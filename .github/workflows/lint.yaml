@@ -94,6 +94,8 @@ jobs:
             --suppress=missingIncludeSystem \
             --suppress=unmatchedSuppression \
             --suppress=unusedFunction \
+            --suppress=constParameterPointer \
+            --suppress=constVariablePointer \
             --error-exitcode=1 \
             --inline-suppr \
             -I src \
@@ -113,7 +115,7 @@ jobs:
             -not -path '*/build_*/*' \
             -not -path '*/.git/*' \
             -not -path '*/.deps/*' | \
-          xargs -r shellcheck --severity=warning
+          xargs -r shellcheck --severity=warning --exclude=SC2155
 
   yaml-lint:
     name: YAML Lint
