@@ -187,23 +187,34 @@ EOF
 create_welcome() {
     log_info "Creating welcome text..."
 
-    cat > "$PKG_DIR/resources/welcome.txt" << 'EOF'
-Welcome to OBS Polyemesis Installer
+    cat > "$PKG_DIR/resources/welcome.rtf" << 'EOF'
+{\rtf1\ansi\ansicpg1252\cocoartf2709
+\cocoatextscaling0\cocoaplatform0{\fonttbl\f0\fswiss\fcharset0 Helvetica;\f1\fswiss\fcharset0 Helvetica-Bold;}
+{\colortbl;\red255\green255\blue255;\red0\green0\blue0;}
+{\*\expandedcolortbl;;\cssrgb\c0\c0\c0;}
+\margl1440\margr1440\vieww11520\viewh8400\viewkind0
+\pard\tx720\tx1440\tx2160\tx2880\tx3600\tx4320\tx5040\tx5760\tx6480\tx7200\tx7920\tx8640\pardirnatural\partightenfactor0
 
-This installer will install the OBS Polyemesis plugin for controlling datarhei Restreamer.
+\f0\fs28 \cf2 This installer will install the OBS Polyemesis plugin for controlling datarhei Restreamer.\
+\
+\pard\tx220\tx720\pardeftab720\li720\fi-720\partightenfactor0
+\ls1\ilvl0
+\f1\b \cf2 {\listtext	\uc0\u8226 	}
+\f0\b0 OBS Studio 28.0 or later\
+{\listtext	\uc0\u8226 	}macOS 11.0 (Big Sur) or later\
+{\listtext	\uc0\u8226 	}datarhei Restreamer instance (local or remote)\
+\pard\tx720\tx1440\tx2160\tx2880\tx3600\tx4320\tx5040\tx5760\tx6480\tx7200\tx7920\tx8640\pardirnatural\partightenfactor0
+\cf2 \
+\pard\tx720\tx1440\tx2160\tx2880\tx3600\tx4320\tx5040\tx5760\tx6480\tx7200\tx7920\tx8640\pardirnatural\partightenfactor0
 
-Requirements:
-• OBS Studio 28.0 or later
-• macOS 11.0 (Big Sur) or later
-• datarhei Restreamer instance (local or remote)
-
-Features:
-• Full Restreamer process control
-• Real-time monitoring and statistics
-• Advanced multistreaming with orientation detection
-• Support for Twitch, YouTube, TikTok, Instagram, and more
-
-Click Continue to proceed with the installation.
+\f1\b \cf2 Features:\
+\pard\tx220\tx720\pardeftab720\li720\fi-720\partightenfactor0
+\ls2\ilvl0
+\f0\b0 \cf2 {\listtext	\uc0\u8226 	}Full Restreamer process control\
+{\listtext	\uc0\u8226 	}Real-time monitoring and statistics\
+{\listtext	\uc0\u8226 	}Advanced multistreaming with orientation detection\
+{\listtext	\uc0\u8226 	}Support for Twitch, YouTube, TikTok, Instagram, and more\
+}
 EOF
 
     log_info "Welcome text created"
@@ -213,39 +224,61 @@ EOF
 create_readme() {
     log_info "Creating README..."
 
-    cat > "$PKG_DIR/resources/readme.txt" << 'EOF'
-OBS Polyemesis - Restreamer Control Plugin
+    cat > "$PKG_DIR/resources/readme.rtf" << 'EOF'
+{\rtf1\ansi\ansicpg1252\cocoartf2709
+\cocoatextscaling0\cocoaplatform0{\fonttbl\f0\fswiss\fcharset0 Helvetica;\f1\fswiss\fcharset0 Helvetica-Bold;\f2\fmodern\fcharset0 Courier;}
+{\colortbl;\red255\green255\blue255;\red0\green0\blue0;\red0\green0\blue238;}
+{\*\expandedcolortbl;;\cssrgb\c0\c0\c0;\cssrgb\c0\c0\c93333;}
+\margl1440\margr1440\vieww11520\viewh8400\viewkind0
+\pard\tx720\tx1440\tx2160\tx2880\tx3600\tx4320\tx5040\tx5760\tx6480\tx7200\tx7920\tx8640\pardirnatural\partightenfactor0
 
-INSTALLATION
+\f0\fs28 \cf2 \
+\pard\tx720\tx1440\tx2160\tx2880\tx3600\tx4320\tx5040\tx5760\tx6480\tx7200\tx7920\tx8640\pardirnatural\partightenfactor0
 
-This package will install the OBS Polyemesis plugin to:
-~/Library/Application Support/obs-studio/plugins/
+\f1\b\fs32 \cf2 Installation\
+\pard\tx720\tx1440\tx2160\tx2880\tx3600\tx4320\tx5040\tx5760\tx6480\tx7200\tx7920\tx8640\pardirnatural\partightenfactor0
 
-The plugin will be installed for your user account.
+\f0\b0\fs28 \cf2 \
+This package will install the OBS Polyemesis plugin to:\
+\pard\tx720\tx1440\tx2160\tx2880\tx3600\tx4320\tx5040\tx5760\tx6480\tx7200\tx7920\tx8640\pardirnatural\partightenfactor0
 
-FIRST USE
+\f2\fs24 \cf2 ~/Library/Application Support/obs-studio/plugins/\
+\pard\tx720\tx1440\tx2160\tx2880\tx3600\tx4320\tx5040\tx5760\tx6480\tx7200\tx7920\tx8640\pardirnatural\partightenfactor0
 
-After installation:
-1. Launch OBS Studio
-2. Go to View → Docks → Restreamer Control
-3. Configure your Restreamer connection (host, port)
-4. Click "Test Connection"
-5. Start managing your streams!
+\f0\fs28 \cf2 \
+The plugin will be installed for your user account.\
+\
+\pard\tx720\tx1440\tx2160\tx2880\tx3600\tx4320\tx5040\tx5760\tx6480\tx7200\tx7920\tx8640\pardirnatural\partightenfactor0
 
-DOCUMENTATION
+\f1\b\fs32 \cf2 First Use\
+\pard\tx720\tx1440\tx2160\tx2880\tx3600\tx4320\tx5040\tx5760\tx6480\tx7200\tx7920\tx8640\pardirnatural\partightenfactor0
 
-Full documentation available at:
-https://github.com/rainmanjam/obs-polyemesis
+\f0\b0\fs28 \cf2 \
+After installation:\
+\pard\tx220\tx720\pardeftab720\li720\fi-720\partightenfactor0
+\ls1\ilvl0\cf2 {\listtext	1.	}Launch OBS Studio\
+{\listtext	2.	}Go to View \'97 Docks \'97 Restreamer Control\
+{\listtext	3.	}Configure your Restreamer connection (host, port)\
+{\listtext	4.	}Click "Test Connection"\
+{\listtext	5.	}Start managing your streams!\
+\pard\tx720\tx1440\tx2160\tx2880\tx3600\tx4320\tx5040\tx5760\tx6480\tx7200\tx7920\tx8640\pardirnatural\partightenfactor0
+\cf2 \
+\pard\tx720\tx1440\tx2160\tx2880\tx3600\tx4320\tx5040\tx5760\tx6480\tx7200\tx7920\tx8640\pardirnatural\partightenfactor0
 
-SUPPORT
+\f1\b\fs32 \cf2 Documentation\
+\pard\tx720\tx1440\tx2160\tx2880\tx3600\tx4320\tx5040\tx5760\tx6480\tx7200\tx7920\tx8640\pardirnatural\partightenfactor0
 
-For issues and questions:
-https://github.com/rainmanjam/obs-polyemesis/issues
+\f0\b0\fs28 \cf2 \
+Full documentation: {\field{\*\fldinst{HYPERLINK "https://github.com/rainmanjam/obs-polyemesis"}}{\fldrslt \cf3 \ul \ulc3 github.com/rainmanjam/obs-polyemesis}}\
+\
+\pard\tx720\tx1440\tx2160\tx2880\tx3600\tx4320\tx5040\tx5760\tx6480\tx7200\tx7920\tx8640\pardirnatural\partightenfactor0
 
-LICENSE
+\f1\b\fs32 \cf2 Support\
+\pard\tx720\tx1440\tx2160\tx2880\tx3600\tx4320\tx5040\tx5760\tx6480\tx7200\tx7920\tx8640\pardirnatural\partightenfactor0
 
-GNU General Public License v2.0 or later
-See LICENSE file for details.
+\f0\b0\fs28 \cf2 \
+For issues and questions: {\field{\*\fldinst{HYPERLINK "https://github.com/rainmanjam/obs-polyemesis/issues"}}{\fldrslt \cf3 \ul \ulc3 github.com/rainmanjam/obs-polyemesis/issues}}\
+}
 EOF
 
     log_info "README created"
@@ -279,8 +312,8 @@ create_distribution_xml() {
     <options customize="never" require-scripts="false" hostArchitectures="arm64,x86_64"/>
 
     <!-- Welcome and README -->
-    <welcome file="welcome.txt" mime-type="text/plain"/>
-    <readme file="readme.txt" mime-type="text/plain"/>
+    <welcome file="welcome.rtf" mime-type="text/rtf"/>
+    <readme file="readme.rtf" mime-type="text/rtf"/>
     <license file="../../LICENSE"/>
 
     <!-- Define installation check -->
