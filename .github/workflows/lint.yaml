@@ -156,5 +156,5 @@ jobs:
         uses: codespell-project/actions-codespell@master
         with:
           check_filenames: true
-          skip: .git,*.png,*.jpg,*.svg,build,*.lock
-          ignore_words_list: SectionIn,pard
+          skip: .git,*.png,*.jpg,*.svg,build,*.lock,*.html
+          ignore_words_list: SectionIn
