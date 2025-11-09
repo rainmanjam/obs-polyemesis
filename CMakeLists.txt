@@ -91,6 +91,9 @@ if(ENABLE_QT)
 
   target_link_libraries(${CMAKE_PROJECT_NAME} PRIVATE Qt6::Core Qt6::Widgets)
 
+  # Define ENABLE_QT so preprocessor can see it
+  target_compile_definitions(${CMAKE_PROJECT_NAME} PRIVATE ENABLE_QT)
+
   # Platform-specific compiler options
   target_compile_options(
     ${CMAKE_PROJECT_NAME}

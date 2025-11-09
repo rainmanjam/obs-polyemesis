@@ -46,6 +46,15 @@ extern void restreamer_dock_destroy(void *dock);
 
 #ifdef ENABLE_QT
 static void *dock_widget = NULL;
+
+static void frontend_event_callback(enum obs_frontend_event event, void *private_data) {
+  (void)private_data;  /* Unused */
+
+  if (event == OBS_FRONTEND_EVENT_FINISHED_LOADING) {
+    dock_widget = restreamer_dock_create();
+    obs_log(LOG_INFO, "Restreamer dock created");
+  }
+}
 #endif
 
 bool obs_module_load(void) {
@@ -65,14 +74,7 @@ bool obs_module_load(void) {
 
 #ifdef ENABLE_QT
   /* Create and register dock widget */
-  obs_frontend_add_event_callback(
-      [](enum obs_frontend_event event, void *private_data) {
-        if (event == OBS_FRONTEND_EVENT_FINISHED_LOADING) {
-          dock_widget = restreamer_dock_create();
-          obs_log(LOG_INFO, "Restreamer dock created");
-        }
-      },
-      NULL);
+  obs_frontend_add_event_callback(frontend_event_callback, NULL);
 #endif
 
   obs_log(LOG_INFO, "obs-polyemesis initialized successfully");
