@@ -54,12 +54,12 @@ cmake --install build
 
 ## 📖 Documentation
 
-- **[User Guide](USER_GUIDE.md)** - Installation, setup, and usage instructions
-- **[Output Profiles](docs/OUTPUT_PROFILES.md)** - Multi-stream profile management (NEW!)
-- **[Building](BUILDING.md)** - Developer build instructions for all platforms
+- **[User Guide](docs/USER_GUIDE.md)** - Installation, setup, and usage instructions
+- **[Output Profiles](docs/architecture/OUTPUT_PROFILES.md)** - Multi-stream profile management (NEW!)
+- **[Building](docs/BUILDING.md)** - Developer build instructions for all platforms
 - **[Contributing](CONTRIBUTING.md)** - Development workflow and contribution guidelines
-- **[CI/CD Workflow](docs/CICD_WORKFLOW.md)** - Pipeline architecture and automation
-- **[Plugin Documentation](PLUGIN_DOCUMENTATION.md)** - Detailed feature descriptions and API reference
+- **[CI/CD Workflow](docs/cicd/CICD_WORKFLOW.md)** - Pipeline architecture and automation
+- **[Plugin Documentation](docs/developer/PLUGIN_DOCUMENTATION.md)** - Detailed feature descriptions and API reference
 
 ## 🎯 Use Cases
 

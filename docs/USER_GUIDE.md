@@ -451,9 +451,9 @@ For high-load scenarios:
 
 ## Next Steps
 
-- Read [CONTRIBUTING.md](CONTRIBUTING.md) to contribute
+- Read [CONTRIBUTING.md](../CONTRIBUTING.md) to contribute
 - See [BUILDING.md](BUILDING.md) to build from source
-- Check [CHANGELOG.md](CHANGELOG.md) for updates
+- Check [CHANGELOG.md](../CHANGELOG.md) for updates
 - Visit [Restreamer Documentation](https://docs.datarhei.com/)
 
 ---

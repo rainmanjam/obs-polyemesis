@@ -129,7 +129,7 @@ Before submitting your PR, ensure:
 
 ## Development Setup
 
-See [BUILDING.md](BUILDING.md) for detailed build instructions.
+See [BUILDING.md](docs/BUILDING.md) for detailed build instructions.
 
 Quick start:
 ```bash
@@ -150,7 +150,7 @@ cd build && ctest --output-on-failure
 
 ## Getting Help
 
-- 📖 Read the [User Guide](USER_GUIDE.md)
+- 📖 Read the [User Guide](docs/USER_GUIDE.md)
 - 🐛 Report bugs via [GitHub Issues](https://github.com/rainmanjam/obs-polyemesis/issues)
 - 💬 Ask questions in [Discussions](https://github.com/rainmanjam/obs-polyemesis/discussions)
 

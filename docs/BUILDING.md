@@ -444,4 +444,4 @@ When submitting pull requests:
 
 - **Issues**: https://github.com/YOUR_USERNAME/obs-polyemesis/issues
 - **Discussions**: https://github.com/YOUR_USERNAME/obs-polyemesis/discussions
-- **Documentation**: See [README.md](README.md) and [PLUGIN_DOCUMENTATION.md](PLUGIN_DOCUMENTATION.md)
+- **Documentation**: See [README.md](../README.md) and [PLUGIN_DOCUMENTATION.md](developer/PLUGIN_DOCUMENTATION.md)

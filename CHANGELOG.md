@@ -201,7 +201,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - [GitHub Releases](https://github.com/rainmanjam/obs-polyemesis/releases)
 - [Issue Tracker](https://github.com/rainmanjam/obs-polyemesis/issues)
-- [Documentation](https://github.com/rainmanjam/obs-polyemesis/blob/main/PLUGIN_DOCUMENTATION.md)
+- [Documentation](https://github.com/rainmanjam/obs-polyemesis/blob/main/docs/developer/PLUGIN_DOCUMENTATION.md)
 
 ---
 

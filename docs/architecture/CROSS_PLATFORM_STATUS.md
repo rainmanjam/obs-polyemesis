@@ -40,13 +40,13 @@ All multi-platform builds are now passing in GitHub Actions CI/CD.
 - **Created**:
   - `.gersemirc` - CMake formatter configuration
   - `check-format.sh` - Local style verification script
-  - `CODE_STYLE.md` - Comprehensive formatting guide
+  - `docs/developer/CODE_STYLE.md` - Comprehensive formatting guide
   - All formatting checks passing in CI/CD
 
 ### 4. Dependencies Documentation ✅
 - **Status**: Complete
 - **Created**:
-  - `BUILDING.md` with platform-specific instructions
+  - `docs/BUILDING.md` with platform-specific instructions
   - macOS: Homebrew-based setup
   - Linux: apt/dnf/pacman instructions
   - Windows: vcpkg-based setup
@@ -69,7 +69,7 @@ All multi-platform builds are now passing in GitHub Actions CI/CD.
 - **Status**: Complete
 - **Created**:
   - `.actrc` configuration
-  - `ACT_TESTING.md` guide
+  - `docs/developer/ACT_TESTING.md` guide
   - ACT already installed on this system
 
 ### 8. Source Control ✅
@@ -284,17 +284,17 @@ Phase 12: Distribution       ⏳  0%  (Next: Release workflow)
 
 ### New Files (Session 2)
 ```
-✅ .gersemirc            - Gersemi formatter configuration
-✅ check-format.sh       - Code style verification script
-✅ CODE_STYLE.md         - Code formatting guide
+✅ .gersemirc                         - Gersemi formatter configuration
+✅ check-format.sh                    - Code style verification script
+✅ docs/developer/CODE_STYLE.md       - Code formatting guide
 ```
 
 ### New Files (Session 1)
 ```
-✅ BUILDING.md           - Platform-specific build instructions
-✅ ACT_TESTING.md        - Local CI/CD testing guide
-✅ .gitignore            - Ignore build artifacts
-✅ .actrc                - ACT configuration
+✅ docs/BUILDING.md                   - Platform-specific build instructions
+✅ docs/developer/ACT_TESTING.md      - Local CI/CD testing guide
+✅ .gitignore                         - Ignore build artifacts
+✅ .actrc                             - ACT configuration
 ```
 
 ### Modified Files
@@ -343,11 +343,11 @@ When contributing:
 
 ## 📞 **Support Channels**
 
-- **Build Issues**: See [BUILDING.md](BUILDING.md)
-- **Style Guide**: See [CODE_STYLE.md](CODE_STYLE.md)
-- **ACT Testing**: See [ACT_TESTING.md](ACT_TESTING.md)
-- **General Help**: See [README.md](README.md)
-- **API Documentation**: See [PLUGIN_DOCUMENTATION.md](PLUGIN_DOCUMENTATION.md)
+- **Build Issues**: See [BUILDING.md](../BUILDING.md)
+- **Style Guide**: See [CODE_STYLE.md](../developer/CODE_STYLE.md)
+- **ACT Testing**: See [ACT_TESTING.md](../developer/ACT_TESTING.md)
+- **General Help**: See [README.md](../../README.md)
+- **API Documentation**: See [PLUGIN_DOCUMENTATION.md](../developer/PLUGIN_DOCUMENTATION.md)
 
 ---
 
