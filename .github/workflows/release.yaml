@@ -104,9 +104,87 @@ jobs:
         run: |
           cmake -B build -G Xcode \
             -DCMAKE_BUILD_TYPE=Release \
+            -DCMAKE_OSX_ARCHITECTURES="arm64" \
+            -DCMAKE_OSX_DEPLOYMENT_TARGET=11.0 \
             -DENABLE_FRONTEND_API=ON \
             -DENABLE_QT=ON
           cmake --build build --config Release
+
+      - name: Bundle Dependencies
+        run: |
+          PLUGIN_PATH="build/Release/obs-polyemesis.plugin"
+
+          # Create Frameworks directory
+          mkdir -p "$PLUGIN_PATH/Contents/Frameworks"
+
+          # Copy jansson library
+          cp /opt/homebrew/opt/jansson/lib/libjansson.4.dylib \
+             "$PLUGIN_PATH/Contents/Frameworks/"
+
+          # Fix library paths
+          install_name_tool -change \
+            /opt/homebrew/opt/jansson/lib/libjansson.4.dylib \
+            @loader_path/../Frameworks/libjansson.4.dylib \
+            "$PLUGIN_PATH/Contents/MacOS/obs-polyemesis"
+
+          install_name_tool -change \
+            /opt/homebrew/opt/qtbase/lib/QtCore.framework/Versions/A/QtCore \
+            @rpath/QtCore.framework/Versions/A/QtCore \
+            "$PLUGIN_PATH/Contents/MacOS/obs-polyemesis"
+
+          install_name_tool -change \
+            /opt/homebrew/opt/qtbase/lib/QtGui.framework/Versions/A/QtGui \
+            @rpath/QtGui.framework/Versions/A/QtGui \
+            "$PLUGIN_PATH/Contents/MacOS/obs-polyemesis"
+
+          install_name_tool -change \
+            /opt/homebrew/opt/qtbase/lib/QtWidgets.framework/Versions/A/QtWidgets \
+            @rpath/QtWidgets.framework/Versions/A/QtWidgets \
+            "$PLUGIN_PATH/Contents/MacOS/obs-polyemesis"
+
+          echo "Dependencies bundled successfully"
+
+      - name: Import Code Signing Certificate
+        if: ${{ secrets.APPLE_CERT_P12_BASE64 != '' }}
+        env:
+          APPLE_CERT_P12_BASE64: ${{ secrets.APPLE_CERT_P12_BASE64 }}
+          APPLE_CERT_PASSWORD: ${{ secrets.APPLE_CERT_PASSWORD }}
+        run: |
+          # Create temporary keychain
+          KEYCHAIN_PATH=$RUNNER_TEMP/app-signing.keychain-db
+          KEYCHAIN_PASSWORD=$(openssl rand -base64 32)
+
+          security create-keychain -p "$KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH"
+          security set-keychain-settings -lut 21600 "$KEYCHAIN_PATH"
+          security unlock-keychain -p "$KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH"
+
+          # Import certificate
+          echo "$APPLE_CERT_P12_BASE64" | base64 --decode > certificate.p12
+          security import certificate.p12 -k "$KEYCHAIN_PATH" -P "$APPLE_CERT_PASSWORD" -T /usr/bin/codesign
+          security set-key-partition-list -S apple-tool:,apple:,codesign: -s -k "$KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH"
+
+          # Add to search list
+          security list-keychains -d user -s "$KEYCHAIN_PATH" login.keychain-db
+
+          rm certificate.p12
+          echo "Certificate imported successfully"
+
+      - name: Sign Plugin Bundle
+        if: ${{ secrets.APPLE_CERT_P12_BASE64 != '' }}
+        env:
+          APPLE_DEVELOPER_ID_APPLICATION: ${{ secrets.APPLE_DEVELOPER_ID_APPLICATION }}
+        run: |
+          PLUGIN_PATH="build/Release/obs-polyemesis.plugin"
+
+          # Sign the plugin bundle
+          codesign --force --deep --sign "$APPLE_DEVELOPER_ID_APPLICATION" \
+            --options runtime \
+            --timestamp \
+            "$PLUGIN_PATH"
+
+          # Verify signature
+          codesign --verify --verbose=4 "$PLUGIN_PATH"
+          echo "Plugin bundle signed successfully"
 
       - name: Create Package
         env:
@@ -116,6 +194,49 @@ jobs:
           chmod +x packaging/macos/create-pkg.sh
           cd packaging/macos
           ./create-pkg.sh
+
+      - name: Sign Package
+        if: ${{ secrets.APPLE_CERT_P12_BASE64 != '' }}
+        env:
+          APPLE_DEVELOPER_ID_INSTALLER: ${{ secrets.APPLE_DEVELOPER_ID_INSTALLER }}
+          VERSION: ${{ needs.create-release.outputs.version }}
+        run: |
+          PKG_PATH="obs-polyemesis-${VERSION}-macos.pkg"
+
+          if [ -f "$PKG_PATH" ]; then
+            productsign --sign "$APPLE_DEVELOPER_ID_INSTALLER" \
+              "$PKG_PATH" \
+              "${PKG_PATH%.pkg}-signed.pkg"
+            mv "${PKG_PATH%.pkg}-signed.pkg" "$PKG_PATH"
+
+            # Verify signature
+            pkgutil --check-signature "$PKG_PATH"
+            echo "Package signed successfully"
+          fi
+
+      - name: Notarize Package
+        if: ${{ secrets.APPLE_CERT_P12_BASE64 != '' && secrets.APPLE_ID != '' }}
+        env:
+          APPLE_ID: ${{ secrets.APPLE_ID }}
+          APPLE_APP_PASSWORD: ${{ secrets.APPLE_APP_PASSWORD }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+          VERSION: ${{ needs.create-release.outputs.version }}
+        run: |
+          PKG_PATH="obs-polyemesis-${VERSION}-macos.pkg"
+
+          if [ -f "$PKG_PATH" ]; then
+            # Submit for notarization
+            xcrun notarytool submit "$PKG_PATH" \
+              --apple-id "$APPLE_ID" \
+              --password "$APPLE_APP_PASSWORD" \
+              --team-id "$APPLE_TEAM_ID" \
+              --wait
+
+            # Staple the notarization ticket
+            xcrun stapler staple "$PKG_PATH"
+
+            echo "Package notarized and stapled successfully"
+          fi
 
       - name: Upload Package
         uses: actions/upload-release-asset@v1
@@ -147,9 +268,20 @@ jobs:
         run: |
           choco install nsis -y
 
+      - name: Install Qt
+        uses: jurplel/install-qt-action@v3
+        with:
+          version: '6.7.0'
+          target: 'desktop'
+          arch: 'win64_msvc2019_64'
+          modules: 'qtbase'
+
       - name: Build Plugin
         run: |
-          cmake -B build -DENABLE_FRONTEND_API=OFF -DENABLE_QT=OFF
+          cmake -B build -G "Visual Studio 17 2022" -A x64 `
+            -DCMAKE_BUILD_TYPE=Release `
+            -DENABLE_FRONTEND_API=ON `
+            -DENABLE_QT=ON
           cmake --build build --config Release
 
       - name: Create Installer
@@ -200,14 +332,16 @@ jobs:
             libcurl4-openssl-dev \
             libjansson-dev \
             libobs-dev \
+            libqt6-dev \
+            qt6-base-dev \
             ninja-build
 
       - name: Build Plugin
         run: |
           cmake -B build -G Ninja \
             -DCMAKE_BUILD_TYPE=Release \
-            -DENABLE_FRONTEND_API=OFF \
-            -DENABLE_QT=OFF
+            -DENABLE_FRONTEND_API=ON \
+            -DENABLE_QT=ON
           cmake --build build
 
       - name: Create DEB Package
@@ -224,13 +358,16 @@ jobs:
           Version: ${VERSION}
           Architecture: amd64
           Maintainer: rainmanjam <noreply@github.com>
-          Depends: obs-studio (>= 28.0), libcurl4, libjansson4
+          Depends: obs-studio (>= 28.0), libcurl4, libjansson4, libqt6core6, libqt6gui6, libqt6widgets6
           Section: video
           Priority: optional
           Homepage: https://github.com/rainmanjam/obs-polyemesis
           Description: datarhei Restreamer control plugin for OBS Studio
            OBS Polyemesis is a comprehensive plugin for controlling and monitoring
            datarhei Restreamer instances with advanced multistreaming capabilities.
+           .
+           Features include orientation-aware multistreaming, real-time monitoring,
+           and an integrated Qt-based dock interface for OBS Studio.
           EOF
 
           cp build/obs-polyemesis.so obs-polyemesis_${VERSION}/usr/lib/obs-plugins/
