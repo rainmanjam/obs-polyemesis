@@ -151,12 +151,41 @@ cmake --install build
 
 ## 📖 Documentation
 
+### User Documentation
 - **[User Guide](docs/USER_GUIDE.md)** - Installation, setup, and usage instructions
-- **[Output Profiles](docs/architecture/OUTPUT_PROFILES.md)** - Multi-stream profile management (NEW!)
-- **[Building](docs/BUILDING.md)** - Developer build instructions for all platforms
+- **[Building](docs/BUILDING.md)** - Build instructions for all platforms
+- **[Deployment Guide](docs/DEPLOYMENT_GUIDE.md)** - Deployment and distribution
+
+### Architecture & Design
+- **[Output Profiles](docs/architecture/OUTPUT_PROFILES.md)** - Multi-stream profile management
+- **[Cross-Platform Status](docs/architecture/CROSS_PLATFORM_STATUS.md)** - Platform compatibility
+
+### API Documentation
+- **[API Gap Analysis](docs/api/API_GAP_ANALYSIS.md)** - Restreamer Core API coverage
+- **[WebSocket API](docs/api/WEBSOCKET_API.md)** - WebSocket integration
+- **[Platform API Integration Plan](docs/api/PLATFORM_API_INTEGRATION_PLAN.md)** - Platform integration roadmap
+
+### Developer Documentation
 - **[Contributing](CONTRIBUTING.md)** - Development workflow and contribution guidelines
+- **[Plugin Documentation](docs/developer/PLUGIN_DOCUMENTATION.md)** - Feature descriptions and API reference
+- **[Code Style](docs/developer/CODE_STYLE.md)** - Coding standards
+- **[Apple Code Signing](docs/developer/APPLE_CODE_SIGNING_SETUP.md)** - macOS signing setup
+- **[ACT Testing](docs/developer/ACT_TESTING.md)** - Local CI/CD testing
+- **[Quality Assurance](docs/developer/QUALITY_ASSURANCE.md)** - QA processes
+
+### Testing Documentation
+- **[Testing Plan](docs/testing/TESTING_PLAN.md)** - Comprehensive testing strategy
+- **[Test Results](docs/testing/TEST_RESULTS.md)** - Test execution results
+- **[Automation Analysis](docs/testing/AUTOMATION_ANALYSIS.md)** - Test automation capabilities
+
+### CI/CD & Releases
 - **[CI/CD Workflow](docs/cicd/CICD_WORKFLOW.md)** - Pipeline architecture and automation
-- **[Plugin Documentation](docs/developer/PLUGIN_DOCUMENTATION.md)** - Detailed feature descriptions and API reference
+- **[Quick Release Guide](docs/releases/QUICK_RELEASE_GUIDE.md)** - Release process
+- **[Release Summaries](docs/releases/)** - Version-specific release notes
+
+### Planning & Compliance
+- **[Improvements Roadmap](docs/planning/IMPROVEMENTS.md)** - Future enhancements
+- **[Compliance Review](docs/compliance/COMPLIANCE_REVIEW.md)** - Security and compliance
 
 ## 🎯 Use Cases
 
