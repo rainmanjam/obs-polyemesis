@@ -69,6 +69,10 @@ __pycache__/
 *.pyo
 *.pyd
 
+# Screenshots and images
+Screenshot*.png
+*.screenshot.png
+
 # Secrets and credentials
 .secrets
 *.secrets
