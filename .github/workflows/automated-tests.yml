@@ -104,7 +104,9 @@ jobs:
             cmake \
             ninja-build \
             libobs-dev \
-            qt6-base-dev
+            qt6-base-dev \
+            libcurl4-openssl-dev \
+            libjansson-dev
 
       - name: Configure CMake
         run: |
