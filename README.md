@@ -8,13 +8,83 @@
 
 A comprehensive OBS Studio plugin for controlling and monitoring [datarhei Restreamer](https://github.com/datarhei/restreamer) with advanced multistreaming capabilities including orientation-aware routing.
 
+### 🔄 Architecture Overview
+
+```mermaid
+flowchart LR
+    OBS[OBS Studio<br/>⚡ Polyemesis Plugin]
+    API[datarhei Restreamer<br/>REST API]
+    YT[📺 YouTube]
+    TW[🎮 Twitch]
+    TT[🎵 TikTok]
+    IG[📷 Instagram]
+    FB[👥 Facebook]
+
+    OBS -->|Stream Control<br/>Process Management| API
+    API -->|Monitoring<br/>Stats & Logs| OBS
+    API -->|Horizontal 16:9| YT
+    API -->|Horizontal 16:9| TW
+    API -->|Vertical 9:16| TT
+    API -->|Vertical 9:16| IG
+    API -->|Auto-detect| FB
+
+    style OBS fill:#5865F2,stroke:#4752C4,color:#fff
+    style API fill:#00A8E8,stroke:#0077B6,color:#fff
+    style YT fill:#FF0000,stroke:#CC0000,color:#fff
+    style TW fill:#9146FF,stroke:#772CE8,color:#fff
+    style TT fill:#000000,stroke:#69C9D0,color:#fff
+    style IG fill:#E4405F,stroke:#C13584,color:#fff
+    style FB fill:#1877F2,stroke:#0C5DBD,color:#fff
 ```
-┌─────────────────┐      ┌──────────────┐      ┌─────────────────┐
-│   OBS Studio    │─────►│  Restreamer  │─────►│  YouTube        │
-│                 │      │   (API)      │      │  Twitch         │
-│  Polyemesis     │      │              │      │  TikTok         │
-│  Plugin ⚡      │◄─────│  Monitoring  │      │  Instagram      │
-└─────────────────┘      └──────────────┘      └─────────────────┘
+
+### 🔧 Detailed Component Interaction
+
+```mermaid
+sequenceDiagram
+    participant User
+    participant OBS as OBS Studio
+    participant Plugin as Polyemesis Plugin
+    participant Config as Configuration Manager
+    participant API as Restreamer API
+    participant Multi as Multistream Manager
+    participant Platform as Streaming Platforms
+
+    User->>OBS: Start Streaming
+    OBS->>Plugin: Initialize Output
+    Plugin->>Config: Load Connection Settings
+    Config-->>Plugin: Connection Details
+
+    Plugin->>API: Test Connection
+    API-->>Plugin: Connection OK
+
+    Plugin->>API: Detect Video Orientation<br/>(16:9, 9:16, 1:1)
+    API-->>Plugin: Orientation Confirmed
+
+    Plugin->>Multi: Configure Destinations
+    Multi->>Multi: Apply Service Rules<br/>(YouTube→16:9, TikTok→9:16)
+
+    Plugin->>API: Create Restream Process
+    API-->>Plugin: Process Created (ID)
+
+    loop Streaming Active
+        OBS->>Plugin: Video/Audio Data
+        Plugin->>API: Forward Stream
+        API->>Multi: Distribute to Destinations
+        Multi->>Platform: YouTube (Horizontal)
+        Multi->>Platform: Twitch (Horizontal)
+        Multi->>Platform: TikTok (Vertical)
+        Multi->>Platform: Instagram (Vertical)
+
+        API->>Plugin: Status Update<br/>(CPU, Memory, Uptime)
+        Plugin->>OBS: Update UI Stats
+        OBS->>User: Display Monitoring
+    end
+
+    User->>OBS: Stop Streaming
+    OBS->>Plugin: Shutdown Output
+    Plugin->>API: Stop Restream Process
+    API-->>Plugin: Process Stopped
+    Plugin->>OBS: Cleanup Complete
 ```
 
 ## ✨ Key Features
