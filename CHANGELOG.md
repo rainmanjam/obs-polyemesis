@@ -7,6 +7,69 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.1.0] - 2025-11-11
+
+### Added
+- **OBS Integration Improvements**
+  - Hotkey support for quick profile control
+    - Start/Stop all profiles via keyboard shortcuts
+    - Start specific horizontal/vertical profiles
+    - Configurable in OBS Settings → Hotkeys
+  - Tools menu integration
+    - Quick access to "Start All Profiles", "Stop All Profiles", and "Open Settings"
+    - Convenient shortcuts without opening the dock
+  - Pre-load callbacks for better state management
+    - Plugin initializes before scene collections load
+    - Improved reliability on OBS startup
+
+- **UI/UX Enhancements**
+  - Color-coded status indicators with emoji icons
+    - Profile status: 🟢 Active, 🟡 Starting, 🟠 Stopping, 🔴 Error, ⚫ Inactive
+    - Process state: 🟢 Running, 🟡 Starting, 🟠 Stopping, 🔴 Failed
+    - CPU usage: Green (<50%), Orange (50-80%), Red (>80%)
+    - Memory usage: Green (<1GB), Orange (1-2GB), Red (>2GB)
+    - Dropped frames: Green (<1%), Orange (1-5%), Red (>5%)
+  - Improved dialog alignment across all forms
+    - Converted QFormLayout to QGridLayout for precise control
+    - Right-aligned labels with consistent spacing
+    - Professional appearance with 10px spacing
+  - Enhanced scene collection integration
+    - Saves last active profile for quick restoration
+    - Saves last selected process
+    - Tracks profile active states for potential auto-restart
+
+- **Streaming Service Integration**
+  - OBS Service Loader - Full access to OBS's streaming service database
+    - 100+ streaming services automatically loaded from OBS
+    - Common services (Twitch, YouTube, Facebook) shown first
+    - Regional server selection for each service (e.g., Twitch: Tokyo, Seoul, Singapore, etc.)
+  - Enhanced destination dialogs with server selection
+    - Service dropdown with full OBS service list
+    - Automatic server list population per service
+    - Direct links to get stream keys for each service
+    - Custom RTMP server option with full URL support
+    - Dynamic UI that shows/hides relevant fields
+  - Consistent alignment across all destination forms
+    - "Add Destination" (multistream)
+    - "Add Destination" (output profiles)
+    - "Edit Destination" (output profiles)
+    - "Configure Profile" basic settings
+
+### Improved
+- Dialog layouts now use QGridLayout for better alignment
+- Labels are consistently right-aligned with proper vertical centering
+- Input fields have consistent minimum widths (250-300px)
+- All dialogs follow professional spacing standards (10px)
+- Dynamic field visibility (custom RTMP vs regular services)
+
+### Technical Details
+- Added `obs-service-loader.h` and `obs-service-loader.cpp` for OBS service integration
+- Loads services from `/Applications/OBS.app/Contents/PlugIns/rtmp-services.plugin/Contents/Resources/services.json` (macOS)
+- Parses service name, servers, stream key links, and supported codecs
+- Hotkeys registered via `obs_hotkey_register_frontend()`
+- Tools menu items added via `obs_frontend_add_tools_menu_item()`
+- Pre-load callback registered via `obs_frontend_add_preload_callback()`
+
 ## [1.0.0] - 2025-11-08
 
 ### Added

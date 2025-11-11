@@ -123,12 +123,23 @@ target_sources(
     src/restreamer-multistream.h
     src/restreamer-output-profile.c
     src/restreamer-output-profile.h
+    src/obs-bridge.c
+    src/obs-bridge.h
 )
 
 if(ENABLE_QT)
   target_sources(
     ${CMAKE_PROJECT_NAME}
-    PRIVATE src/restreamer-dock.cpp src/restreamer-dock.h src/restreamer-dock-bridge.cpp
+    PRIVATE
+      src/restreamer-dock.cpp
+      src/restreamer-dock.h
+      src/restreamer-dock-bridge.cpp
+      src/obs-service-loader.cpp
+      src/obs-service-loader.h
+      # Temporarily disabled - requires OBS WebSocket plugin headers
+      # src/websocket-api.cpp
+      # src/websocket-api.h
+      src/plugin-main.h
   )
 endif()
 

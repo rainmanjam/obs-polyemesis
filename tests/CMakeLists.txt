@@ -9,6 +9,9 @@ add_executable(
   test_api_client.c
   test_config.c
   test_multistream.c
+  test_output_profile.c
+  test_source.c
+  test_output.c
   mock_restreamer.c
   obs_stubs.c
 )
@@ -20,7 +23,13 @@ target_sources(
     ${CMAKE_SOURCE_DIR}/src/restreamer-api.c
     ${CMAKE_SOURCE_DIR}/src/restreamer-config.c
     ${CMAKE_SOURCE_DIR}/src/restreamer-multistream.c
+    ${CMAKE_SOURCE_DIR}/src/restreamer-output-profile.c
+    ${CMAKE_SOURCE_DIR}/src/restreamer-source.c
+    ${CMAKE_SOURCE_DIR}/src/restreamer-output.c
 )
+
+# Define TESTING_MODE to make plugin functions non-static
+target_compile_definitions(obs-polyemesis-tests PRIVATE TESTING_MODE)
 
 # Include directories
 target_include_directories(
@@ -46,12 +55,18 @@ endif()
 add_test(NAME api_client_tests COMMAND $<TARGET_FILE:obs-polyemesis-tests> --test-suite=api)
 add_test(NAME config_tests COMMAND $<TARGET_FILE:obs-polyemesis-tests> --test-suite=config)
 add_test(NAME multistream_tests COMMAND $<TARGET_FILE:obs-polyemesis-tests> --test-suite=multistream)
+add_test(NAME output_profile_tests COMMAND $<TARGET_FILE:obs-polyemesis-tests> --test-suite=profile)
+add_test(NAME source_tests COMMAND $<TARGET_FILE:obs-polyemesis-tests> --test-suite=source)
+add_test(NAME output_tests COMMAND $<TARGET_FILE:obs-polyemesis-tests> --test-suite=output)
 
 # Set working directory for tests to ensure they run from the correct location
 set_tests_properties(
   api_client_tests
   config_tests
   multistream_tests
+  output_profile_tests
+  source_tests
+  output_tests
   PROPERTIES WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}
 )
 
