@@ -56,6 +56,19 @@ release/
 *.log
 *.tmp
 
+# Coverage reports
+*.gcov
+*.gcda
+*.gcno
+build-test/
+src/Testing/
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+
 # Secrets and credentials
 .secrets
 *.secrets
