@@ -270,8 +270,8 @@ static void install_service_definition(void) {
   }
 
   /* Navigate to rtmp-services directory */
-  char service_dir[512];
-  char service_file[512];
+  char service_dir[1024];
+  char service_file[1024];
 
   /* Navigate from plugin_config/obs-polyemesis to plugin_config/rtmp-services */
   /* First, remove any trailing slash */
