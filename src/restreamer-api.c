@@ -11,7 +11,6 @@
 struct restreamer_api {
   restreamer_connection_t connection;
   CURL *curl;
-  struct curl_slist *headers;
   char error_buffer[CURL_ERROR_SIZE];
   struct dstr last_error;
   char *access_token;     /* JWT access token */
@@ -69,11 +68,7 @@ restreamer_api_t *restreamer_api_create(restreamer_connection_t *connection) {
 
   dstr_init(&api->last_error);
 
-  /* Set up headers */
-  api->headers =
-      curl_slist_append(api->headers, "Content-Type: application/json");
-
-  curl_easy_setopt(api->curl, CURLOPT_HTTPHEADER, api->headers);
+  /* Set up CURL defaults - headers are managed per-request */
   curl_easy_setopt(api->curl, CURLOPT_ERRORBUFFER, api->error_buffer);
   curl_easy_setopt(api->curl, CURLOPT_WRITEFUNCTION, write_callback);
   curl_easy_setopt(api->curl, CURLOPT_TIMEOUT, 10L);
@@ -96,10 +91,6 @@ void restreamer_api_destroy(restreamer_api_t *api) {
 
   if (api->curl) {
     curl_easy_cleanup(api->curl);
-  }
-
-  if (api->headers) {
-    curl_slist_free_all(api->headers);
   }
 
   bfree(api->connection.host);
@@ -139,13 +130,22 @@ static bool restreamer_api_login(restreamer_api_t *api) {
   response.memory = bmalloc(1);
   response.size = 0;
 
+  /* Set headers for login request - no auth needed */
+  struct curl_slist *login_headers = NULL;
+  login_headers = curl_slist_append(login_headers, "Content-Type: application/json");
+
   curl_easy_setopt(api->curl, CURLOPT_URL, url.array);
+  curl_easy_setopt(api->curl, CURLOPT_HTTPHEADER, login_headers);
   curl_easy_setopt(api->curl, CURLOPT_WRITEDATA, (void *)&response);
   curl_easy_setopt(api->curl, CURLOPT_POST, 1L);
   curl_easy_setopt(api->curl, CURLOPT_POSTFIELDS, post_data);
   curl_easy_setopt(api->curl, CURLOPT_POSTFIELDSIZE, strlen(post_data));
 
   CURLcode res = curl_easy_perform(api->curl);
+
+  /* Clean up headers first - must be done before freeing the list */
+  curl_slist_free_all(login_headers);
+  curl_easy_setopt(api->curl, CURLOPT_HTTPHEADER, NULL);
 
   /* Reset CURL state after POST request - must reset size too! */
   curl_easy_setopt(api->curl, CURLOPT_POST, 0L);
