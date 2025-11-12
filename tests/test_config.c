@@ -309,7 +309,7 @@ static bool test_config_load_save_settings(void) {
   const char *saved_host = obs_data_get_string(new_settings, "host");
   TEST_ASSERT(saved_host != NULL, "Host should be saved");
 
-  int saved_port = obs_data_get_int(new_settings, "port");
+  long long saved_port = obs_data_get_int(new_settings, "port");
   TEST_ASSERT(saved_port > 0, "Port should be saved");
 
   obs_data_release(settings);
@@ -710,8 +710,8 @@ static bool test_save_to_settings_null_fields(void) {
   const char *saved_host = obs_data_get_string(settings, "host");
   TEST_ASSERT(saved_host != NULL, "Should save default host");
 
-  int saved_port = obs_data_get_int(settings, "port");
-  TEST_ASSERT_EQUAL(8080, saved_port, "Should save default port");
+  long long saved_port = obs_data_get_int(settings, "port");
+  TEST_ASSERT_EQUAL(8080, (int)saved_port, "Should save default port");
 
   obs_data_release(settings);
 

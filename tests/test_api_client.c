@@ -867,7 +867,7 @@ static bool test_api_error_messages(void) {
 
   /* Test get_error with NULL API */
   const char *null_error = restreamer_api_get_error(NULL);
-  TEST_ASSERT(null_error == NULL || strlen(null_error) >= 0,
+  TEST_ASSERT(null_error == NULL || null_error[0] != '\0',
               "get_error should handle NULL API");
 
   restreamer_api_destroy(api);

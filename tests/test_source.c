@@ -769,8 +769,8 @@ static bool test_source_defaults_detailed(void)
 	test_assert(host != NULL && strcmp(host, "localhost") == 0,
 		    "Default host should be localhost");
 
-	int port = obs_data_get_int(settings, "port");
-	test_assert(port == 8080, "Default port should be 8080");
+	long long port = obs_data_get_int(settings, "port");
+	test_assert((int)port == 8080, "Default port should be 8080");
 
 	bool use_https = obs_data_get_bool(settings, "use_https");
 	test_assert(use_https == false,
