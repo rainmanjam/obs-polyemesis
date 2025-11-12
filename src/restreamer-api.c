@@ -128,7 +128,7 @@ static bool restreamer_api_login(restreamer_api_t *api) {
               api->connection.port);
 
   struct memory_struct response;
-  response.memory = malloc(1);
+  response.memory = NULL;  /* realloc(NULL, size) behaves like malloc(size) */
   response.size = 0;
 
   /* Set headers for login request - no auth needed */
@@ -174,7 +174,7 @@ static bool restreamer_api_login(restreamer_api_t *api) {
   /* Parse response to get tokens */
   json_error_t error;
   json_t *root = json_loads(response.memory, 0, &error);
-  bfree(response.memory);
+  free(response.memory);
 
   if (!root) {
     dstr_printf(&api->last_error, "JSON parse error: %s", error.text);
@@ -333,7 +333,7 @@ bool restreamer_api_get_processes(restreamer_api_t *api,
   list->processes = NULL;
   list->count = 0;
 
-  struct memory_struct response;
+  struct memory_struct response = {NULL, 0};
   if (!make_request(api, "/api/v3/process", "GET", NULL, &response)) {
     return false;
   }
@@ -346,7 +346,7 @@ bool restreamer_api_get_processes(restreamer_api_t *api,
 
   json_error_t error;
   json_t *root = json_loads(response.memory, 0, &error);
-  bfree(response.memory);
+  free(response.memory);
 
   if (!root) {
     dstr_printf(&api->last_error, "JSON parse error: %s", error.text);
@@ -438,7 +438,7 @@ bool restreamer_api_start_process(restreamer_api_t *api,
   char *post_data = json_dumps(root, 0);
   json_decref(root);
 
-  struct memory_struct response;
+  struct memory_struct response = {NULL, 0};
   bool result = make_request(api, endpoint.array, "POST", post_data, &response);
 
   free(post_data);
@@ -468,7 +468,7 @@ bool restreamer_api_stop_process(restreamer_api_t *api,
   char *post_data = json_dumps(root, 0);
   json_decref(root);
 
-  struct memory_struct response;
+  struct memory_struct response = {NULL, 0};
   bool result = make_request(api, endpoint.array, "POST", post_data, &response);
 
   free(post_data);
@@ -498,7 +498,7 @@ bool restreamer_api_restart_process(restreamer_api_t *api,
   char *post_data = json_dumps(root, 0);
   json_decref(root);
 
-  struct memory_struct response;
+  struct memory_struct response = {NULL, 0};
   bool result = make_request(api, endpoint.array, "POST", post_data, &response);
 
   free(post_data);
@@ -521,7 +521,7 @@ bool restreamer_api_get_process(restreamer_api_t *api, const char *process_id,
   dstr_init_copy(&endpoint, "/api/v3/process/");
   dstr_cat(&endpoint, process_id);
 
-  struct memory_struct response;
+  struct memory_struct response = {NULL, 0};
   bool result = make_request(api, endpoint.array, "GET", NULL, &response);
   dstr_free(&endpoint);
 
@@ -531,7 +531,7 @@ bool restreamer_api_get_process(restreamer_api_t *api, const char *process_id,
 
   json_error_t error;
   json_t *root = json_loads(response.memory, 0, &error);
-  bfree(response.memory);
+  free(response.memory);
 
   if (!root) {
     dstr_printf(&api->last_error, "JSON parse error: %s", error.text);
@@ -589,7 +589,7 @@ bool restreamer_api_get_process_logs(restreamer_api_t *api,
   dstr_cat(&endpoint, process_id);
   dstr_cat(&endpoint, "/log");
 
-  struct memory_struct response;
+  struct memory_struct response = {NULL, 0};
   bool result = make_request(api, endpoint.array, "GET", NULL, &response);
   dstr_free(&endpoint);
 
@@ -599,7 +599,7 @@ bool restreamer_api_get_process_logs(restreamer_api_t *api,
 
   json_error_t error;
   json_t *root = json_loads(response.memory, 0, &error);
-  bfree(response.memory);
+  free(response.memory);
 
   if (!root || !json_is_array(root)) {
     if (root)
@@ -641,14 +641,14 @@ bool restreamer_api_get_sessions(restreamer_api_t *api,
     return false;
   }
 
-  struct memory_struct response;
+  struct memory_struct response = {NULL, 0};
   if (!make_request(api, "/api/v3/sessions", "GET", NULL, &response)) {
     return false;
   }
 
   json_error_t error;
   json_t *root = json_loads(response.memory, 0, &error);
-  bfree(response.memory);
+  free(response.memory);
 
   if (!root || !json_is_object(root)) {
     if (root)
@@ -743,7 +743,7 @@ bool restreamer_api_create_process(restreamer_api_t *api, const char *reference,
   json_decref(root);
   dstr_free(&command);
 
-  struct memory_struct response;
+  struct memory_struct response = {NULL, 0};
   bool result =
       make_request(api, "/api/v3/process", "POST", post_data, &response);
 
@@ -766,7 +766,7 @@ bool restreamer_api_delete_process(restreamer_api_t *api,
   dstr_init_copy(&endpoint, "/api/v3/process/");
   dstr_cat(&endpoint, process_id);
 
-  struct memory_struct response;
+  struct memory_struct response = {NULL, 0};
   bool result = make_request(api, endpoint.array, "DELETE", NULL, &response);
   dstr_free(&endpoint);
 
@@ -872,7 +872,7 @@ static bool api_request_json(restreamer_api_t *api, const char *endpoint,
 
 	/* Setup request */
 	struct memory_struct response;
-	response.memory = bmalloc(1);
+	response.memory = NULL;  /* realloc(NULL, size) behaves like malloc(size) */
 	response.size = 0;
 
 	/* Add authorization header */
@@ -963,7 +963,7 @@ static bool api_request_put_json(restreamer_api_t *api, const char *endpoint,
 
 	/* Setup request */
 	struct memory_struct response;
-	response.memory = bmalloc(1);
+	response.memory = NULL;  /* realloc(NULL, size) behaves like malloc(size) */
 	response.size = 0;
 
 	/* Add Content-Type header */
@@ -1363,7 +1363,7 @@ bool restreamer_api_get_prometheus_metrics(restreamer_api_t *api,
 
 	/* Setup request */
 	struct memory_struct response;
-	response.memory = bmalloc(1);
+	response.memory = NULL;  /* realloc(NULL, size) behaves like malloc(size) */
 	response.size = 0;
 
 	curl_easy_setopt(api->curl, CURLOPT_URL, url.array);
@@ -1596,7 +1596,7 @@ bool restreamer_api_get_keyframe(restreamer_api_t *api, const char *process_id,
 
 	/* Setup request for binary data */
 	struct memory_struct response;
-	response.memory = bmalloc(1);
+	response.memory = NULL;  /* realloc(NULL, size) behaves like malloc(size) */
 	response.size = 0;
 
 	/* Build URL */
@@ -1660,7 +1660,7 @@ bool restreamer_api_refresh_token(restreamer_api_t *api) {
 	            api->connection.host, api->connection.port);
 
 	struct memory_struct response;
-	response.memory = bmalloc(1);
+	response.memory = NULL;  /* realloc(NULL, size) behaves like malloc(size) */
 	response.size = 0;
 
 	/* Build authorization header with refresh token - keep it alive until after request completes */
@@ -1858,7 +1858,7 @@ bool restreamer_api_download_file(restreamer_api_t *api, const char *storage,
 
 	/* Setup request for binary data */
 	struct memory_struct response;
-	response.memory = bmalloc(1);
+	response.memory = NULL;  /* realloc(NULL, size) behaves like malloc(size) */
 	response.size = 0;
 
 	struct dstr url;
