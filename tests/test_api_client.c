@@ -435,6 +435,10 @@ static bool test_api_config_operations(void) {
   /* Test set config */
   const char *new_config = "{\"setting\": \"value\"}";
   bool set_config = restreamer_api_set_config(api, new_config);
+  if (!set_config) {
+    const char *error = restreamer_api_get_error(api);
+    fprintf(stderr, "  set_config failed: %s\n", error ? error : "unknown error");
+  }
   TEST_ASSERT(set_config, "Should set configuration");
 
   /* Test reload config */
@@ -588,6 +592,10 @@ static bool test_api_metrics_operations(void) {
   char *query_result = NULL;
   const char *query = "{\"metric\": \"cpu_usage\"}";
   bool queried = restreamer_api_query_metrics(api, query, &query_result);
+  if (!queried) {
+    const char *error = restreamer_api_get_error(api);
+    fprintf(stderr, "  query_metrics failed: %s\n", error ? error : "unknown error");
+  }
   TEST_ASSERT(queried, "Should query metrics");
   if (query_result) {
     free(query_result);

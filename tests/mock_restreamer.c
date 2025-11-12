@@ -151,7 +151,7 @@ static void handle_request(socket_t client_fd, const char *request) {
     /* Set config */
     response = "HTTP/1.1 200 OK\r\n"
                "Content-Type: application/json\r\n"
-               "Content-Length: 20\r\n"
+               "Content-Length: 16\r\n"
                "\r\n"
                "{\"status\": \"ok\"}";
   } else if (strstr(request, "POST /api/v3/config/reload") != NULL) {
@@ -168,11 +168,12 @@ static void handle_request(socket_t client_fd, const char *request) {
                "Content-Length: 50\r\n"
                "\r\n"
                "# TYPE cpu_usage gauge\ncpu_usage 25.5\n";
-  } else if (strstr(request, "POST /api/v3/metrics/query") != NULL) {
+  } else if (strstr(request, "POST /api/v3/metrics/query") != NULL ||
+             strstr(request, "PUT /api/v3/metrics") != NULL) {
     /* Query metrics */
     response = "HTTP/1.1 200 OK\r\n"
                "Content-Type: application/json\r\n"
-               "Content-Length: 40\r\n"
+               "Content-Length: 30\r\n"
                "\r\n"
                "{\"results\": [{\"value\": 25.5}]}";
   } else if (strstr(request, "GET /api/v3/metrics") != NULL) {
