@@ -193,6 +193,7 @@ jobs:
         if: always() && steps.validate_sarif.outputs.valid == 'true'
         with:
           sarif_file: bearer-results.sarif
+        continue-on-error: true  # Bearer tool sometimes generates invalid SARIF schema
 
   grype:
     name: Grype Vulnerability Scan
