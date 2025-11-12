@@ -146,9 +146,10 @@ static bool restreamer_api_login(restreamer_api_t *api) {
 
   CURLcode res = curl_easy_perform(api->curl);
 
-  /* Reset CURL state after POST request */
+  /* Reset CURL state after POST request - must reset size too! */
   curl_easy_setopt(api->curl, CURLOPT_POST, 0L);
   curl_easy_setopt(api->curl, CURLOPT_POSTFIELDS, NULL);
+  curl_easy_setopt(api->curl, CURLOPT_POSTFIELDSIZE, 0L);
 
   free(post_data);
   dstr_free(&url);
@@ -878,12 +879,12 @@ static bool api_request_json(restreamer_api_t *api, const char *endpoint,
 
 	curl_easy_setopt(api->curl, CURLOPT_URL, url.array);
 
-	/* Explicitly force GET method using CUSTOMREQUEST */
-	curl_easy_setopt(api->curl, CURLOPT_CUSTOMREQUEST, "GET");
+	/* Ensure GET method by clearing POST state and enabling HTTPGET */
 	curl_easy_setopt(api->curl, CURLOPT_POST, 0L);
-	curl_easy_setopt(api->curl, CURLOPT_UPLOAD, 0L);
 	curl_easy_setopt(api->curl, CURLOPT_POSTFIELDS, NULL);
-	curl_easy_setopt(api->curl, CURLOPT_POSTFIELDSIZE, -1L);
+	curl_easy_setopt(api->curl, CURLOPT_POSTFIELDSIZE, 0L);
+	curl_easy_setopt(api->curl, CURLOPT_CUSTOMREQUEST, NULL);
+	curl_easy_setopt(api->curl, CURLOPT_HTTPGET, 1L);
 
 	curl_easy_setopt(api->curl, CURLOPT_HTTPHEADER, headers);
 	curl_easy_setopt(api->curl, CURLOPT_WRITEDATA, (void *)&response);
