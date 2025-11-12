@@ -988,13 +988,15 @@ static bool api_request_put_json(restreamer_api_t *api, const char *endpoint,
 	CURLcode res = curl_easy_perform(api->curl);
 
 	/* Reset CURL state to avoid affecting subsequent requests */
-	curl_easy_setopt(api->curl, CURLOPT_CUSTOMREQUEST, NULL);
-	curl_easy_setopt(api->curl, CURLOPT_HTTPHEADER, NULL);
 	curl_easy_setopt(api->curl, CURLOPT_POST, 0L);
 	curl_easy_setopt(api->curl, CURLOPT_POSTFIELDS, NULL);
 	curl_easy_setopt(api->curl, CURLOPT_POSTFIELDSIZE, 0L);
+	curl_easy_setopt(api->curl, CURLOPT_CUSTOMREQUEST, NULL);
 
+	/* Clean up headers - free first, then set to NULL */
 	curl_slist_free_all(headers);
+	curl_easy_setopt(api->curl, CURLOPT_HTTPHEADER, NULL);
+
 	dstr_free(&url);
 
 	if (res != CURLE_OK) {
