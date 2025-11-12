@@ -51,7 +51,9 @@ jobs:
 
           print '::group::Configure CMake for Tests'
           cmake -B .build/macos -G Xcode \
-            -DENABLE_TESTING=ON
+            -DENABLE_TESTING=ON \
+            -DENABLE_FRONTEND_API=OFF \
+            -DENABLE_QT=OFF
           print '::endgroup::'
 
       - name: Build Tests 🧱
@@ -127,6 +129,8 @@ jobs:
           echo '::group::Configure CMake for Tests'
           cmake -B .build/linux -G Ninja \
             -DENABLE_TESTING=ON \
+            -DENABLE_FRONTEND_API=OFF \
+            -DENABLE_QT=OFF \
             -DCMAKE_BUILD_TYPE=Release
           echo '::endgroup::'
 
@@ -178,7 +182,9 @@ jobs:
 
           Write-Host '::group::Configure CMake for Tests'
           cmake -B .build/windows `
-            -DENABLE_TESTING=ON
+            -DENABLE_TESTING=ON `
+            -DENABLE_FRONTEND_API=OFF `
+            -DENABLE_QT=OFF
           Write-Host '::endgroup::'
 
       - name: Build Tests 🧱

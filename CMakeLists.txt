@@ -61,6 +61,12 @@ endif()
 if(ENABLE_FRONTEND_API)
   find_package(obs-frontend-api REQUIRED)
   target_link_libraries(${CMAKE_PROJECT_NAME} PRIVATE OBS::obs-frontend-api)
+  target_sources(
+    ${CMAKE_PROJECT_NAME}
+    PRIVATE
+      src/obs-bridge.c
+      src/obs-bridge.h
+  )
 endif()
 
 if(ENABLE_QT)
@@ -123,8 +129,6 @@ target_sources(
     src/restreamer-multistream.h
     src/restreamer-output-profile.c
     src/restreamer-output-profile.h
-    src/obs-bridge.c
-    src/obs-bridge.h
 )
 
 if(ENABLE_QT)
