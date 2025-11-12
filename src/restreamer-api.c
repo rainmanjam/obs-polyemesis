@@ -134,9 +134,7 @@ static bool restreamer_api_login(restreamer_api_t *api) {
   dstr_printf(&url, "%s://%s:%d/api/login", protocol, api->connection.host,
               api->connection.port);
 
-  struct memory_struct response;
-  response.memory = NULL;  /* realloc(NULL, size) behaves like malloc(size) */
-  response.size = 0;
+  struct memory_struct response = {.memory = NULL, .size = 0};
 
   /* Set headers for login request - no auth needed */
   struct curl_slist *login_headers = NULL;
