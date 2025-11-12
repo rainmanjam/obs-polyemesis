@@ -137,17 +137,22 @@ static bool test_profile_creation(void)
 	size_t count = profile_manager_get_count(manager);
 	test_assert(count == 2, "Should return correct profile count");
 
+	/* Save profile ID before deletion to avoid use-after-free */
+	char *saved_profile_id = bstrdup(profile1->profile_id);
+
 	/* Delete profile */
 	bool deleted = profile_manager_delete_profile(manager,
-						       profile1->profile_id);
+						       saved_profile_id);
 	test_assert(deleted, "Profile deletion should succeed");
 	test_assert(manager->profile_count == 1,
 		    "Manager should have 1 profile after deletion");
 
 	retrieved =
-		profile_manager_get_profile(manager, profile1->profile_id);
+		profile_manager_get_profile(manager, saved_profile_id);
 	test_assert(retrieved == NULL,
 		    "Deleted profile should not be retrievable");
+
+	bfree(saved_profile_id);
 
 	profile_manager_destroy(manager);
 	restreamer_api_destroy(api);
