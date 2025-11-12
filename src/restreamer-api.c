@@ -1644,6 +1644,7 @@ bool restreamer_api_refresh_token(restreamer_api_t *api) {
 	CURLcode res = curl_easy_perform(api->curl);
 
 	curl_slist_free_all(headers);
+	curl_easy_setopt(api->curl, CURLOPT_HTTPHEADER, NULL); /* Reset headers to avoid use-after-free */
 	dstr_free(&url);
 
 	if (res != CURLE_OK) {
