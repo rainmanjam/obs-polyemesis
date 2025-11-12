@@ -435,9 +435,9 @@ static bool test_process_reference(void) {
 
   /* Set process reference */
   if (config->process_reference) {
-    free(config->process_reference);
+    bfree(config->process_reference);
   }
-  config->process_reference = strdup("my-test-process");
+  config->process_reference = bstrdup("my-test-process");
   TEST_ASSERT(config->process_reference != NULL, "Process reference should be set");
   TEST_ASSERT(strcmp(config->process_reference, "my-test-process") == 0,
               "Process reference should match");
