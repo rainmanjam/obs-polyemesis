@@ -289,14 +289,14 @@ static void install_service_definition(void) {
   *last_sep = '\0';  /* Remove /obs-polyemesis */
 
   int ret = snprintf(service_dir, sizeof(service_dir), "%s/rtmp-services", config_path);
-  if (ret < 0 || ret >= sizeof(service_dir)) {
+  if (ret < 0 || (size_t)ret >= sizeof(service_dir)) {
     obs_log(LOG_ERROR, "Service directory path too long");
     bfree(config_path);
     return;
   }
 
   ret = snprintf(service_file, sizeof(service_file), "%s/services.json", service_dir);
-  if (ret < 0 || ret >= sizeof(service_file)) {
+  if (ret < 0 || (size_t)ret >= sizeof(service_file)) {
     obs_log(LOG_ERROR, "Service file path too long");
     bfree(config_path);
     return;
