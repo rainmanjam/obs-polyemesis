@@ -42,7 +42,7 @@ typedef int socket_t;
 typedef struct {
   socket_t socket_fd;
   uint16_t port;
-  bool running;
+  volatile bool running;  /* volatile for thread-safe access */
   thread_handle_t thread;
 } mock_server_t;
 
@@ -378,6 +378,16 @@ static void *server_thread(void *arg) {
 /* Start mock server */
 bool mock_restreamer_start(uint16_t port) {
   printf("[MOCK] Starting mock server on port %d...\n", port);
+
+  /* Ensure server is not already running */
+  if (g_server.running) {
+    fprintf(stderr, "[MOCK] ERROR: Server already running\n");
+    return false;
+  }
+
+  /* Reset server state */
+  memset(&g_server, 0, sizeof(g_server));
+  g_server.port = port;
 
 #ifdef _WIN32
   WSADATA wsa_data;
