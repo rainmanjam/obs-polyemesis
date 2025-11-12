@@ -95,7 +95,7 @@ bool restreamer_multistream_add_destination(multistream_config_t *config,
                                             streaming_service_t service,
                                             const char *stream_key,
                                             stream_orientation_t orientation) {
-  if (!config || !stream_key) {
+  if (!config || !stream_key || stream_key[0] == '\0') {
     return false;
   }
 

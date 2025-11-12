@@ -623,7 +623,7 @@ bool restreamer_api_get_sessions(restreamer_api_t *api,
   }
 
   struct memory_struct response;
-  if (!make_request(api, "/api/v3/session", "GET", NULL, &response)) {
+  if (!make_request(api, "/api/v3/sessions", "GET", NULL, &response)) {
     return false;
   }
 
@@ -631,18 +631,24 @@ bool restreamer_api_get_sessions(restreamer_api_t *api,
   json_t *root = json_loads(response.memory, 0, &error);
   bfree(response.memory);
 
-  if (!root || !json_is_array(root)) {
+  if (!root || !json_is_object(root)) {
     if (root)
       json_decref(root);
     return false;
   }
 
-  size_t count = json_array_size(root);
+  json_t *sessions_array = json_object_get(root, "sessions");
+  if (!sessions_array || !json_is_array(sessions_array)) {
+    json_decref(root);
+    return false;
+  }
+
+  size_t count = json_array_size(sessions_array);
   sessions->sessions = bzalloc(sizeof(restreamer_session_t) * count);
   sessions->count = count;
 
   for (size_t i = 0; i < count; i++) {
-    json_t *session_obj = json_array_get(root, i);
+    json_t *session_obj = json_array_get(sessions_array, i);
     restreamer_session_t *session = &sessions->sessions[i];
 
     json_t *session_id = json_object_get(session_obj, "id");
@@ -1595,7 +1601,7 @@ bool restreamer_api_refresh_token(restreamer_api_t *api) {
 	struct dstr url;
 	dstr_init(&url);
 	const char *protocol = api->connection.use_https ? "https" : "http";
-	dstr_printf(&url, "%s://%s:%d/api/login/refresh", protocol,
+	dstr_printf(&url, "%s://%s:%d/api/v3/refresh", protocol,
 	            api->connection.host, api->connection.port);
 
 	struct memory_struct response;
@@ -1614,7 +1620,8 @@ bool restreamer_api_refresh_token(restreamer_api_t *api) {
 
 	curl_easy_setopt(api->curl, CURLOPT_URL, url.array);
 	curl_easy_setopt(api->curl, CURLOPT_HTTPHEADER, headers);
-	curl_easy_setopt(api->curl, CURLOPT_HTTPGET, 1L);
+	curl_easy_setopt(api->curl, CURLOPT_POST, 1L);
+	curl_easy_setopt(api->curl, CURLOPT_POSTFIELDS, "");
 	curl_easy_setopt(api->curl, CURLOPT_WRITEDATA, (void *)&response);
 
 	CURLcode res = curl_easy_perform(api->curl);
