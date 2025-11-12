@@ -264,6 +264,12 @@ static bool make_request(restreamer_api_t *api, const char *endpoint,
 
   CURLcode res = curl_easy_perform(api->curl);
 
+  /* Reset POST state to avoid affecting subsequent requests */
+  curl_easy_setopt(api->curl, CURLOPT_POST, 0L);
+  curl_easy_setopt(api->curl, CURLOPT_POSTFIELDS, NULL);
+  curl_easy_setopt(api->curl, CURLOPT_POSTFIELDSIZE, 0L);
+  curl_easy_setopt(api->curl, CURLOPT_CUSTOMREQUEST, NULL);
+
   /* Clean up temporary headers */
   curl_slist_free_all(temp_headers);
   curl_easy_setopt(api->curl, CURLOPT_HTTPHEADER, NULL);
