@@ -385,8 +385,7 @@ bool mock_restreamer_start(uint16_t port) {
     return false;
   }
 
-  /* Reset server state */
-  memset(&g_server, 0, sizeof(g_server));
+  /* Set port for new server instance */
   g_server.port = port;
 
 #ifdef _WIN32
