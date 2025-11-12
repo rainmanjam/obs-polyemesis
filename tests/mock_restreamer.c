@@ -108,9 +108,20 @@ static const char *RESPONSE_LOGIN = "HTTP/1.1 200 OK\r\n"
 static void handle_request(socket_t client_fd, const char *request) {
   const char *response = RESPONSE_NOT_FOUND;
 
+  /* Extract first line for logging */
+  char request_line[256] = {0};
+  const char *line_end = strstr(request, "\r\n");
+  if (line_end) {
+    size_t len = (line_end - request) < 255 ? (line_end - request) : 255;
+    strncpy(request_line, request, len);
+    request_line[len] = '\0';
+  }
+  printf("[MOCK] Request: %s\n", request_line);
+
   /* Parse request line */
   /* JWT Login endpoint */
   if (strstr(request, "POST /api/login") != NULL || strstr(request, "POST /api/v3/login") != NULL) {
+    printf("[MOCK] -> Matched: POST /api/login\n");
     response = RESPONSE_LOGIN;
   } else if (strstr(request, "POST /api/refresh") != NULL || strstr(request, "POST /api/v3/refresh") != NULL) {
     /* Refresh token */
@@ -122,6 +133,7 @@ static void handle_request(socket_t client_fd, const char *request) {
   } else if (strstr(request, "GET /api/v3/ ") != NULL ||
       strstr(request, "GET /api/v3 ") != NULL) {
     /* Base API endpoint - used by test_connection() */
+    printf("[MOCK] -> Matched: GET /api/v3/ (base endpoint)\n");
     response = "HTTP/1.1 200 OK\r\n"
                "Content-Type: application/json\r\n"
                "Content-Length: 2\r\n"
@@ -129,6 +141,7 @@ static void handle_request(socket_t client_fd, const char *request) {
                "{}";
   } else if (strstr(request, "GET /api/v3/config") != NULL) {
     /* Get config */
+    printf("[MOCK] -> Matched: GET /api/v3/config\n");
     response = "HTTP/1.1 200 OK\r\n"
                "Content-Type: application/json\r\n"
                "Content-Length: 38\r\n"
