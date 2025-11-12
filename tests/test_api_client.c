@@ -319,6 +319,8 @@ static bool test_api_null_handling(void) {
 
 /* Test: Invalid parameters */
 static bool test_api_invalid_params(void) {
+  /* Add delay to ensure all threads from previous tests are fully cleaned up */
+  sleep_ms(100);
   printf("  Testing invalid parameters...\n");
 
   restreamer_connection_t conn = {
