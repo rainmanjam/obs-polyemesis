@@ -409,7 +409,7 @@ bool restreamer_api_get_processes(restreamer_api_t *api,
 
 bool restreamer_api_start_process(restreamer_api_t *api,
                                   const char *process_id) {
-  if (!api || !process_id) {
+  if (!api || !process_id || process_id[0] == '\0') {
     return false;
   }
 
@@ -439,7 +439,7 @@ bool restreamer_api_start_process(restreamer_api_t *api,
 
 bool restreamer_api_stop_process(restreamer_api_t *api,
                                  const char *process_id) {
-  if (!api || !process_id) {
+  if (!api || !process_id || process_id[0] == '\0') {
     return false;
   }
 
@@ -469,7 +469,7 @@ bool restreamer_api_stop_process(restreamer_api_t *api,
 
 bool restreamer_api_restart_process(restreamer_api_t *api,
                                     const char *process_id) {
-  if (!api || !process_id) {
+  if (!api || !process_id || process_id[0] == '\0') {
     return false;
   }
 
@@ -499,7 +499,7 @@ bool restreamer_api_restart_process(restreamer_api_t *api,
 
 bool restreamer_api_get_process(restreamer_api_t *api, const char *process_id,
                                 restreamer_process_t *process) {
-  if (!api || !process_id || !process) {
+  if (!api || !process_id || process_id[0] == '\0' || !process) {
     return false;
   }
 
