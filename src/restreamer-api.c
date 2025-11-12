@@ -874,17 +874,18 @@ static bool api_request_json(restreamer_api_t *api, const char *endpoint,
 	response.memory = bmalloc(1);
 	response.size = 0;
 
-	/* Build authorization header if needed - keep it alive until after request completes */
-	struct dstr auth_header;
-	dstr_init(&auth_header);
-
 	/* Add authorization header */
 	struct curl_slist *headers = NULL;
 	headers = curl_slist_append(headers, "Content-Type: application/json");
 
+	/* Build authorization header if needed - keep it alive until after request completes */
+	struct dstr auth_header;
+	bool has_auth = false;
 	if (api->access_token) {
+		dstr_init(&auth_header);
 		dstr_printf(&auth_header, "Authorization: Bearer %s", api->access_token);
 		headers = curl_slist_append(headers, auth_header.array);
+		has_auth = true;
 	}
 
 	curl_easy_setopt(api->curl, CURLOPT_URL, url.array);
@@ -903,7 +904,9 @@ static bool api_request_json(restreamer_api_t *api, const char *endpoint,
 
 	curl_slist_free_all(headers);
 	curl_easy_setopt(api->curl, CURLOPT_HTTPHEADER, NULL);
-	dstr_free(&auth_header);  /* Now safe to free */
+	if (has_auth) {
+		dstr_free(&auth_header);  /* Only free if we initialized it */
+	}
 	dstr_free(&url);
 
 	if (res != CURLE_OK) {
@@ -962,18 +965,18 @@ static bool api_request_put_json(restreamer_api_t *api, const char *endpoint,
 	response.memory = bmalloc(1);
 	response.size = 0;
 
-	/* Build authorization header if needed - keep it alive until after request completes */
-	struct dstr auth_header;
-	dstr_init(&auth_header);
-
 	/* Add Content-Type header */
 	struct curl_slist *headers = NULL;
 	headers = curl_slist_append(headers, "Content-Type: application/json");
 
-	/* Add authorization header if we have an access token */
+	/* Build authorization header if needed - keep it alive until after request completes */
+	struct dstr auth_header;
+	bool has_auth = false;
 	if (api->access_token) {
+		dstr_init(&auth_header);
 		dstr_printf(&auth_header, "Authorization: Bearer %s", api->access_token);
 		headers = curl_slist_append(headers, auth_header.array);
+		has_auth = true;
 	}
 
 	curl_easy_setopt(api->curl, CURLOPT_URL, url.array);
@@ -1001,7 +1004,9 @@ static bool api_request_put_json(restreamer_api_t *api, const char *endpoint,
 	/* Clean up headers - must match order in make_request() */
 	curl_slist_free_all(headers);
 	curl_easy_setopt(api->curl, CURLOPT_HTTPHEADER, NULL);
-	dstr_free(&auth_header);  /* Now safe to free */
+	if (has_auth) {
+		dstr_free(&auth_header);  /* Only free if we initialized it */
+	}
 	dstr_free(&url);
 
 	if (res != CURLE_OK) {
