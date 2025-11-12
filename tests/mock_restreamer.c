@@ -309,8 +309,30 @@ static void handle_request(socket_t client_fd, const char *request) {
     }
   }
 
-  /* Send response */
-  send(client_fd, response, (int)strlen(response), 0);
+  /* Send response - loop to ensure all bytes are sent */
+  size_t total_len = strlen(response);
+  size_t sent = 0;
+  while (sent < total_len) {
+    ssize_t n = send(client_fd, response + sent, (int)(total_len - sent), 0);
+    if (n < 0) {
+      /* Send error */
+#ifdef _WIN32
+      fprintf(stderr, "[MOCK] send() error: %d\n", WSAGetLastError());
+#else
+      perror("[MOCK] send() error");
+#endif
+      break;
+    } else if (n == 0) {
+      /* Connection closed */
+      fprintf(stderr, "[MOCK] send() returned 0, connection closed\n");
+      break;
+    }
+    sent += (size_t)n;
+  }
+
+  if (sent < total_len) {
+    fprintf(stderr, "[MOCK] WARNING: Only sent %zu of %zu bytes\n", sent, total_len);
+  }
 }
 
 /* Server thread function */
