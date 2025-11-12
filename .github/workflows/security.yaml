@@ -84,9 +84,7 @@ jobs:
       - name: Build Project
         run: |
           cmake -B build -G Ninja \
-            -DCMAKE_BUILD_TYPE=Release \
-            -DENABLE_FRONTEND_API=OFF \
-            -DENABLE_QT=OFF
+            -DCMAKE_BUILD_TYPE=Release
           cmake --build build
 
       - name: Perform CodeQL Analysis

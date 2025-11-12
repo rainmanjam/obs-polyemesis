@@ -64,8 +64,6 @@ jobs:
         run: |
           cmake -B build -G Ninja \
             -DCMAKE_BUILD_TYPE=Debug \
-            -DENABLE_FRONTEND_API=OFF \
-            -DENABLE_QT=OFF \
             -DENABLE_TESTING=ON \
             -DENABLE_COVERAGE=ON
 
