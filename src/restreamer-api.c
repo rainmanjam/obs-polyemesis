@@ -143,6 +143,7 @@ static bool restreamer_api_login(restreamer_api_t *api) {
   curl_easy_setopt(api->curl, CURLOPT_WRITEDATA, (void *)&response);
   curl_easy_setopt(api->curl, CURLOPT_POST, 1L);
   curl_easy_setopt(api->curl, CURLOPT_POSTFIELDS, post_data);
+  curl_easy_setopt(api->curl, CURLOPT_POSTFIELDSIZE, strlen(post_data));
 
   CURLcode res = curl_easy_perform(api->curl);
 
@@ -250,6 +251,7 @@ static bool make_request(restreamer_api_t *api, const char *endpoint,
     curl_easy_setopt(api->curl, CURLOPT_POST, 1L);
     if (post_data) {
       curl_easy_setopt(api->curl, CURLOPT_POSTFIELDS, post_data);
+      curl_easy_setopt(api->curl, CURLOPT_POSTFIELDSIZE, strlen(post_data));
     }
   } else if (strcmp(method, "DELETE") == 0) {
     curl_easy_setopt(api->curl, CURLOPT_CUSTOMREQUEST, "DELETE");
@@ -257,6 +259,7 @@ static bool make_request(restreamer_api_t *api, const char *endpoint,
     curl_easy_setopt(api->curl, CURLOPT_CUSTOMREQUEST, "PUT");
     if (post_data) {
       curl_easy_setopt(api->curl, CURLOPT_POSTFIELDS, post_data);
+      curl_easy_setopt(api->curl, CURLOPT_POSTFIELDSIZE, strlen(post_data));
     }
   } else {
     curl_easy_setopt(api->curl, CURLOPT_HTTPGET, 1L);
@@ -975,6 +978,9 @@ static bool api_request_put_json(restreamer_api_t *api, const char *endpoint,
 	curl_easy_setopt(api->curl, CURLOPT_CUSTOMREQUEST, "PUT");
 	if (body_json) {
 		curl_easy_setopt(api->curl, CURLOPT_POSTFIELDS, body_json);
+		curl_easy_setopt(api->curl, CURLOPT_POSTFIELDSIZE, strlen(body_json));
+	} else {
+		curl_easy_setopt(api->curl, CURLOPT_POSTFIELDSIZE, 0L);
 	}
 	curl_easy_setopt(api->curl, CURLOPT_WRITEDATA, (void *)&response);
 
@@ -1650,6 +1656,7 @@ bool restreamer_api_refresh_token(restreamer_api_t *api) {
 	curl_easy_setopt(api->curl, CURLOPT_HTTPHEADER, headers);
 	curl_easy_setopt(api->curl, CURLOPT_POST, 1L);
 	curl_easy_setopt(api->curl, CURLOPT_POSTFIELDS, "");
+	curl_easy_setopt(api->curl, CURLOPT_POSTFIELDSIZE, 0L);
 	curl_easy_setopt(api->curl, CURLOPT_WRITEDATA, (void *)&response);
 
 	CURLcode res = curl_easy_perform(api->curl);
