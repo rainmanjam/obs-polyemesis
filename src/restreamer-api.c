@@ -142,6 +142,11 @@ static bool restreamer_api_login(restreamer_api_t *api) {
   curl_easy_setopt(api->curl, CURLOPT_POSTFIELDS, post_data);
 
   CURLcode res = curl_easy_perform(api->curl);
+
+  /* Reset CURL state after POST request */
+  curl_easy_setopt(api->curl, CURLOPT_POST, 0L);
+  curl_easy_setopt(api->curl, CURLOPT_POSTFIELDS, NULL);
+
   free(post_data);
   dstr_free(&url);
 
@@ -951,6 +956,8 @@ static bool api_request_put_json(restreamer_api_t *api, const char *endpoint,
 
 	curl_easy_setopt(api->curl, CURLOPT_URL, url.array);
 	curl_easy_setopt(api->curl, CURLOPT_HTTPHEADER, headers);
+	curl_easy_setopt(api->curl, CURLOPT_HTTPGET, 0L);  /* Reset GET */
+	curl_easy_setopt(api->curl, CURLOPT_POST, 0L);     /* Reset POST */
 	curl_easy_setopt(api->curl, CURLOPT_CUSTOMREQUEST, "PUT");
 	if (body_json) {
 		curl_easy_setopt(api->curl, CURLOPT_POSTFIELDS, body_json);

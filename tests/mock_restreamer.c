@@ -116,7 +116,7 @@ static void handle_request(socket_t client_fd, const char *request) {
     /* Refresh token */
     response = "HTTP/1.1 200 OK\r\n"
                "Content-Type: application/json\r\n"
-               "Content-Length: 100\r\n"
+               "Content-Length: 93\r\n"
                "\r\n"
                "{\"access_token\": \"refreshed_token\", \"refresh_token\": \"new_refresh\", \"expires_at\": 9999999999}";
   } else if (strstr(request, "GET /api/v3/ ") != NULL ||
@@ -131,7 +131,7 @@ static void handle_request(socket_t client_fd, const char *request) {
     /* Get config */
     response = "HTTP/1.1 200 OK\r\n"
                "Content-Type: application/json\r\n"
-               "Content-Length: 50\r\n"
+               "Content-Length: 38\r\n"
                "\r\n"
                "{\"config\": \"test\", \"setting\": \"value\"}";
   } else if (strstr(request, "PUT /api/v3/config") != NULL || strstr(request, "POST /api/v3/config ") != NULL) {
@@ -166,14 +166,14 @@ static void handle_request(socket_t client_fd, const char *request) {
     /* Get metrics list */
     response = "HTTP/1.1 200 OK\r\n"
                "Content-Type: application/json\r\n"
-               "Content-Length: 60\r\n"
+               "Content-Length: 47\r\n"
                "\r\n"
                "{\"metrics\": [\"cpu_usage\", \"memory\", \"bitrate\"]}";
   } else if (strstr(request, "GET /api/v3/sessions") != NULL) {
     /* Get sessions */
     response = "HTTP/1.1 200 OK\r\n"
                "Content-Type: application/json\r\n"
-               "Content-Length: 80\r\n"
+               "Content-Length: 68\r\n"
                "\r\n"
                "{\"sessions\": [{\"id\": \"session1\", \"active\": true, \"duration\": 3600}]}";
   } else if (strstr(request, "GET /api/v3/metadata/") != NULL) {
@@ -222,7 +222,7 @@ static void handle_request(socket_t client_fd, const char *request) {
     /* Get playout status */
     response = "HTTP/1.1 200 OK\r\n"
                "Content-Type: application/json\r\n"
-               "Content-Length: 60\r\n"
+               "Content-Length: 52\r\n"
                "\r\n"
                "{\"playing\": true, \"position\": 100, \"duration\": 3600}";
   } else if (strstr(request, "GET /api/v3/process/") != NULL && strstr(request, "/metadata/") != NULL) {

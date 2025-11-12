@@ -423,6 +423,10 @@ static bool test_api_config_operations(void) {
   /* Test get config */
   char *config_json = NULL;
   bool got_config = restreamer_api_get_config(api, &config_json);
+  if (!got_config) {
+    const char *error = restreamer_api_get_error(api);
+    fprintf(stderr, "  get_config failed: %s\n", error ? error : "unknown error");
+  }
   TEST_ASSERT(got_config, "Should get configuration");
   if (config_json) {
     free(config_json);
@@ -571,6 +575,10 @@ static bool test_api_metrics_operations(void) {
   /* Test get metrics list */
   char *metrics_list = NULL;
   bool got_list = restreamer_api_get_metrics_list(api, &metrics_list);
+  if (!got_list) {
+    const char *error = restreamer_api_get_error(api);
+    fprintf(stderr, "  get_metrics_list failed: %s\n", error ? error : "unknown error");
+  }
   TEST_ASSERT(got_list, "Should get metrics list");
   if (metrics_list) {
     free(metrics_list);
@@ -630,6 +638,10 @@ static bool test_api_process_info(void) {
   /* Test get sessions */
   restreamer_session_list_t sessions = {0};
   bool got_sessions = restreamer_api_get_sessions(api, &sessions);
+  if (!got_sessions) {
+    const char *error = restreamer_api_get_error(api);
+    fprintf(stderr, "  get_sessions failed: %s\n", error ? error : "unknown error");
+  }
   TEST_ASSERT(got_sessions, "Should get sessions");
 
   /* Test get playout status */
@@ -666,8 +678,16 @@ static bool test_api_auth_operations(void) {
   restreamer_api_t *api = restreamer_api_create(&conn);
   TEST_ASSERT_NOT_NULL(api, "API client should be created");
 
+  /* Login first to get a refresh token */
+  bool logged_in = restreamer_api_test_connection(api);
+  TEST_ASSERT(logged_in, "Should login to get refresh token");
+
   /* Test refresh token */
   bool refreshed = restreamer_api_refresh_token(api);
+  if (!refreshed) {
+    const char *error = restreamer_api_get_error(api);
+    fprintf(stderr, "  refresh_token failed: %s\n", error ? error : "unknown error");
+  }
   TEST_ASSERT(refreshed, "Should refresh token");
 
   /* Test force login */
