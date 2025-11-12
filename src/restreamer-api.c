@@ -30,7 +30,8 @@ static size_t write_callback(void *contents, size_t size, size_t nmemb,
   size_t realsize = size * nmemb;
   struct memory_struct *mem = (struct memory_struct *)userp;
 
-  char *ptr = brealloc(mem->memory, mem->size + realsize + 1);
+  /* Use standard C library realloc for CURL compatibility */
+  char *ptr = realloc(mem->memory, mem->size + realsize + 1);
   if (!ptr) {
     return 0;
   }
@@ -127,7 +128,7 @@ static bool restreamer_api_login(restreamer_api_t *api) {
               api->connection.port);
 
   struct memory_struct response;
-  response.memory = bmalloc(1);
+  response.memory = malloc(1);
   response.size = 0;
 
   /* Set headers for login request - no auth needed */
@@ -157,7 +158,7 @@ static bool restreamer_api_login(restreamer_api_t *api) {
 
   if (res != CURLE_OK) {
     dstr_copy(&api->last_error, api->error_buffer);
-    bfree(response.memory);
+    free(response.memory);
     return false;
   }
 
@@ -166,7 +167,7 @@ static bool restreamer_api_login(restreamer_api_t *api) {
 
   if (http_code < 200 || http_code >= 300) {
     dstr_printf(&api->last_error, "Login failed: HTTP %ld", http_code);
-    bfree(response.memory);
+    free(response.memory);
     return false;
   }
 
@@ -282,7 +283,7 @@ static bool make_request(restreamer_api_t *api, const char *endpoint,
   if (res != CURLE_OK) {
     dstr_copy(&api->last_error, api->error_buffer);
     if (response->memory) {
-      bfree(response->memory);
+      free(response->memory);
       response->memory = NULL;
     }
     response->size = 0;
@@ -295,7 +296,7 @@ static bool make_request(restreamer_api_t *api, const char *endpoint,
   if (http_code < 200 || http_code >= 300) {
     dstr_printf(&api->last_error, "HTTP Error: %ld", http_code);
     if (response->memory) {
-      bfree(response->memory);
+      free(response->memory);
       response->memory = NULL;
     }
     response->size = 0;
@@ -444,7 +445,7 @@ bool restreamer_api_start_process(restreamer_api_t *api,
   dstr_free(&endpoint);
 
   if (result) {
-    bfree(response.memory);
+    free(response.memory);
   }
 
   return result;
@@ -474,7 +475,7 @@ bool restreamer_api_stop_process(restreamer_api_t *api,
   dstr_free(&endpoint);
 
   if (result) {
-    bfree(response.memory);
+    free(response.memory);
   }
 
   return result;
@@ -504,7 +505,7 @@ bool restreamer_api_restart_process(restreamer_api_t *api,
   dstr_free(&endpoint);
 
   if (result) {
-    bfree(response.memory);
+    free(response.memory);
   }
 
   return result;
@@ -749,7 +750,7 @@ bool restreamer_api_create_process(restreamer_api_t *api, const char *reference,
   free(post_data);
 
   if (result) {
-    bfree(response.memory);
+    free(response.memory);
   }
 
   return result;
@@ -770,7 +771,7 @@ bool restreamer_api_delete_process(restreamer_api_t *api,
   dstr_free(&endpoint);
 
   if (result) {
-    bfree(response.memory);
+    free(response.memory);
   }
 
   return result;
@@ -911,7 +912,7 @@ static bool api_request_json(restreamer_api_t *api, const char *endpoint,
 
 	if (res != CURLE_OK) {
 		dstr_copy(&api->last_error, api->error_buffer);
-		bfree(response.memory);
+		free(response.memory);
 		return false;
 	}
 
@@ -920,7 +921,7 @@ static bool api_request_json(restreamer_api_t *api, const char *endpoint,
 
 	if (http_code < 200 || http_code >= 300) {
 		dstr_printf(&api->last_error, "HTTP %ld", http_code);
-		bfree(response.memory);
+		free(response.memory);
 		return false;
 	}
 
@@ -930,12 +931,12 @@ static bool api_request_json(restreamer_api_t *api, const char *endpoint,
 		*response_json = json_loads(response.memory, 0, &error);
 		if (!*response_json) {
 			dstr_printf(&api->last_error, "JSON parse error: %s", error.text);
-			bfree(response.memory);
+			free(response.memory);
 			return false;
 		}
 	}
 
-	bfree(response.memory);
+	free(response.memory);
 	return true;
 }
 
@@ -1011,7 +1012,7 @@ static bool api_request_put_json(restreamer_api_t *api, const char *endpoint,
 
 	if (res != CURLE_OK) {
 		dstr_copy(&api->last_error, api->error_buffer);
-		bfree(response.memory);
+		free(response.memory);
 		return false;
 	}
 
@@ -1020,7 +1021,7 @@ static bool api_request_put_json(restreamer_api_t *api, const char *endpoint,
 
 	if (http_code < 200 || http_code >= 300) {
 		dstr_printf(&api->last_error, "HTTP %ld", http_code);
-		bfree(response.memory);
+		free(response.memory);
 		return false;
 	}
 
@@ -1030,12 +1031,12 @@ static bool api_request_put_json(restreamer_api_t *api, const char *endpoint,
 		*response_json = json_loads(response.memory, 0, &error);
 		if (!*response_json) {
 			dstr_printf(&api->last_error, "JSON parse error: %s", error.text);
-			bfree(response.memory);
+			free(response.memory);
 			return false;
 		}
 	}
 
-	bfree(response.memory);
+	free(response.memory);
 	return true;
 }
 
@@ -1374,7 +1375,7 @@ bool restreamer_api_get_prometheus_metrics(restreamer_api_t *api,
 
 	if (res != CURLE_OK) {
 		dstr_copy(&api->last_error, api->error_buffer);
-		bfree(response.memory);
+		free(response.memory);
 		return false;
 	}
 
@@ -1616,7 +1617,7 @@ bool restreamer_api_get_keyframe(restreamer_api_t *api, const char *process_id,
 
 	if (res != CURLE_OK) {
 		dstr_copy(&api->last_error, api->error_buffer);
-		bfree(response.memory);
+		free(response.memory);
 		return false;
 	}
 
@@ -1688,7 +1689,7 @@ bool restreamer_api_refresh_token(restreamer_api_t *api) {
 
 	if (res != CURLE_OK) {
 		dstr_copy(&api->last_error, api->error_buffer);
-		bfree(response.memory);
+		free(response.memory);
 		return false;
 	}
 
@@ -1697,14 +1698,14 @@ bool restreamer_api_refresh_token(restreamer_api_t *api) {
 
 	if (http_code < 200 || http_code >= 300) {
 		dstr_printf(&api->last_error, "Token refresh failed: HTTP %ld", http_code);
-		bfree(response.memory);
+		free(response.memory);
 		return false;
 	}
 
 	/* Parse response to get new access token */
 	json_error_t error;
 	json_t *root = json_loads(response.memory, 0, &error);
-	bfree(response.memory);
+	free(response.memory);
 
 	if (!root) {
 		dstr_printf(&api->last_error, "JSON parse error: %s", error.text);
@@ -1877,7 +1878,7 @@ bool restreamer_api_download_file(restreamer_api_t *api, const char *storage,
 
 	if (res != CURLE_OK) {
 		dstr_copy(&api->last_error, api->error_buffer);
-		bfree(response.memory);
+		free(response.memory);
 		return false;
 	}
 
