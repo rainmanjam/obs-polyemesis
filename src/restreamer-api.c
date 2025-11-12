@@ -1602,7 +1602,11 @@ void restreamer_api_free_playout_status(restreamer_playout_status_t *status) {
  * ======================================================================== */
 
 bool restreamer_api_refresh_token(restreamer_api_t *api) {
-	if (!api || !api->refresh_token) {
+	if (!api) {
+		return false;
+	}
+
+	if (!api->refresh_token) {
 		dstr_copy(&api->last_error, "No refresh token available");
 		return false;
 	}
