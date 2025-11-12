@@ -354,6 +354,13 @@ static void *server_thread(void *arg) {
       printf("[MOCK] Received %d bytes, handling request\n", (int)bytes_read);
       handle_request(client_fd, buffer);
       printf("[MOCK] Response sent\n");
+
+      /* Properly shutdown the connection to ensure all data is transmitted */
+#ifdef _WIN32
+      shutdown(client_fd, SD_SEND);
+#else
+      shutdown(client_fd, SHUT_WR);
+#endif
     } else {
       printf("[MOCK] No data received (bytes_read=%d)\n", (int)bytes_read);
     }
