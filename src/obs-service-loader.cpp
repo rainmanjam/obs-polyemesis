@@ -46,6 +46,7 @@ bool OBSServiceLoader::loadServices() {
 #endif
 
   // Try each path until we find one that works
+  // cppcheck-suppress useStlAlgorithm
   for (const QString& path : possiblePaths) {
     if (tryLoadFromPath(path)) {
       obs_log(LOG_INFO, "[OBS Service Loader] Loaded services from: %s", path.toUtf8().constData());
