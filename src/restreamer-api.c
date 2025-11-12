@@ -78,6 +78,9 @@ restreamer_api_t *restreamer_api_create(restreamer_connection_t *connection) {
   curl_easy_setopt(api->curl, CURLOPT_WRITEFUNCTION, write_callback);
   curl_easy_setopt(api->curl, CURLOPT_TIMEOUT, 10L);
 
+  /* Thread-safety options for multi-threaded environments */
+  curl_easy_setopt(api->curl, CURLOPT_NOSIGNAL, 1L);  /* Disable signals - required for thread safety */
+
   /* Initialize JWT token fields */
   api->access_token = NULL;
   api->refresh_token = NULL;
