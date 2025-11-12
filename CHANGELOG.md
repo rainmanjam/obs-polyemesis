@@ -7,7 +7,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-## [1.1.0] - 2025-11-11
+## [0.9.0] - 2025-11-12
 
 ### Added
 - **OBS Integration Improvements**
@@ -70,9 +70,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Tools menu items added via `obs_frontend_add_tools_menu_item()`
 - Pre-load callback registered via `obs_frontend_add_preload_callback()`
 
-## [1.0.0] - 2025-11-08
-
-### Added
 - **Core Features**
   - Full datarhei Restreamer API integration (v3)
   - REST API client with connection management
@@ -234,17 +231,26 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - rainmanjam - Initial development and implementation
 - Claude (Anthropic) - Development assistance
 
-## [0.9.0-beta] - Planned
+### Bug Fixes
 
-### Planned Features
-- Beta testing program
-- User feedback collection
-- Performance optimizations based on real-world usage
-- Bug fixes from community testing
+- **Memory Management**
+  - Fixed critical allocator mismatch bug causing crashes on Ubuntu/Windows
+  - Fixed heap-use-after-free in profile deletion tests
+  - Fixed Windows heap corruption in multistream tests
+  - Enabled AddressSanitizer for comprehensive memory testing
+
+- **Security**
+  - Fixed Bearer Security Scan SARIF validation handling
+  - All security scans now passing
+
+- **Cross-Platform**
+  - Fixed MSVC printf format warnings on Windows
+  - Fixed memory corruption issues on Linux
+  - All unit tests now passing on macOS, Windows, and Ubuntu
 
 ## Future Releases
 
-### Planned for 1.1.0
+### Planned for 1.0.0
 - UI tests for Qt dock panel
 - Performance benchmark suite
 - Additional platform integrations
