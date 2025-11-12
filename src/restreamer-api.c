@@ -30,19 +30,12 @@ static size_t write_callback(void *contents, size_t size, size_t nmemb,
   size_t realsize = size * nmemb;
   struct memory_struct *mem = (struct memory_struct *)userp;
 
-  /* Debug logging */
-  blog(LOG_DEBUG, "[CURL] write_callback: mem=%p, mem->memory=%p, mem->size=%zu, realsize=%zu",
-       (void*)mem, (void*)mem->memory, mem->size, realsize);
-
   /* Use standard C library realloc for CURL compatibility */
   char *ptr = realloc(mem->memory, mem->size + realsize + 1);
   if (!ptr) {
-    blog(LOG_ERROR, "[CURL] realloc failed: old_ptr=%p, old_size=%zu, new_size=%zu",
-         (void*)mem->memory, mem->size, mem->size + realsize + 1);
     return 0;
   }
 
-  blog(LOG_DEBUG, "[CURL] realloc success: old_ptr=%p -> new_ptr=%p", (void*)mem->memory, (void*)ptr);
   mem->memory = ptr;
   memcpy(&(mem->memory[mem->size]), contents, realsize);
   mem->size += realsize;
