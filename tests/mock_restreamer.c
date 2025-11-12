@@ -343,7 +343,7 @@ static void handle_request(socket_t client_fd, const char *request) {
       break;
     }
     sent += (size_t)n;
-    printf("[MOCK] Sent %zd bytes, total so far: %zu/%zu\n", n, sent, total_len);
+    printf("[MOCK] Sent %d bytes, total so far: %zu/%zu\n", (int)n, sent, total_len);
   }
 
   if (sent < total_len) {
