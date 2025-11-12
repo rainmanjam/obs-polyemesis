@@ -69,7 +69,6 @@ jobs:
         run: |
           cmake -S . -B build -G Xcode \
             -DCMAKE_BUILD_TYPE=Release \
-            -DENABLE_FRONTEND_API=OFF \
             -DENABLE_SCRIPTING=OFF
 
       - name: Build plugin
