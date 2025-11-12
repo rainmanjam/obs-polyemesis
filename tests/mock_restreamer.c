@@ -312,6 +312,7 @@ static void handle_request(socket_t client_fd, const char *request) {
   /* Send response - loop to ensure all bytes are sent */
   size_t total_len = strlen(response);
   size_t sent = 0;
+  printf("[MOCK] Sending response: %zu bytes total\n", total_len);
   while (sent < total_len) {
     ssize_t n = send(client_fd, response + sent, (int)(total_len - sent), 0);
     if (n < 0) {
@@ -328,10 +329,13 @@ static void handle_request(socket_t client_fd, const char *request) {
       break;
     }
     sent += (size_t)n;
+    printf("[MOCK] Sent %zd bytes, total so far: %zu/%zu\n", n, sent, total_len);
   }
 
   if (sent < total_len) {
     fprintf(stderr, "[MOCK] WARNING: Only sent %zu of %zu bytes\n", sent, total_len);
+  } else {
+    printf("[MOCK] Successfully sent all %zu bytes\n", sent);
   }
 }
 
@@ -376,13 +380,6 @@ static void *server_thread(void *arg) {
       printf("[MOCK] Received %d bytes, handling request\n", (int)bytes_read);
       handle_request(client_fd, buffer);
       printf("[MOCK] Response sent\n");
-
-      /* Properly shutdown the connection to ensure all data is transmitted */
-#ifdef _WIN32
-      shutdown(client_fd, SD_SEND);
-#else
-      shutdown(client_fd, SHUT_WR);
-#endif
     } else {
       printf("[MOCK] No data received (bytes_read=%d)\n", (int)bytes_read);
     }
