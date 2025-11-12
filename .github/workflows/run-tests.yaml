@@ -131,7 +131,8 @@ jobs:
             -DENABLE_TESTING=ON \
             -DENABLE_FRONTEND_API=OFF \
             -DENABLE_QT=OFF \
-            -DCMAKE_BUILD_TYPE=Release
+            -DENABLE_ASAN=ON \
+            -DCMAKE_BUILD_TYPE=RelWithDebInfo
           echo '::endgroup::'
 
       - name: Build Tests 🧱
@@ -184,7 +185,8 @@ jobs:
           cmake -B .build/windows `
             -DENABLE_TESTING=ON `
             -DENABLE_FRONTEND_API=OFF `
-            -DENABLE_QT=OFF
+            -DENABLE_QT=OFF `
+            -DENABLE_ASAN=ON
           Write-Host '::endgroup::'
 
       - name: Build Tests 🧱
