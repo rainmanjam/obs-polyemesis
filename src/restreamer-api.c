@@ -871,6 +871,9 @@ static bool api_request_json(restreamer_api_t *api, const char *endpoint,
 	curl_easy_setopt(api->curl, CURLOPT_URL, url.array);
 	curl_easy_setopt(api->curl, CURLOPT_HTTPHEADER, headers);
 	curl_easy_setopt(api->curl, CURLOPT_HTTPGET, 1L);
+	curl_easy_setopt(api->curl, CURLOPT_POST, 0L);
+	curl_easy_setopt(api->curl, CURLOPT_POSTFIELDS, NULL);
+	curl_easy_setopt(api->curl, CURLOPT_CUSTOMREQUEST, NULL);
 	curl_easy_setopt(api->curl, CURLOPT_WRITEDATA, (void *)&response);
 
 	CURLcode res = curl_easy_perform(api->curl);
