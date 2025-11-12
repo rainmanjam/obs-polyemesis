@@ -247,9 +247,6 @@ static bool make_request(restreamer_api_t *api, const char *endpoint,
   dstr_printf(&url, "%s://%s:%d%s", protocol, api->connection.host,
               api->connection.port, endpoint);
 
-  response->memory = bmalloc(1);
-  response->size = 0;
-
   curl_easy_setopt(api->curl, CURLOPT_URL, url.array);
   curl_easy_setopt(api->curl, CURLOPT_WRITEDATA, (void *)response);
 
