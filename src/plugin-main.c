@@ -288,11 +288,8 @@ static void install_service_definition(void) {
   }
   *last_sep = '\0';  /* Remove /obs-polyemesis */
 
-#pragma GCC diagnostic push
-#pragma GCC diagnostic ignored "-Wformat-truncation"
   snprintf(service_dir, sizeof(service_dir), "%s/rtmp-services", config_path);
   snprintf(service_file, sizeof(service_file), "%s/services.json", service_dir);
-#pragma GCC diagnostic pop
 
   /* Create directory if it doesn't exist */
   os_mkdirs(service_dir);
