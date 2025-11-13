@@ -8,6 +8,10 @@ set(JANSSON_URL "https://github.com/akheron/jansson/releases/download/v${JANSSON
 set(JANSSON_HASH "5798d010e41cf8d76b66236cfb2f2543c8d082181d16bc3085ab49538d4b9929")
 
 if(APPLE)
+  # Create install directory before ExternalProject to avoid CMake errors
+  file(MAKE_DIRECTORY ${CMAKE_BINARY_DIR}/external/jansson/install/include)
+  file(MAKE_DIRECTORY ${CMAKE_BINARY_DIR}/external/jansson/install/lib)
+
   # Build jansson as universal binary for macOS
   ExternalProject_Add(
     jansson_external
@@ -25,6 +29,9 @@ if(APPLE)
       -DJANSSON_WITHOUT_TESTS=ON
     BUILD_COMMAND ${CMAKE_COMMAND} --build . --config Release
     INSTALL_COMMAND ${CMAKE_COMMAND} --install . --config Release
+    BUILD_BYPRODUCTS
+      ${CMAKE_BINARY_DIR}/external/jansson/install/lib/libjansson.a
+      ${CMAKE_BINARY_DIR}/external/jansson/install/include/jansson.h
     LOG_DOWNLOAD ON
     LOG_CONFIGURE ON
     LOG_BUILD ON
