@@ -4,6 +4,7 @@
 #include "collapsible-section.h"
 #include "obs-theme-utils.h"
 #include <QApplication>
+#include <QClipboard>
 #include <QCloseEvent>
 #include <QDialog>
 #include <QDialogButtonBox>
@@ -465,19 +466,43 @@ void RestreamerDock::setupUI() {
   bridgeHorizontalUrlEdit = new QLineEdit();
   bridgeHorizontalUrlEdit->setPlaceholderText("rtmp://localhost/live/obs_horizontal");
   bridgeHorizontalUrlEdit->setToolTip("RTMP URL for horizontal (landscape) video format");
-  bridgeHorizontalUrlEdit->setMaximumWidth(400);
+  bridgeHorizontalUrlEdit->setMaximumWidth(350);
+
+  /* Add copy button for horizontal URL */
+  QHBoxLayout *horizontalUrlLayout = new QHBoxLayout();
+  horizontalUrlLayout->addWidget(bridgeHorizontalUrlEdit);
+  QPushButton *copyHorizontalButton = new QPushButton("Copy");
+  copyHorizontalButton->setMaximumWidth(60);
+  copyHorizontalButton->setToolTip("Copy horizontal RTMP URL to clipboard");
+  connect(copyHorizontalButton, &QPushButton::clicked, this, [this]() {
+    QClipboard *clipboard = QApplication::clipboard();
+    clipboard->setText(bridgeHorizontalUrlEdit->text());
+  });
+  horizontalUrlLayout->addWidget(copyHorizontalButton);
 
   bridgeVerticalUrlEdit = new QLineEdit();
   bridgeVerticalUrlEdit->setPlaceholderText("rtmp://localhost/live/obs_vertical");
   bridgeVerticalUrlEdit->setToolTip("RTMP URL for vertical (portrait) video format");
-  bridgeVerticalUrlEdit->setMaximumWidth(400);
+  bridgeVerticalUrlEdit->setMaximumWidth(350);
+
+  /* Add copy button for vertical URL */
+  QHBoxLayout *verticalUrlLayout = new QHBoxLayout();
+  verticalUrlLayout->addWidget(bridgeVerticalUrlEdit);
+  QPushButton *copyVerticalButton = new QPushButton("Copy");
+  copyVerticalButton->setMaximumWidth(60);
+  copyVerticalButton->setToolTip("Copy vertical RTMP URL to clipboard");
+  connect(copyVerticalButton, &QPushButton::clicked, this, [this]() {
+    QClipboard *clipboard = QApplication::clipboard();
+    clipboard->setText(bridgeVerticalUrlEdit->text());
+  });
+  verticalUrlLayout->addWidget(copyVerticalButton);
 
   bridgeAutoStartCheckbox = new QCheckBox();
   bridgeAutoStartCheckbox->setChecked(true);
   bridgeAutoStartCheckbox->setToolTip("Automatically start RTMP outputs when OBS streaming starts");
 
-  bridgeFormLayout->addRow("Horizontal RTMP URL:", bridgeHorizontalUrlEdit);
-  bridgeFormLayout->addRow("Vertical RTMP URL:", bridgeVerticalUrlEdit);
+  bridgeFormLayout->addRow("Horizontal RTMP URL:", horizontalUrlLayout);
+  bridgeFormLayout->addRow("Vertical RTMP URL:", verticalUrlLayout);
   bridgeFormLayout->addRow("Auto-start on stream:", bridgeAutoStartCheckbox);
 
   bridgeConfigLayout->addLayout(bridgeFormLayout);
