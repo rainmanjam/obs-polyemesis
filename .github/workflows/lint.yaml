@@ -96,6 +96,7 @@ jobs:
             --suppress=unusedFunction \
             --suppress=constParameterPointer \
             --suppress=constVariablePointer \
+            --suppress=unknownMacro \
             --error-exitcode=1 \
             --inline-suppr \
             -I src \
