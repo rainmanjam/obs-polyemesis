@@ -11,7 +11,8 @@
 
 /*
  * Get semantic colors that adapt to the active OBS theme
- * These colors work across all 6 OBS themes: Yami, Grey, Acri, Dark, Rachni, Light
+ * These colors work across all 6 OBS themes: Yami, Grey, Acri, Dark, Rachni,
+ * Light
  */
 
 #ifdef __cplusplus

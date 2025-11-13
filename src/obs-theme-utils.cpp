@@ -12,8 +12,7 @@
  * Get success color (green) that adapts to theme brightness
  * Uses green with appropriate lightness for the current theme
  */
-QColor obs_theme_get_success_color()
-{
+QColor obs_theme_get_success_color() {
   QPalette palette = QApplication::palette();
   bool isDark = obs_theme_is_dark();
 
@@ -30,8 +29,7 @@ QColor obs_theme_get_success_color()
 /*
  * Get error color (red) that adapts to theme brightness
  */
-QColor obs_theme_get_error_color()
-{
+QColor obs_theme_get_error_color() {
   bool isDark = obs_theme_is_dark();
 
   /* Red hue (0 degrees), saturation 60-80%, lightness varies by theme */
@@ -47,8 +45,7 @@ QColor obs_theme_get_error_color()
 /*
  * Get warning color (orange/yellow) that adapts to theme brightness
  */
-QColor obs_theme_get_warning_color()
-{
+QColor obs_theme_get_warning_color() {
   bool isDark = obs_theme_is_dark();
 
   /* Orange hue (30 degrees), saturation 70-90%, lightness varies by theme */
@@ -64,8 +61,7 @@ QColor obs_theme_get_warning_color()
 /*
  * Get info color (blue) that adapts to theme brightness
  */
-QColor obs_theme_get_info_color()
-{
+QColor obs_theme_get_info_color() {
   bool isDark = obs_theme_is_dark();
 
   /* Blue hue (210 degrees), saturation 60-80%, lightness varies by theme */
@@ -81,8 +77,7 @@ QColor obs_theme_get_info_color()
 /*
  * Get muted/disabled text color from the current palette
  */
-QColor obs_theme_get_muted_color()
-{
+QColor obs_theme_get_muted_color() {
   QPalette palette = QApplication::palette();
   return palette.color(QPalette::Disabled, QPalette::WindowText);
 }
@@ -92,8 +87,7 @@ QColor obs_theme_get_muted_color()
  * Returns "Dark" or "Light" based on palette detection
  * Note: OBS doesn't expose theme name via API, so we detect based on colors
  */
-QString obs_theme_get_name()
-{
+QString obs_theme_get_name() {
   /* Simplified implementation: detect dark vs light theme from palette */
   bool isDark = obs_theme_is_dark();
   QString themeName = isDark ? "Dark" : "Light";
@@ -104,8 +98,7 @@ QString obs_theme_get_name()
  * Check if current theme is dark (vs light)
  * Uses QPalette window color lightness as the indicator
  */
-bool obs_theme_is_dark()
-{
+bool obs_theme_is_dark() {
   QPalette palette = QApplication::palette();
   QColor windowColor = palette.color(QPalette::Window);
 
@@ -118,8 +111,7 @@ bool obs_theme_is_dark()
  * Currently no initialization needed, but reserved for future use
  * (e.g., theme change listener)
  */
-void obs_theme_utils_init()
-{
+void obs_theme_utils_init() {
   /* Future: Register theme change callback with OBS */
   /* obs_frontend_add_event_callback(theme_change_callback, nullptr); */
 }
@@ -128,8 +120,7 @@ void obs_theme_utils_init()
  * Cleanup theme utilities
  * Currently no cleanup needed, but reserved for future use
  */
-void obs_theme_utils_cleanup()
-{
+void obs_theme_utils_cleanup() {
   /* Future: Unregister theme change callback */
   /* obs_frontend_remove_event_callback(theme_change_callback, nullptr); */
 }

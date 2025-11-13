@@ -4,31 +4,25 @@
 
 #include "collapsible-section.h"
 
+#include <QApplication>
 #include <QKeyEvent>
 #include <QSettings>
-#include <QApplication>
 
 CollapsibleSection::CollapsibleSection(const QString &title, QWidget *parent)
-  : QWidget(parent)
-  , m_expanded(true)
-  , m_collapsedHeight(0)
-  , m_expandedHeight(0)
-  , m_statePersistent(false)
-{
+    : QWidget(parent), m_expanded(true), m_collapsedHeight(0),
+      m_expandedHeight(0), m_statePersistent(false) {
   setupUI();
   m_titleLabel->setText(title);
   setFocusPolicy(Qt::StrongFocus);
 }
 
-CollapsibleSection::~CollapsibleSection()
-{
+CollapsibleSection::~CollapsibleSection() {
   if (m_statePersistent) {
     saveState();
   }
 }
 
-void CollapsibleSection::setupUI()
-{
+void CollapsibleSection::setupUI() {
   /* Create main layout */
   m_mainLayout = new QVBoxLayout(this);
   m_mainLayout->setContentsMargins(0, 0, 0, 0);
@@ -49,7 +43,8 @@ void CollapsibleSection::setupUI()
   m_chevronButton->setFlat(true);
   m_chevronButton->setFixedSize(16, 16);
   m_chevronButton->setFocusPolicy(Qt::NoFocus);
-  connect(m_chevronButton, &QPushButton::clicked, this, &CollapsibleSection::onChevronClicked);
+  connect(m_chevronButton, &QPushButton::clicked, this,
+          &CollapsibleSection::onChevronClicked);
 
   /* Create title label */
   m_titleLabel = new QLabel(m_headerFrame);
@@ -80,7 +75,8 @@ void CollapsibleSection::setupUI()
   m_mainLayout->addWidget(m_contentContainer);
 
   /* Create animation */
-  m_contentAnimation = new QPropertyAnimation(m_contentContainer, "maximumHeight", this);
+  m_contentAnimation =
+      new QPropertyAnimation(m_contentContainer, "maximumHeight", this);
   m_contentAnimation->setDuration(200);
   m_contentAnimation->setEasingCurve(QEasingCurve::InOutQuad);
 
@@ -91,8 +87,7 @@ void CollapsibleSection::setupUI()
   updateChevron();
 }
 
-void CollapsibleSection::setContent(QWidget *widget)
-{
+void CollapsibleSection::setContent(QWidget *widget) {
   /* Clear existing content */
   while (m_contentLayout->count() > 0) {
     QLayoutItem *item = m_contentLayout->takeAt(0);
@@ -108,12 +103,12 @@ void CollapsibleSection::setContent(QWidget *widget)
     widget->setVisible(m_expanded);
 
     /* Update expanded height */
-    m_expandedHeight = m_headerFrame->sizeHint().height() + widget->sizeHint().height() + 8;
+    m_expandedHeight =
+        m_headerFrame->sizeHint().height() + widget->sizeHint().height() + 8;
   }
 }
 
-void CollapsibleSection::setExpanded(bool expanded, bool animate)
-{
+void CollapsibleSection::setExpanded(bool expanded, bool animate) {
   if (m_expanded == expanded) {
     return;
   }
@@ -136,8 +131,10 @@ void CollapsibleSection::setExpanded(bool expanded, bool animate)
 
   if (animate) {
     /* Animate expansion/collapse */
-    m_contentAnimation->setStartValue(m_expanded ? m_collapsedHeight : m_expandedHeight);
-    m_contentAnimation->setEndValue(m_expanded ? m_expandedHeight : m_collapsedHeight);
+    m_contentAnimation->setStartValue(m_expanded ? m_collapsedHeight
+                                                 : m_expandedHeight);
+    m_contentAnimation->setEndValue(m_expanded ? m_expandedHeight
+                                               : m_collapsedHeight);
 
     /* Show content before expanding animation */
     if (m_expanded) {
@@ -150,10 +147,12 @@ void CollapsibleSection::setExpanded(bool expanded, bool animate)
 
     /* Hide content after collapsing animation */
     if (!m_expanded) {
-      connect(m_animationGroup, &QParallelAnimationGroup::finished, this, [this, contentWidget]() {
-        contentWidget->setVisible(false);
-        disconnect(m_animationGroup, &QParallelAnimationGroup::finished, this, nullptr);
-      });
+      connect(m_animationGroup, &QParallelAnimationGroup::finished, this,
+              [this, contentWidget]() {
+                contentWidget->setVisible(false);
+                disconnect(m_animationGroup, &QParallelAnimationGroup::finished,
+                           this, nullptr);
+              });
     }
   } else {
     /* Immediate change */
@@ -169,25 +168,20 @@ void CollapsibleSection::setExpanded(bool expanded, bool animate)
   }
 }
 
-void CollapsibleSection::toggle()
-{
-  setExpanded(!m_expanded, true);
-}
+void CollapsibleSection::toggle() { setExpanded(!m_expanded, true); }
 
-void CollapsibleSection::addHeaderButton(QPushButton *button)
-{
+void CollapsibleSection::addHeaderButton(QPushButton *button) {
   if (button) {
     m_headerButtonsLayout->addWidget(button);
   }
 }
 
-void CollapsibleSection::setTitle(const QString &title)
-{
+void CollapsibleSection::setTitle(const QString &title) {
   m_titleLabel->setText(title);
 }
 
-void CollapsibleSection::setStatePersistent(bool persistent, const QString &key)
-{
+void CollapsibleSection::setStatePersistent(bool persistent,
+                                            const QString &key) {
   m_statePersistent = persistent;
   m_stateKey = key;
 
@@ -196,36 +190,32 @@ void CollapsibleSection::setStatePersistent(bool persistent, const QString &key)
   }
 }
 
-void CollapsibleSection::onChevronClicked()
-{
-  toggle();
-}
+void CollapsibleSection::onChevronClicked() { toggle(); }
 
-void CollapsibleSection::updateChevron()
-{
+void CollapsibleSection::updateChevron() {
   /* Use Unicode triangle characters for chevron */
   m_chevronButton->setText(m_expanded ? "▼" : "▶");
 }
 
-void CollapsibleSection::saveState()
-{
+void CollapsibleSection::saveState() {
   if (!m_stateKey.isEmpty()) {
     QSettings settings;
-    settings.setValue("CollapsibleSection/" + m_stateKey + "/expanded", m_expanded);
+    settings.setValue("CollapsibleSection/" + m_stateKey + "/expanded",
+                      m_expanded);
   }
 }
 
-void CollapsibleSection::restoreState()
-{
+void CollapsibleSection::restoreState() {
   if (!m_stateKey.isEmpty()) {
     QSettings settings;
-    bool expanded = settings.value("CollapsibleSection/" + m_stateKey + "/expanded", true).toBool();
+    bool expanded =
+        settings.value("CollapsibleSection/" + m_stateKey + "/expanded", true)
+            .toBool();
     setExpanded(expanded, false);
   }
 }
 
-void CollapsibleSection::keyPressEvent(QKeyEvent *event)
-{
+void CollapsibleSection::keyPressEvent(QKeyEvent *event) {
   switch (event->key()) {
   case Qt::Key_Space:
   case Qt::Key_Return:
@@ -254,19 +244,18 @@ void CollapsibleSection::keyPressEvent(QKeyEvent *event)
   QWidget::keyPressEvent(event);
 }
 
-void CollapsibleSection::focusInEvent(QFocusEvent *event)
-{
+void CollapsibleSection::focusInEvent(QFocusEvent *event) {
   /* Highlight header when focused (use QPalette) */
   QPalette palette = m_headerFrame->palette();
-  palette.setColor(QPalette::Window, palette.color(QPalette::Highlight).lighter(150));
+  palette.setColor(QPalette::Window,
+                   palette.color(QPalette::Highlight).lighter(150));
   m_headerFrame->setAutoFillBackground(true);
   m_headerFrame->setPalette(palette);
 
   QWidget::focusInEvent(event);
 }
 
-void CollapsibleSection::focusOutEvent(QFocusEvent *event)
-{
+void CollapsibleSection::focusOutEvent(QFocusEvent *event) {
   /* Remove highlight when focus is lost */
   m_headerFrame->setAutoFillBackground(false);
   m_headerFrame->setPalette(QPalette());

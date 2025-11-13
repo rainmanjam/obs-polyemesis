@@ -5,14 +5,14 @@
 
 #pragma once
 
-#include <QWidget>
 #include <QFrame>
+#include <QHBoxLayout>
 #include <QLabel>
+#include <QParallelAnimationGroup>
+#include <QPropertyAnimation>
 #include <QPushButton>
 #include <QVBoxLayout>
-#include <QHBoxLayout>
-#include <QPropertyAnimation>
-#include <QParallelAnimationGroup>
+#include <QWidget>
 
 /*
  * CollapsibleSection - A widget with a header and expandable content
