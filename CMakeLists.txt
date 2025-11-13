@@ -155,6 +155,8 @@ if(ENABLE_QT)
       src/obs-service-loader.h
       src/obs-theme-utils.cpp
       src/obs-theme-utils.h
+      src/collapsible-section.cpp
+      src/collapsible-section.h
       # Temporarily disabled - requires OBS WebSocket plugin headers
       # src/websocket-api.cpp
       # src/websocket-api.h
