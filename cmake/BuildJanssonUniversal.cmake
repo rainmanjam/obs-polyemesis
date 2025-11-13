@@ -12,16 +12,26 @@ if(APPLE)
   file(MAKE_DIRECTORY ${CMAKE_BINARY_DIR}/external/jansson/install/include)
   file(MAKE_DIRECTORY ${CMAKE_BINARY_DIR}/external/jansson/install/lib)
 
+  # For Xcode generator, we need to use Ninja for ExternalProject
+  # to avoid issues with CMAKE_OSX_ARCHITECTURES
+  find_program(NINJA_EXECUTABLE ninja)
+  if(NINJA_EXECUTABLE)
+    set(JANSSON_GENERATOR "Ninja")
+  else()
+    set(JANSSON_GENERATOR "Unix Makefiles")
+  endif()
+
   # Build jansson as universal binary for macOS
   ExternalProject_Add(
     jansson_external
     URL ${JANSSON_URL}
     URL_HASH SHA256=${JANSSON_HASH}
     PREFIX ${CMAKE_BINARY_DIR}/external/jansson
+    CMAKE_GENERATOR ${JANSSON_GENERATOR}
     CMAKE_ARGS
       -DCMAKE_INSTALL_PREFIX=${CMAKE_BINARY_DIR}/external/jansson/install
       -DCMAKE_BUILD_TYPE=Release
-      -DCMAKE_OSX_ARCHITECTURES=arm64$<SEMICOLON>x86_64
+      "-DCMAKE_OSX_ARCHITECTURES=arm64;x86_64"
       -DCMAKE_OSX_DEPLOYMENT_TARGET=${CMAKE_OSX_DEPLOYMENT_TARGET}
       -DJANSSON_BUILD_DOCS=OFF
       -DJANSSON_BUILD_SHARED_LIBS=OFF
