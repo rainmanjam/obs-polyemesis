@@ -39,9 +39,9 @@ if(APPLE)
   )
 
   # Set variables for FindJansson to use our built library
-  set(JANSSON_INCLUDE_DIR ${CMAKE_BINARY_DIR}/external/jansson/install/include PARENT_SCOPE)
-  set(JANSSON_LIBRARY ${CMAKE_BINARY_DIR}/external/jansson/install/lib/libjansson.a PARENT_SCOPE)
-  set(JANSSON_FOUND TRUE PARENT_SCOPE)
+  set(JANSSON_INCLUDE_DIR ${CMAKE_BINARY_DIR}/external/jansson/install/include)
+  set(JANSSON_LIBRARY ${CMAKE_BINARY_DIR}/external/jansson/install/lib/libjansson.a)
+  set(JANSSON_FOUND TRUE)
 
   # Create imported target
   add_library(Jansson::Jansson STATIC IMPORTED GLOBAL)
