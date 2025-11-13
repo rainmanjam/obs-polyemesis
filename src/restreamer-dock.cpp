@@ -1,6 +1,7 @@
 #include "restreamer-dock.h"
 #include "restreamer-config.h"
 #include "obs-helpers.hpp"
+#include "collapsible-section.h"
 #include <QApplication>
 #include <QCloseEvent>
 #include <QDialog>
@@ -12,6 +13,7 @@
 #include <QInputDialog>
 #include <QIntValidator>
 #include <QMessageBox>
+#include <QScrollArea>
 #include <QTextEdit>
 #include <obs-frontend-api.h>
 #include <obs-module.h>
@@ -334,8 +336,15 @@ void RestreamerDock::setupUI() {
   QWidget *mainWidget = new QWidget(this);
   QVBoxLayout *mainLayout = new QVBoxLayout(mainWidget);
 
-  /* Create tab widget for compact layout */
-  QTabWidget *tabWidget = new QTabWidget();
+  /* Create scroll area for vertical collapsible sections layout */
+  QScrollArea *scrollArea = new QScrollArea();
+  scrollArea->setWidgetResizable(true);
+  scrollArea->setFrameShape(QFrame::NoFrame);
+
+  QWidget *scrollContent = new QWidget();
+  QVBoxLayout *verticalLayout = new QVBoxLayout(scrollContent);
+  verticalLayout->setSpacing(8);
+  verticalLayout->setContentsMargins(0, 0, 0, 0);
 
   /* ===== Tab 1: Connection (Setup - Step 1) ===== */
   QWidget *connectionTab = new QWidget();
@@ -410,7 +419,12 @@ void RestreamerDock::setupUI() {
   connectionTabLayout->addWidget(connectionGroup);
 
   connectionTabLayout->addStretch();
-  tabWidget->addTab(connectionTab, "Connection");
+
+  /* Add Connection tab to collapsible section */
+  CollapsibleSection *connectionSection = new CollapsibleSection("Connection");
+  connectionSection->setContent(connectionTab);
+  connectionSection->setExpanded(true, false);  /* Expanded by default */
+  verticalLayout->addWidget(connectionSection);
 
   /* ===== Tab 2: Bridge Settings ===== */
   QWidget *bridgeTab = new QWidget();
@@ -471,7 +485,12 @@ void RestreamerDock::setupUI() {
   bridgeTabLayout->addWidget(bridgeGroup);
 
   bridgeTabLayout->addStretch();
-  tabWidget->addTab(bridgeTab, "Bridge");
+
+  /* Add Bridge tab to collapsible section */
+  CollapsibleSection *bridgeSection = new CollapsibleSection("Bridge");
+  bridgeSection->setContent(bridgeTab);
+  bridgeSection->setExpanded(false, false);  /* Collapsed by default */
+  verticalLayout->addWidget(bridgeSection);
 
   /* ===== Tab 3: Profiles (Configure & Publish - Step 2) ===== */
   QWidget *profilesTab = new QWidget();
@@ -597,7 +616,12 @@ void RestreamerDock::setupUI() {
   profilesGroup->setLayout(profilesGroupLayout);
   profilesTabLayout->addWidget(profilesGroup);
   profilesTabLayout->addStretch();
-  tabWidget->addTab(profilesTab, "Profiles");
+
+  /* Add Profiles tab to collapsible section */
+  CollapsibleSection *profilesSection = new CollapsibleSection("Profiles");
+  profilesSection->setContent(profilesTab);
+  profilesSection->setExpanded(true, false);  /* Expanded by default */
+  verticalLayout->addWidget(profilesSection);
 
   /* ===== Tab 3: Monitoring (Watch - Step 3) ===== */
   QWidget *monitoringTab = new QWidget();
@@ -742,7 +766,12 @@ void RestreamerDock::setupUI() {
   sessionsGroup->setLayout(sessionsLayout);
   monitoringTabLayout->addWidget(sessionsGroup);
   monitoringTabLayout->addStretch();
-  tabWidget->addTab(monitoringTab, "Monitoring");
+
+  /* Add Monitoring tab to collapsible section */
+  CollapsibleSection *monitoringSection = new CollapsibleSection("Monitoring");
+  monitoringSection->setContent(monitoringTab);
+  monitoringSection->setExpanded(false, false);  /* Collapsed by default */
+  verticalLayout->addWidget(monitoringSection);
 
   /* ===== Tab 4: System (Settings - Step 4) ===== */
   QWidget *systemTab = new QWidget();
@@ -781,7 +810,12 @@ void RestreamerDock::setupUI() {
   systemTabLayout->addWidget(configGroup);
 
   systemTabLayout->addStretch();
-  tabWidget->addTab(systemTab, "System");
+
+  /* Add System tab to collapsible section */
+  CollapsibleSection *systemSection = new CollapsibleSection("System");
+  systemSection->setContent(systemTab);
+  systemSection->setExpanded(false, false);  /* Collapsed by default */
+  verticalLayout->addWidget(systemSection);
 
   /* ===== Tab 5: Advanced (Expert Mode - Step 5) ===== */
   QWidget *advancedTab = new QWidget();
@@ -899,10 +933,19 @@ void RestreamerDock::setupUI() {
   advancedTabLayout->addWidget(protocolGroup);
 
   advancedTabLayout->addStretch();
-  tabWidget->addTab(advancedTab, "Advanced");
 
-  /* Add tab widget to main layout */
-  mainLayout->addWidget(tabWidget);
+  /* Add Advanced tab to collapsible section */
+  CollapsibleSection *advancedSection = new CollapsibleSection("Advanced");
+  advancedSection->setContent(advancedTab);
+  advancedSection->setExpanded(false, false);  /* Collapsed by default */
+  verticalLayout->addWidget(advancedSection);
+
+  /* Add stretch to push sections to the top */
+  verticalLayout->addStretch();
+
+  /* Set scroll area widget and add to main layout */
+  scrollArea->setWidget(scrollContent);
+  mainLayout->addWidget(scrollArea);
 
   /* Set the layout for this widget (QWidget uses setLayout, not setWidget) */
   setLayout(mainLayout);
