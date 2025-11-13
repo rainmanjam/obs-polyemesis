@@ -9,6 +9,9 @@ cmake/.CMakeBuildNumber
 .deps/
 deps/
 
+# Documentation
+docs/
+
 # IDE files
 .vscode/
 .idea/

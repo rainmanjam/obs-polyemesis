@@ -193,8 +193,8 @@ void CollapsibleSection::setStatePersistent(bool persistent,
 void CollapsibleSection::onChevronClicked() { toggle(); }
 
 void CollapsibleSection::updateChevron() {
-  /* Use Unicode triangle characters for chevron */
-  m_chevronButton->setText(m_expanded ? "▼" : "▶");
+  /* Use plus/minus symbols for expand/collapse indicator */
+  m_chevronButton->setText(m_expanded ? "−" : "+");
 }
 
 void CollapsibleSection::saveState() {

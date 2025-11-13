@@ -403,11 +403,17 @@ void RestreamerDock::setupUI() {
   hostEdit->setPlaceholderText("localhost");
   hostEdit->setToolTip("Restreamer server hostname or IP address");
   hostEdit->setMaximumWidth(300);
+  hostEdit->setMinimumHeight(30); /* Taller field */
+  hostEdit->setFrame(true); /* Border box */
+  hostEdit->setStyleSheet("QLineEdit { border: 1px solid palette(mid); padding: 4px; }");
 
   portEdit = new QLineEdit();
   portEdit->setPlaceholderText("8080");
   portEdit->setToolTip("Restreamer server port (1-65535)");
   portEdit->setMaximumWidth(300);
+  portEdit->setMinimumHeight(30); /* Taller field */
+  portEdit->setFrame(true); /* Border box */
+  portEdit->setStyleSheet("QLineEdit { border: 1px solid palette(mid); padding: 4px; }");
   /* Add port validator to ensure only valid port numbers are entered */
   QIntValidator *portValidator = new QIntValidator(1, 65535, portEdit);
   portEdit->setValidator(portValidator);
@@ -418,12 +424,18 @@ void RestreamerDock::setupUI() {
   usernameEdit->setPlaceholderText("admin");
   usernameEdit->setToolTip("Restreamer username for authentication");
   usernameEdit->setMaximumWidth(300);
+  usernameEdit->setMinimumHeight(30); /* Taller field */
+  usernameEdit->setFrame(true); /* Border box */
+  usernameEdit->setStyleSheet("QLineEdit { border: 1px solid palette(mid); padding: 4px; }");
 
   passwordEdit = new QLineEdit();
   passwordEdit->setEchoMode(QLineEdit::Password);
   passwordEdit->setPlaceholderText("Password");
   passwordEdit->setToolTip("Restreamer password for authentication");
   passwordEdit->setMaximumWidth(300);
+  passwordEdit->setMinimumHeight(30); /* Taller field */
+  passwordEdit->setFrame(true); /* Border box */
+  passwordEdit->setStyleSheet("QLineEdit { border: 1px solid palette(mid); padding: 4px; }");
 
   connectionFormLayout->addRow("Host:", hostEdit);
   connectionFormLayout->addRow("Port:", portEdit);
@@ -804,22 +816,31 @@ void RestreamerDock::setupUI() {
 
   processList = new QListWidget();
   processList->setMaximumHeight(80);
+  processList->setIconSize(QSize(48, 48)); /* Larger icon size for better visibility */
   connect(processList, &QListWidget::currentRowChanged, this,
           &RestreamerDock::onProcessSelected);
 
   QHBoxLayout *processButtonLayout = new QHBoxLayout();
   refreshButton = new QPushButton("🔄");
   refreshButton->setToolTip("Refresh process list");
-  refreshButton->setMaximumWidth(40);
+  refreshButton->setMinimumSize(50, 36); /* Larger to fit icon */
+  refreshButton->setMaximumSize(50, 36);
+  refreshButton->setStyleSheet("font-size: 20px;"); /* Larger icon */
   startButton = new QPushButton("▶");
   startButton->setToolTip("Start selected process");
-  startButton->setMaximumWidth(40);
+  startButton->setMinimumSize(50, 36); /* Larger to fit icon */
+  startButton->setMaximumSize(50, 36);
+  startButton->setStyleSheet("font-size: 20px;"); /* Larger icon */
   stopButton = new QPushButton("■");
   stopButton->setToolTip("Stop selected process");
-  stopButton->setMaximumWidth(40);
+  stopButton->setMinimumSize(50, 36); /* Larger to fit icon */
+  stopButton->setMaximumSize(50, 36);
+  stopButton->setStyleSheet("font-size: 20px;"); /* Larger icon */
   restartButton = new QPushButton("↻");
   restartButton->setToolTip("Restart selected process");
-  restartButton->setMaximumWidth(40);
+  restartButton->setMinimumSize(50, 36); /* Larger to fit icon */
+  restartButton->setMaximumSize(50, 36);
+  restartButton->setStyleSheet("font-size: 20px;"); /* Larger icon */
 
   startButton->setEnabled(false);
   stopButton->setEnabled(false);
@@ -850,14 +871,13 @@ void RestreamerDock::setupUI() {
   QGroupBox *metricsGroup = new QGroupBox("Performance Metrics");
   QVBoxLayout *metricsMainLayout = new QVBoxLayout();
 
-  /* Compact two-column layout for metrics */
+  /* Two-column layout for metrics with proper alignment */
   QHBoxLayout *metricsColumnsLayout = new QHBoxLayout();
-  metricsColumnsLayout->addStretch();
 
   /* Left column - System metrics */
   QFormLayout *metricsLeftLayout = new QFormLayout();
   metricsLeftLayout->setFieldGrowthPolicy(QFormLayout::ExpandingFieldsGrow);
-  metricsLeftLayout->setFormAlignment(Qt::AlignHCenter | Qt::AlignTop);
+  metricsLeftLayout->setFormAlignment(Qt::AlignLeft | Qt::AlignTop);
   metricsLeftLayout->setLabelAlignment(Qt::AlignRight);
 
   processIdLabel = new QLabel("-");
@@ -875,7 +895,7 @@ void RestreamerDock::setupUI() {
   /* Right column - Stream metrics */
   QFormLayout *metricsRightLayout = new QFormLayout();
   metricsRightLayout->setFieldGrowthPolicy(QFormLayout::ExpandingFieldsGrow);
-  metricsRightLayout->setFormAlignment(Qt::AlignHCenter | Qt::AlignTop);
+  metricsRightLayout->setFormAlignment(Qt::AlignLeft | Qt::AlignTop);
   metricsRightLayout->setLabelAlignment(Qt::AlignRight);
 
   processFramesLabel = new QLabel("-");
@@ -891,22 +911,32 @@ void RestreamerDock::setupUI() {
   metricsRightLayout->addRow("Progress:", processProgressLabel);
 
   metricsColumnsLayout->addLayout(metricsLeftLayout);
+  metricsColumnsLayout->addSpacing(40); /* Fixed spacing between columns */
   metricsColumnsLayout->addLayout(metricsRightLayout);
-  metricsColumnsLayout->addStretch();
+  metricsColumnsLayout->addStretch(); /* Push everything to the left */
   metricsMainLayout->addLayout(metricsColumnsLayout);
 
-  /* Compact action buttons */
+  /* Action buttons - aligned with metrics columns above */
+  /* Create two button containers that mirror the form layout structure */
   QHBoxLayout *metricsButtonLayout = new QHBoxLayout();
+
+  /* Left button - mirrors left form layout width */
+  QVBoxLayout *leftButtonContainer = new QVBoxLayout();
   probeInputButton = new QPushButton("Probe Input");
-  probeInputButton->setMinimumWidth(120);
   probeInputButton->setToolTip("Probe input stream details");
+  leftButtonContainer->addWidget(probeInputButton);
+
+  /* Right button - mirrors right form layout width */
+  QVBoxLayout *rightButtonContainer = new QVBoxLayout();
   viewMetricsButton = new QPushButton("View Metrics");
-  viewMetricsButton->setMinimumWidth(120);
   viewMetricsButton->setToolTip("View performance metrics");
-  metricsButtonLayout->addStretch();
-  metricsButtonLayout->addWidget(probeInputButton);
-  metricsButtonLayout->addWidget(viewMetricsButton);
-  metricsButtonLayout->addStretch();
+  rightButtonContainer->addWidget(viewMetricsButton);
+
+  /* Add button containers with same spacing as columns above */
+  metricsButtonLayout->addLayout(leftButtonContainer);
+  metricsButtonLayout->addSpacing(40); /* Match column spacing */
+  metricsButtonLayout->addLayout(rightButtonContainer);
+  metricsButtonLayout->addStretch(); /* Push to left like columns */
   metricsMainLayout->addLayout(metricsButtonLayout);
 
   connect(probeInputButton, &QPushButton::clicked, this,
@@ -1197,6 +1227,18 @@ void RestreamerDock::loadSettings() {
    * config) */
   if (!obs_data_has_user_value(settings, "bridge_auto_start")) {
     bridgeAutoStartCheckbox->setChecked(true);
+  }
+
+  /* Auto-test connection if server config is already populated */
+  bool hasServerConfig = obs_data_has_user_value(settings, "host") ||
+                         obs_data_has_user_value(settings, "port");
+  if (hasServerConfig && !hostEdit->text().isEmpty() &&
+      !portEdit->text().isEmpty()) {
+    obs_log(LOG_INFO,
+            "[obs-polyemesis] Server configuration detected, testing connection "
+            "automatically");
+    /* Delay the test slightly to let UI finish initializing */
+    QTimer::singleShot(500, this, &RestreamerDock::onTestConnectionClicked);
   }
 }
 
@@ -2465,8 +2507,8 @@ void RestreamerDock::onConfigureProfileClicked() {
   destTable->setMinimumHeight(150);
 
   /* Populate destinations table */
-  destTable->setRowCount(profile->destination_count);
-  for (size_t i = 0; i < profile->destination_count; i++) {
+  destTable->setRowCount(static_cast<int>(profile->destination_count));
+  for (int i = 0; i < static_cast<int>(profile->destination_count); i++) {
     profile_destination_t *dest = &profile->destinations[i];
 
     /* Service name */
