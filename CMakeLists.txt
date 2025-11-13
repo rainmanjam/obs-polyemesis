@@ -153,6 +153,8 @@ if(ENABLE_QT)
       src/restreamer-dock-bridge.cpp
       src/obs-service-loader.cpp
       src/obs-service-loader.h
+      src/obs-theme-utils.cpp
+      src/obs-theme-utils.h
       # Temporarily disabled - requires OBS WebSocket plugin headers
       # src/websocket-api.cpp
       # src/websocket-api.h
