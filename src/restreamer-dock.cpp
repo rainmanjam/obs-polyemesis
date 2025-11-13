@@ -2,6 +2,7 @@
 #include "restreamer-config.h"
 #include "obs-helpers.hpp"
 #include "collapsible-section.h"
+#include "obs-theme-utils.h"
 #include <QApplication>
 #include <QCloseEvent>
 #include <QDialog>
@@ -352,7 +353,8 @@ void RestreamerDock::setupUI() {
 
   /* Add help label for consistency with other tabs */
   QLabel *connectionHelpLabel = new QLabel("Configure connection to Restreamer server");
-  connectionHelpLabel->setStyleSheet("QLabel { color: #737373; font-size: 11px; }");
+  QString mutedColor = obs_theme_get_muted_color().name();
+  connectionHelpLabel->setStyleSheet(QString("QLabel { color: %1; font-size: 11px; }").arg(mutedColor));
   connectionHelpLabel->setAlignment(Qt::AlignCenter);
   connectionTabLayout->addWidget(connectionHelpLabel);
 
@@ -406,7 +408,7 @@ void RestreamerDock::setupUI() {
   testConnectionButton->setToolTip("Test connection to Restreamer server");
   testConnectionButton->setMinimumWidth(150);
   connectionStatusLabel = new QLabel("● Not connected");
-  connectionStatusLabel->setStyleSheet("QLabel { color: #737373; }");
+  connectionStatusLabel->setStyleSheet(QString("QLabel { color: %1; }").arg(obs_theme_get_muted_color().name()));
   connectionButtonLayout->addWidget(testConnectionButton);
   connectionButtonLayout->addWidget(connectionStatusLabel);
   connectionButtonLayout->addStretch();
@@ -431,7 +433,7 @@ void RestreamerDock::setupUI() {
   QVBoxLayout *bridgeTabLayout = new QVBoxLayout(bridgeTab);
 
   QLabel *bridgeHelpLabel = new QLabel("Configure automatic RTMP bridge from OBS to Restreamer");
-  bridgeHelpLabel->setStyleSheet("QLabel { color: #737373; font-size: 11px; }");
+  bridgeHelpLabel->setStyleSheet(QString("QLabel { color: %1; font-size: 11px; }").arg(obs_theme_get_muted_color().name()));
   bridgeHelpLabel->setAlignment(Qt::AlignCenter);
   bridgeTabLayout->addWidget(bridgeHelpLabel);
 
@@ -472,7 +474,7 @@ void RestreamerDock::setupUI() {
           &RestreamerDock::onSaveBridgeSettingsClicked);
 
   bridgeStatusLabel = new QLabel("● Bridge idle");
-  bridgeStatusLabel->setStyleSheet("QLabel { color: #737373; }");
+  bridgeStatusLabel->setStyleSheet(QString("QLabel { color: %1; }").arg(obs_theme_get_muted_color().name()));
 
   QHBoxLayout *bridgeButtonLayout = new QHBoxLayout();
   bridgeButtonLayout->addStretch();
@@ -497,7 +499,7 @@ void RestreamerDock::setupUI() {
   QVBoxLayout *profilesTabLayout = new QVBoxLayout(profilesTab);
 
   QLabel *profilesHelpLabel = new QLabel("Create and manage streaming profiles");
-  profilesHelpLabel->setStyleSheet("QLabel { color: #737373; font-size: 11px; }");
+  profilesHelpLabel->setStyleSheet(QString("QLabel { color: %1; font-size: 11px; }").arg(obs_theme_get_muted_color().name()));
   profilesHelpLabel->setAlignment(Qt::AlignCenter);
   profilesTabLayout->addWidget(profilesHelpLabel);
 
@@ -628,7 +630,7 @@ void RestreamerDock::setupUI() {
   QVBoxLayout *monitoringTabLayout = new QVBoxLayout(monitoringTab);
 
   QLabel *monitoringHelpLabel = new QLabel("Monitor active streams and performance");
-  monitoringHelpLabel->setStyleSheet("QLabel { color: #737373; font-size: 11px; }");
+  monitoringHelpLabel->setStyleSheet(QString("QLabel { color: %1; font-size: 11px; }").arg(obs_theme_get_muted_color().name()));
   monitoringHelpLabel->setAlignment(Qt::AlignCenter);
   monitoringTabLayout->addWidget(monitoringHelpLabel);
 
@@ -778,7 +780,7 @@ void RestreamerDock::setupUI() {
   QVBoxLayout *systemTabLayout = new QVBoxLayout(systemTab);
 
   QLabel *systemHelpLabel = new QLabel("Restreamer server configuration and settings");
-  systemHelpLabel->setStyleSheet("QLabel { color: #737373; font-size: 11px; }");
+  systemHelpLabel->setStyleSheet(QString("QLabel { color: %1; font-size: 11px; }").arg(obs_theme_get_muted_color().name()));
   systemHelpLabel->setAlignment(Qt::AlignCenter);
   systemTabLayout->addWidget(systemHelpLabel);
 
@@ -822,7 +824,7 @@ void RestreamerDock::setupUI() {
   QVBoxLayout *advancedTabLayout = new QVBoxLayout(advancedTab);
 
   QLabel *advancedHelpLabel = new QLabel("Advanced features for expert users");
-  advancedHelpLabel->setStyleSheet("QLabel { color: #737373; font-size: 11px; }");
+  advancedHelpLabel->setStyleSheet(QString("QLabel { color: %1; font-size: 11px; }").arg(obs_theme_get_muted_color().name()));
   advancedHelpLabel->setAlignment(Qt::AlignCenter);
   advancedTabLayout->addWidget(advancedHelpLabel);
 
@@ -1094,17 +1096,17 @@ void RestreamerDock::onTestConnectionClicked() {
 
   if (!api) {
     connectionStatusLabel->setText("Failed to create API");
-    connectionStatusLabel->setStyleSheet("color: red;");
+    connectionStatusLabel->setStyleSheet(QString("color: %1;").arg(obs_theme_get_error_color().name()));
     return;
   }
 
   if (restreamer_api_test_connection(api)) {
     connectionStatusLabel->setText("Connected");
-    connectionStatusLabel->setStyleSheet("color: green;");
+    connectionStatusLabel->setStyleSheet(QString("color: %1;").arg(obs_theme_get_success_color().name()));
     onRefreshClicked();
   } else {
     connectionStatusLabel->setText("Connection failed");
-    connectionStatusLabel->setStyleSheet("color: red;");
+    connectionStatusLabel->setStyleSheet(QString("color: %1;").arg(obs_theme_get_error_color().name()));
     QMessageBox::warning(
         this, "Connection Error",
         QString("Failed to connect: %1").arg(restreamer_api_get_error(api)));
@@ -1177,19 +1179,19 @@ void RestreamerDock::updateProcessDetails() {
 
   /* Enhanced: Color-coded process state with icons */
   QString stateText = process.state ? process.state : "-";
-  QString stateColor = "#808080";  /* Default gray */
+  QString stateColor = obs_theme_get_muted_color().name();  /* Default gray */
   if (stateText == "running" || stateText == "started") {
     stateText = "🟢 " + stateText;
-    stateColor = "#00AA00";  /* Green */
+    stateColor = obs_theme_get_success_color().name();  /* Green */
   } else if (stateText == "starting" || stateText == "waiting") {
     stateText = "🟡 " + stateText;
-    stateColor = "#FFA500";  /* Orange */
+    stateColor = obs_theme_get_warning_color().name();  /* Orange */
   } else if (stateText == "stopping" || stateText == "finished") {
     stateText = "🟠 " + stateText;
-    stateColor = "#FF8C00";  /* Dark Orange */
+    stateColor = obs_theme_get_warning_color().name();  /* Dark Orange */
   } else if (stateText == "failed" || stateText == "error") {
     stateText = "🔴 " + stateText;
-    stateColor = "#CC0000";  /* Red */
+    stateColor = obs_theme_get_error_color().name();  /* Red */
   } else if (stateText != "-") {
     stateText = "⚪ " + stateText;
   }
@@ -1205,21 +1207,21 @@ void RestreamerDock::updateProcessDetails() {
 
   /* Enhanced: Color-code CPU and memory based on usage levels */
   double cpu = process.cpu_usage;
-  QString cpuColor = "#00AA00";  /* Green by default */
+  QString cpuColor = obs_theme_get_success_color().name();  /* Green by default */
   if (cpu > 80.0) {
-    cpuColor = "#CC0000";  /* Red for high usage */
+    cpuColor = obs_theme_get_error_color().name();  /* Red for high usage */
   } else if (cpu > 50.0) {
-    cpuColor = "#FFA500";  /* Orange for medium usage */
+    cpuColor = obs_theme_get_warning_color().name();  /* Orange for medium usage */
   }
   processCpuLabel->setText(QString("%1%").arg(cpu, 0, 'f', 1));
   processCpuLabel->setStyleSheet(QString("QLabel { color: %1; font-weight: bold; }").arg(cpuColor));
 
   uint64_t memoryMB = process.memory_bytes / 1024 / 1024;
-  QString memoryColor = "#00AA00";  /* Green by default */
+  QString memoryColor = obs_theme_get_success_color().name();  /* Green by default */
   if (memoryMB > 2048) {
-    memoryColor = "#CC0000";  /* Red for high memory usage */
+    memoryColor = obs_theme_get_error_color().name();  /* Red for high memory usage */
   } else if (memoryMB > 1024) {
-    memoryColor = "#FFA500";  /* Orange for medium memory usage */
+    memoryColor = obs_theme_get_warning_color().name();  /* Orange for medium memory usage */
   }
   processMemoryLabel->setText(QString("%1 MB").arg(memoryMB));
   processMemoryLabel->setStyleSheet(QString("QLabel { color: %1; font-weight: bold; }").arg(memoryColor));
@@ -1235,11 +1237,11 @@ void RestreamerDock::updateProcessDetails() {
     /* Enhanced: Show dropped frame percentage with color-coded warning levels */
     if (state.frames > 0) {
       double drop_percent = (state.dropped_frames * 100.0) / state.frames;
-      QString dropColor = "#00AA00";  /* Green by default */
+      QString dropColor = obs_theme_get_success_color().name();  /* Green by default */
       if (drop_percent > 5.0) {
-        dropColor = "#CC0000";  /* Red for high drop rate (>5%) */
+        dropColor = obs_theme_get_error_color().name();  /* Red for high drop rate (>5%) */
       } else if (drop_percent > 1.0) {
-        dropColor = "#FFA500";  /* Orange for medium drop rate (>1%) */
+        dropColor = obs_theme_get_warning_color().name();  /* Orange for medium drop rate (>1%) */
       }
       processDroppedFramesLabel->setText(QString("%1 (%2%)")
                                             .arg(state.dropped_frames)
@@ -1247,7 +1249,7 @@ void RestreamerDock::updateProcessDetails() {
       processDroppedFramesLabel->setStyleSheet(QString("QLabel { color: %1; font-weight: bold; }").arg(dropColor));
     } else {
       processDroppedFramesLabel->setText(QString::number(state.dropped_frames));
-      processDroppedFramesLabel->setStyleSheet("QLabel { color: #808080; }");  /* Gray for no data */
+      processDroppedFramesLabel->setStyleSheet(QString("QLabel { color: %1; }").arg(obs_theme_get_muted_color().name()));  /* Gray for no data */
     }
 
     processFpsLabel->setText(QString("%1").arg(state.fps, 0, 'f', 2));
@@ -1456,7 +1458,7 @@ void RestreamerDock::onAddDestinationClicked() {
   QLabel *streamKeyHelpLabel = new QLabel();
   streamKeyHelpLabel->setOpenExternalLinks(true);
   streamKeyHelpLabel->setWordWrap(true);
-  streamKeyHelpLabel->setStyleSheet("QLabel { color: #0066cc; font-size: 11px; }");
+  streamKeyHelpLabel->setStyleSheet(QString("QLabel { color: %1; font-size: 11px; }").arg(obs_theme_get_info_color().name()));
 
   /* Orientation selection */
   QComboBox *orientationCombo = new QComboBox();
@@ -1545,7 +1547,7 @@ void RestreamerDock::onAddDestinationClicked() {
     "The stream will be automatically formatted for the selected orientation."
   );
   infoLabel->setWordWrap(true);
-  infoLabel->setStyleSheet("QLabel { color: #737373; font-size: 10px; padding: 10px; }");
+  infoLabel->setStyleSheet(QString("QLabel { color: %1; font-size: 10px; padding: 10px; }").arg(obs_theme_get_muted_color().name()));
   layout->addWidget(infoLabel);
 
   QDialogButtonBox *buttonBox =
@@ -1720,10 +1722,10 @@ void RestreamerDock::onSaveBridgeSettingsClicked() {
   /* Update status */
   if (autoStart) {
     bridgeStatusLabel->setText("● Auto-start enabled");
-    bridgeStatusLabel->setStyleSheet("QLabel { color: #4CAF50; }");
+    bridgeStatusLabel->setStyleSheet(QString("QLabel { color: %1; }").arg(obs_theme_get_success_color().name()));
   } else {
     bridgeStatusLabel->setText("● Auto-start disabled");
-    bridgeStatusLabel->setStyleSheet("QLabel { color: #737373; }");
+    bridgeStatusLabel->setStyleSheet(QString("QLabel { color: %1; }").arg(obs_theme_get_muted_color().name()));
   }
 }
 
@@ -1832,27 +1834,27 @@ void RestreamerDock::updateProfileDetails() {
   switch (profile->status) {
     case PROFILE_STATUS_INACTIVE:
       statusText = "⚫ Inactive";
-      statusColor = "#808080";  /* Gray */
+      statusColor = obs_theme_get_muted_color().name();  /* Gray */
       break;
     case PROFILE_STATUS_STARTING:
       statusText = "🟡 Starting...";
-      statusColor = "#FFA500";  /* Orange */
+      statusColor = obs_theme_get_warning_color().name();  /* Orange */
       break;
     case PROFILE_STATUS_ACTIVE:
       statusText = "🟢 Active";
-      statusColor = "#00AA00";  /* Green */
+      statusColor = obs_theme_get_success_color().name();  /* Green */
       break;
     case PROFILE_STATUS_STOPPING:
       statusText = "🟠 Stopping...";
-      statusColor = "#FF8C00";  /* Dark Orange */
+      statusColor = obs_theme_get_warning_color().name();  /* Dark Orange */
       break;
     case PROFILE_STATUS_ERROR:
       statusText = "🔴 Error";
-      statusColor = "#CC0000";  /* Red */
+      statusColor = obs_theme_get_error_color().name();  /* Red */
       break;
     default:
       statusText = "❓ Unknown";
-      statusColor = "#999999";  /* Light Gray */
+      statusColor = obs_theme_get_muted_color().name();  /* Light Gray */
       break;
   }
   profileStatusLabel->setText(statusText);
@@ -2353,7 +2355,7 @@ void RestreamerDock::onConfigureProfileClicked() {
     QLabel *streamKeyHelpLabel = new QLabel();
     streamKeyHelpLabel->setOpenExternalLinks(true);
     streamKeyHelpLabel->setWordWrap(true);
-    streamKeyHelpLabel->setStyleSheet("QLabel { color: #0066cc; font-size: 11px; }");
+    streamKeyHelpLabel->setStyleSheet(QString("QLabel { color: %1; font-size: 11px; }").arg(obs_theme_get_info_color().name()));
 
     /* Target orientation */
     QComboBox *targetOrientCombo = new QComboBox();
@@ -2449,7 +2451,7 @@ void RestreamerDock::onConfigureProfileClicked() {
       "For custom RTMP servers, enter the complete URL including the stream key."
     );
     infoLabel->setWordWrap(true);
-    infoLabel->setStyleSheet("QLabel { color: #737373; font-size: 10px; padding: 10px; }");
+    infoLabel->setStyleSheet(QString("QLabel { color: %1; font-size: 10px; padding: 10px; }").arg(obs_theme_get_muted_color().name()));
     destDialogLayout->addWidget(infoLabel);
 
     /* Dialog buttons */
@@ -3089,7 +3091,7 @@ void RestreamerDock::onViewConfigClicked() {
   layout->addWidget(infoLabel);
 
   QLabel *warningLabel = new QLabel("⚠️ Warning: Editing configuration requires careful attention. Invalid JSON will be rejected.");
-  warningLabel->setStyleSheet("color: orange; font-weight: bold;");
+  warningLabel->setStyleSheet(QString("color: %1; font-weight: bold;").arg(obs_theme_get_warning_color().name()));
   layout->addWidget(warningLabel);
 
   QTextEdit *configText = new QTextEdit();

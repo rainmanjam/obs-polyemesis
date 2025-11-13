@@ -259,3 +259,12 @@ void CollapsibleSection::focusInEvent(QFocusEvent *event)
 
   QWidget::focusInEvent(event);
 }
+
+void CollapsibleSection::focusOutEvent(QFocusEvent *event)
+{
+  /* Remove highlight when focus is lost */
+  m_headerFrame->setAutoFillBackground(false);
+  m_headerFrame->setPalette(QPalette());
+
+  QWidget::focusOutEvent(event);
+}
