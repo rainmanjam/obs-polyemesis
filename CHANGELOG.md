@@ -10,6 +10,58 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [0.9.0] - 2025-11-12
 
 ### Added
+- **Cross-Platform Build Enhancements (Phase 1)**
+  - macOS Universal Binary support (arm64 + x86_64)
+    - Automatic jansson build from source for universal binaries
+    - Single .pkg installer works on all Macs (Intel and Apple Silicon)
+  - Linux ARM64 support
+    - CI/CD workflow for ARM64 builds
+    - Native support for Raspberry Pi and ARM servers
+  - Comprehensive build matrix documentation
+    - All supported platforms documented
+    - Platform-specific build instructions
+
+- **OBS Theme Integration (Phase 2)**
+  - Complete removal of 257 lines of custom styling
+  - Native QPalette integration for seamless theme matching
+  - Support for all 6 OBS themes (Yami, Grey, Acri, Dark, Rachni, Light)
+  - Semantic color helpers for status indicators
+    - `obs_theme_get_success_color()` - Green variants per theme
+    - `obs_theme_get_error_color()` - Red variants per theme
+    - `obs_theme_get_warning_color()` - Orange/yellow variants per theme
+    - `obs_theme_get_muted_color()` - Subtle text colors per theme
+  - Dynamic theme switching support at runtime
+  - Simplified theme detection (Dark vs Light)
+
+- **UI Redesign (Phase 5)**
+  - CollapsibleSection custom widget
+    - Header with title label and expand/collapse chevron
+    - Optional quick action buttons in section headers
+    - Smooth 200ms expand/collapse animation
+    - Keyboard navigation support (Tab, Enter, Arrow keys)
+    - State persistence (save/restore collapsed state)
+  - Removed tab-based layout in favor of vertical scroll
+    - Better information density
+    - More natural navigation flow
+    - Collapsible sections for each major feature area
+  - Dynamic section titles with status indicators
+    - Connection: Shows connection state (Connected, Disconnected)
+    - Bridge: Shows auto-start state (Active, Inactive)
+    - Profiles: Shows selected profile name and status
+    - Monitoring: Shows process state (Active, Idle)
+  - Quick action buttons in section headers
+    - Connection: "Test" button for quick connection testing
+    - Bridge: "Enable/Disable" toggle for auto-start
+    - Profiles: "Start/Stop" toggle for active profile
+  - Copy-to-clipboard buttons for Bridge RTMP URLs
+    - One-click copy for horizontal RTMP URL
+    - One-click copy for vertical RTMP URL
+  - Organized sub-groups within sections
+    - Server Configuration and Connection Status
+    - Bridge Configuration and Bridge Status
+    - Profile Management, Actions, and Details
+    - Better visual hierarchy and information grouping
+
 - **OBS Integration Improvements**
   - Hotkey support for quick profile control
     - Start/Stop all profiles via keyboard shortcuts
@@ -63,12 +115,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Dynamic field visibility (custom RTMP vs regular services)
 
 ### Technical Details
+- **New Files Created:**
+  - `cmake/BuildJanssonUniversal.cmake` - Universal binary build script for jansson
+  - `src/collapsible-section.h` and `src/collapsible-section.cpp` - Custom Qt widget for collapsible sections
+  - `src/obs-theme-utils.h` and `src/obs-theme-utils.cpp` - OBS theme integration utilities
+  - `BUILD_MATRIX.md` - Comprehensive build matrix documentation
+  - `THEME_AUDIT.md` - Theme system audit and migration plan
 - Added `obs-service-loader.h` and `obs-service-loader.cpp` for OBS service integration
 - Loads services from `/Applications/OBS.app/Contents/PlugIns/rtmp-services.plugin/Contents/Resources/services.json` (macOS)
 - Parses service name, servers, stream key links, and supported codecs
 - Hotkeys registered via `obs_hotkey_register_frontend()`
 - Tools menu items added via `obs_frontend_add_tools_menu_item()`
 - Pre-load callback registered via `obs_frontend_add_preload_callback()`
+- CollapsibleSection uses QPropertyAnimation for smooth transitions
+- Theme utilities use `obs_frontend_get_current_theme()` for theme detection
+- Dynamic section title updates triggered on state changes
 
 - **Core Features**
   - Full datarhei Restreamer API integration (v3)

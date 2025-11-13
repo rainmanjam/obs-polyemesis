@@ -96,6 +96,9 @@ sequenceDiagram
 - 🎯 **Service-Specific Routing**: Pre-configured for Twitch, YouTube, TikTok, Instagram, and more
 - 📊 **Real-time Monitoring**: CPU, memory, uptime, and session tracking
 - ⚡ **Smart Transcoding**: Automatic video conversion between orientations
+- 🎨 **Native OBS Theme Integration**: Seamlessly matches all 6 OBS themes (Yami, Grey, Acri, Dark, Rachni, Light)
+- 📱 **Modern Collapsible UI**: Clean, organized interface with collapsible sections and quick action buttons
+- 🌍 **Cross-Platform**: Universal binaries for macOS (Intel + Apple Silicon), Windows x64, Linux x64/ARM64
 
 ## 🚀 Quick Start
 
@@ -105,13 +108,15 @@ sequenceDiagram
 
 Download the latest release for your platform from the [Releases page](https://github.com/rainmanjam/obs-polyemesis/releases):
 
-**macOS** (Apple Silicon, arm64 only)
+**macOS** (Universal Binary - Apple Silicon + Intel)
 ```bash
-# Download obs-polyemesis-X.X.X-macos.pkg
+# Download obs-polyemesis-X.X.X-macos-universal.pkg
 # Right-click → Open (or double-click)
 # If blocked: System Settings → Privacy & Security → "Open Anyway"
 ```
 > ⚠️ **Note**: Packages are unsigned. The plugin installs to `~/Library/Application Support/obs-studio/plugins/`
+>
+> ✨ **Universal Binary**: Single installer works on both Intel and Apple Silicon Macs
 
 **Windows** (x64)
 ```bash
@@ -121,8 +126,11 @@ Download the latest release for your platform from the [Releases page](https://g
 
 **Linux** (Ubuntu/Debian)
 ```bash
-# Download obs-polyemesis_X.X.X_amd64.deb
+# x86_64
 sudo dpkg -i obs-polyemesis_X.X.X_amd64.deb
+
+# ARM64 (Raspberry Pi, ARM servers)
+sudo dpkg -i obs-polyemesis_X.X.X_arm64.deb
 ```
 
 #### Build from Source
