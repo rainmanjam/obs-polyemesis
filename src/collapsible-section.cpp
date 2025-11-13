@@ -181,6 +181,11 @@ void CollapsibleSection::addHeaderButton(QPushButton *button)
   }
 }
 
+void CollapsibleSection::setTitle(const QString &title)
+{
+  m_titleLabel->setText(title);
+}
+
 void CollapsibleSection::setStatePersistent(bool persistent, const QString &key)
 {
   m_statePersistent = persistent;

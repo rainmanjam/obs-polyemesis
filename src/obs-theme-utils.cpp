@@ -89,28 +89,15 @@ QColor obs_theme_get_muted_color()
 
 /*
  * Get the current OBS theme name
- * Returns one of: Yami, Grey, Acri, Dark, Rachni, Light, or "Unknown"
+ * Returns "Dark" or "Light" based on palette detection
+ * Note: OBS doesn't expose theme name via API, so we detect based on colors
  */
 QString obs_theme_get_name()
 {
-  const char *theme = obs_frontend_get_current_theme();
-  if (theme) {
-    QString themeName = QString::fromUtf8(theme);
-
-    /* Extract theme name from path if needed */
-    /* OBS returns paths like "Dark.qss" or full paths */
-    if (themeName.contains(".qss")) {
-      int lastSlash = themeName.lastIndexOf('/');
-      if (lastSlash >= 0) {
-        themeName = themeName.mid(lastSlash + 1);
-      }
-      themeName = themeName.replace(".qss", "");
-    }
-
-    return themeName;
-  }
-
-  return "Unknown";
+  /* Simplified implementation: detect dark vs light theme from palette */
+  bool isDark = obs_theme_is_dark();
+  QString themeName = isDark ? "Dark" : "Light";
+  return themeName;
 }
 
 /*

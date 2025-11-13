@@ -46,6 +46,9 @@ public:
   /* Add an action button to the header (right-aligned) */
   void addHeaderButton(QPushButton *button);
 
+  /* Update section title (useful for adding status indicators) */
+  void setTitle(const QString &title);
+
   /* Enable/disable state persistence (save/restore collapsed state) */
   void setStatePersistent(bool persistent, const QString &key = QString());
 

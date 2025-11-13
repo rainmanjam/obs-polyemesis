@@ -9,14 +9,12 @@
 #include <QPalette>
 #include <QString>
 
-#ifdef __cplusplus
-extern "C" {
-#endif
-
 /*
  * Get semantic colors that adapt to the active OBS theme
  * These colors work across all 6 OBS themes: Yami, Grey, Acri, Dark, Rachni, Light
  */
+
+#ifdef __cplusplus
 
 /* Success indicator color (typically green) */
 QColor obs_theme_get_success_color();
@@ -38,6 +36,12 @@ QString obs_theme_get_name();
 
 /* Check if current theme is dark (vs light) */
 bool obs_theme_is_dark();
+
+#endif
+
+#ifdef __cplusplus
+extern "C" {
+#endif
 
 /*
  * Initialize theme utilities

@@ -358,8 +358,9 @@ void RestreamerDock::setupUI() {
   connectionHelpLabel->setAlignment(Qt::AlignCenter);
   connectionTabLayout->addWidget(connectionHelpLabel);
 
-  QGroupBox *connectionGroup = new QGroupBox("Server Connection");
-  QVBoxLayout *connectionLayout = new QVBoxLayout();
+  /* ===== Sub-group 1: Server Configuration ===== */
+  QGroupBox *serverConfigGroup = new QGroupBox("Server Configuration");
+  QVBoxLayout *serverConfigLayout = new QVBoxLayout();
 
   /* Center all form fields */
   QFormLayout *connectionFormLayout = new QFormLayout();
@@ -399,7 +400,13 @@ void RestreamerDock::setupUI() {
   connectionFormLayout->addRow("Username:", usernameEdit);
   connectionFormLayout->addRow("Password:", passwordEdit);
 
-  connectionLayout->addLayout(connectionFormLayout);
+  serverConfigLayout->addLayout(connectionFormLayout);
+  serverConfigGroup->setLayout(serverConfigLayout);
+  connectionTabLayout->addWidget(serverConfigGroup);
+
+  /* ===== Sub-group 2: Connection Status ===== */
+  QGroupBox *connectionStatusGroup = new QGroupBox("Connection Status");
+  QVBoxLayout *connectionStatusLayout = new QVBoxLayout();
 
   /* Center the button and status */
   QHBoxLayout *connectionButtonLayout = new QHBoxLayout();
@@ -416,14 +423,22 @@ void RestreamerDock::setupUI() {
   connect(testConnectionButton, &QPushButton::clicked, this,
           &RestreamerDock::onTestConnectionClicked);
 
-  connectionLayout->addLayout(connectionButtonLayout);
-  connectionGroup->setLayout(connectionLayout);
-  connectionTabLayout->addWidget(connectionGroup);
+  connectionStatusLayout->addLayout(connectionButtonLayout);
+  connectionStatusGroup->setLayout(connectionStatusLayout);
+  connectionTabLayout->addWidget(connectionStatusGroup);
 
   connectionTabLayout->addStretch();
 
   /* Add Connection tab to collapsible section */
-  CollapsibleSection *connectionSection = new CollapsibleSection("Connection");
+  connectionSection = new CollapsibleSection("Connection");
+
+  /* Add quick action button to Connection header */
+  QPushButton *quickTestConnectionButton = new QPushButton("Test");
+  quickTestConnectionButton->setMaximumWidth(60);
+  quickTestConnectionButton->setToolTip("Test connection to Restreamer server");
+  connect(quickTestConnectionButton, &QPushButton::clicked, this, &RestreamerDock::onTestConnectionClicked);
+  connectionSection->addHeaderButton(quickTestConnectionButton);
+
   connectionSection->setContent(connectionTab);
   connectionSection->setExpanded(true, false);  /* Expanded by default */
   verticalLayout->addWidget(connectionSection);
@@ -437,8 +452,9 @@ void RestreamerDock::setupUI() {
   bridgeHelpLabel->setAlignment(Qt::AlignCenter);
   bridgeTabLayout->addWidget(bridgeHelpLabel);
 
-  QGroupBox *bridgeGroup = new QGroupBox("Bridge Configuration");
-  QVBoxLayout *bridgeLayout = new QVBoxLayout();
+  /* ===== Sub-group 1: Bridge Configuration ===== */
+  QGroupBox *bridgeConfigGroup = new QGroupBox("Bridge Configuration");
+  QVBoxLayout *bridgeConfigLayout = new QVBoxLayout();
 
   /* Center all form fields */
   QFormLayout *bridgeFormLayout = new QFormLayout();
@@ -464,32 +480,53 @@ void RestreamerDock::setupUI() {
   bridgeFormLayout->addRow("Vertical RTMP URL:", bridgeVerticalUrlEdit);
   bridgeFormLayout->addRow("Auto-start on stream:", bridgeAutoStartCheckbox);
 
-  bridgeLayout->addLayout(bridgeFormLayout);
+  bridgeConfigLayout->addLayout(bridgeFormLayout);
 
-  /* Center the button and status */
+  /* Center the save button */
+  QHBoxLayout *bridgeSaveButtonLayout = new QHBoxLayout();
+  bridgeSaveButtonLayout->addStretch();
   saveBridgeSettingsButton = new QPushButton("Save Settings");
   saveBridgeSettingsButton->setMinimumWidth(150);
   saveBridgeSettingsButton->setToolTip("Save bridge configuration");
   connect(saveBridgeSettingsButton, &QPushButton::clicked, this,
           &RestreamerDock::onSaveBridgeSettingsClicked);
+  bridgeSaveButtonLayout->addWidget(saveBridgeSettingsButton);
+  bridgeSaveButtonLayout->addStretch();
+
+  bridgeConfigLayout->addLayout(bridgeSaveButtonLayout);
+  bridgeConfigGroup->setLayout(bridgeConfigLayout);
+  bridgeTabLayout->addWidget(bridgeConfigGroup);
+
+  /* ===== Sub-group 2: Bridge Status ===== */
+  QGroupBox *bridgeStatusGroup = new QGroupBox("Bridge Status");
+  QVBoxLayout *bridgeStatusLayout = new QVBoxLayout();
 
   bridgeStatusLabel = new QLabel("● Bridge idle");
   bridgeStatusLabel->setStyleSheet(QString("QLabel { color: %1; }").arg(obs_theme_get_muted_color().name()));
+  bridgeStatusLabel->setAlignment(Qt::AlignCenter);
 
-  QHBoxLayout *bridgeButtonLayout = new QHBoxLayout();
-  bridgeButtonLayout->addStretch();
-  bridgeButtonLayout->addWidget(saveBridgeSettingsButton);
-  bridgeButtonLayout->addWidget(bridgeStatusLabel);
-  bridgeButtonLayout->addStretch();
-
-  bridgeLayout->addLayout(bridgeButtonLayout);
-  bridgeGroup->setLayout(bridgeLayout);
-  bridgeTabLayout->addWidget(bridgeGroup);
+  bridgeStatusLayout->addWidget(bridgeStatusLabel);
+  bridgeStatusGroup->setLayout(bridgeStatusLayout);
+  bridgeTabLayout->addWidget(bridgeStatusGroup);
 
   bridgeTabLayout->addStretch();
 
   /* Add Bridge tab to collapsible section */
-  CollapsibleSection *bridgeSection = new CollapsibleSection("Bridge");
+  bridgeSection = new CollapsibleSection("Bridge");
+
+  /* Add quick action toggle to Bridge header */
+  QPushButton *quickBridgeToggleButton = new QPushButton("Enable");
+  quickBridgeToggleButton->setMaximumWidth(70);
+  quickBridgeToggleButton->setCheckable(true);
+  quickBridgeToggleButton->setToolTip("Toggle bridge auto-start");
+  quickBridgeToggleButton->setChecked(bridgeAutoStartCheckbox->isChecked());
+  connect(quickBridgeToggleButton, &QPushButton::toggled, this, [this, quickBridgeToggleButton](bool checked) {
+    bridgeAutoStartCheckbox->setChecked(checked);
+    quickBridgeToggleButton->setText(checked ? "Disable" : "Enable");
+    onSaveBridgeSettingsClicked();
+  });
+  bridgeSection->addHeaderButton(quickBridgeToggleButton);
+
   bridgeSection->setContent(bridgeTab);
   bridgeSection->setExpanded(false, false);  /* Collapsed by default */
   verticalLayout->addWidget(bridgeSection);
@@ -503,9 +540,9 @@ void RestreamerDock::setupUI() {
   profilesHelpLabel->setAlignment(Qt::AlignCenter);
   profilesTabLayout->addWidget(profilesHelpLabel);
 
-  /* Wrap profile controls in group box for consistency */
-  QGroupBox *profilesGroup = new QGroupBox("Output Profiles");
-  QVBoxLayout *profilesGroupLayout = new QVBoxLayout();
+  /* ===== Sub-group 1: Profile Management ===== */
+  QGroupBox *profileManagementGroup = new QGroupBox("Profile Management");
+  QVBoxLayout *profileManagementLayout = new QVBoxLayout();
 
   /* Profile list */
   profileListWidget = new QListWidget();
@@ -516,11 +553,8 @@ void RestreamerDock::setupUI() {
   connect(profileListWidget, &QListWidget::customContextMenuRequested, this,
           &RestreamerDock::onProfileListContextMenu);
 
-  /* Profile buttons - Use QGridLayout for even spacing */
-  QGridLayout *profileButtonsGrid = new QGridLayout();
-  profileButtonsGrid->setHorizontalSpacing(6);
-  profileButtonsGrid->setVerticalSpacing(6);
-  profileButtonsGrid->setContentsMargins(0, 0, 0, 0);
+  /* Profile management buttons */
+  QHBoxLayout *profileManagementButtons = new QHBoxLayout();
 
   createProfileButton = new QPushButton("+ New");
   createProfileButton->setToolTip("Create new streaming profile");
@@ -529,37 +563,17 @@ void RestreamerDock::setupUI() {
   configureProfileButton = new QPushButton("Edit");
   configureProfileButton->setToolTip("Configure profile destinations");
   configureProfileButton->setFixedWidth(75);
+  configureProfileButton->setEnabled(false);
 
   duplicateProfileButton = new QPushButton("Copy");
   duplicateProfileButton->setToolTip("Duplicate selected profile");
   duplicateProfileButton->setFixedWidth(75);
+  duplicateProfileButton->setEnabled(false);
 
   deleteProfileButton = new QPushButton("Delete");
   deleteProfileButton->setToolTip("Delete selected profile");
   deleteProfileButton->setFixedWidth(75);
-
-  startProfileButton = new QPushButton("▶ Start");
-  startProfileButton->setToolTip("Start selected profile");
-  startProfileButton->setFixedWidth(75);
-
-  stopProfileButton = new QPushButton("■ Stop");
-  stopProfileButton->setToolTip("Stop selected profile");
-  stopProfileButton->setFixedWidth(75);
-
-  startAllProfilesButton = new QPushButton("▶ All");
-  startAllProfilesButton->setToolTip("Start all profiles");
-  startAllProfilesButton->setFixedWidth(75);
-
-  stopAllProfilesButton = new QPushButton("■ All");
-  stopAllProfilesButton->setToolTip("Stop all profiles");
-  stopAllProfilesButton->setFixedWidth(75);
-
   deleteProfileButton->setEnabled(false);
-  duplicateProfileButton->setEnabled(false);
-  configureProfileButton->setEnabled(false);
-  startProfileButton->setEnabled(false);
-  stopProfileButton->setEnabled(false);
-  stopAllProfilesButton->setEnabled(false);
 
   connect(createProfileButton, &QPushButton::clicked, this,
           &RestreamerDock::onCreateProfileClicked);
@@ -569,6 +583,42 @@ void RestreamerDock::setupUI() {
           &RestreamerDock::onDuplicateProfileClicked);
   connect(configureProfileButton, &QPushButton::clicked, this,
           &RestreamerDock::onConfigureProfileClicked);
+
+  profileManagementButtons->addStretch();
+  profileManagementButtons->addWidget(createProfileButton);
+  profileManagementButtons->addWidget(configureProfileButton);
+  profileManagementButtons->addWidget(duplicateProfileButton);
+  profileManagementButtons->addWidget(deleteProfileButton);
+  profileManagementButtons->addStretch();
+
+  profileManagementLayout->addWidget(profileListWidget);
+  profileManagementLayout->addLayout(profileManagementButtons);
+  profileManagementGroup->setLayout(profileManagementLayout);
+  profilesTabLayout->addWidget(profileManagementGroup);
+
+  /* ===== Sub-group 2: Profile Actions ===== */
+  QGroupBox *profileActionsGroup = new QGroupBox("Profile Actions");
+  QHBoxLayout *profileActionsLayout = new QHBoxLayout();
+
+  startProfileButton = new QPushButton("▶ Start");
+  startProfileButton->setToolTip("Start selected profile");
+  startProfileButton->setFixedWidth(75);
+  startProfileButton->setEnabled(false);
+
+  stopProfileButton = new QPushButton("■ Stop");
+  stopProfileButton->setToolTip("Stop selected profile");
+  stopProfileButton->setFixedWidth(75);
+  stopProfileButton->setEnabled(false);
+
+  startAllProfilesButton = new QPushButton("▶ All");
+  startAllProfilesButton->setToolTip("Start all profiles");
+  startAllProfilesButton->setFixedWidth(75);
+
+  stopAllProfilesButton = new QPushButton("■ All");
+  stopAllProfilesButton->setToolTip("Stop all profiles");
+  stopAllProfilesButton->setFixedWidth(75);
+  stopAllProfilesButton->setEnabled(false);
+
   connect(startProfileButton, &QPushButton::clicked, this,
           &RestreamerDock::onStartProfileClicked);
   connect(stopProfileButton, &QPushButton::clicked, this,
@@ -578,19 +628,19 @@ void RestreamerDock::setupUI() {
   connect(stopAllProfilesButton, &QPushButton::clicked, this,
           &RestreamerDock::onStopAllProfilesClicked);
 
-  /* Row 0: Manage buttons */
-  profileButtonsGrid->addWidget(createProfileButton, 0, 0);
-  profileButtonsGrid->addWidget(configureProfileButton, 0, 1);
-  profileButtonsGrid->addWidget(duplicateProfileButton, 0, 2);
-  profileButtonsGrid->addWidget(deleteProfileButton, 0, 3);
+  profileActionsLayout->addStretch();
+  profileActionsLayout->addWidget(startProfileButton);
+  profileActionsLayout->addWidget(stopProfileButton);
+  profileActionsLayout->addWidget(startAllProfilesButton);
+  profileActionsLayout->addWidget(stopAllProfilesButton);
+  profileActionsLayout->addStretch();
 
-  /* Row 1: Control buttons */
-  profileButtonsGrid->addWidget(startProfileButton, 1, 0);
-  profileButtonsGrid->addWidget(stopProfileButton, 1, 1);
-  profileButtonsGrid->addWidget(startAllProfilesButton, 1, 2);
-  profileButtonsGrid->addWidget(stopAllProfilesButton, 1, 3);
+  profileActionsGroup->setLayout(profileActionsLayout);
+  profilesTabLayout->addWidget(profileActionsGroup);
 
-  /* Center the buttons - no column stretch needed */
+  /* ===== Sub-group 3: Profile Details ===== */
+  QGroupBox *profileDetailsGroup = new QGroupBox("Profile Details");
+  QVBoxLayout *profileDetailsLayout = new QVBoxLayout();
 
   /* Profile status label */
   profileStatusLabel = new QLabel("No profiles");
@@ -604,23 +654,55 @@ void RestreamerDock::setupUI() {
   profileDestinationsTable->horizontalHeader()->setStretchLastSection(true);
   profileDestinationsTable->setMaximumHeight(150);
 
-  /* Wrap buttons grid in horizontal layout to center it */
-  QHBoxLayout *profileButtonsCentered = new QHBoxLayout();
-  profileButtonsCentered->addStretch();
-  profileButtonsCentered->addLayout(profileButtonsGrid);
-  profileButtonsCentered->addStretch();
+  profileDetailsLayout->addWidget(profileStatusLabel);
+  profileDetailsLayout->addWidget(profileDestinationsTable);
+  profileDetailsGroup->setLayout(profileDetailsLayout);
+  profilesTabLayout->addWidget(profileDetailsGroup);
 
-  profilesGroupLayout->addWidget(profileListWidget);
-  profilesGroupLayout->addLayout(profileButtonsCentered);
-  profilesGroupLayout->addWidget(profileStatusLabel);
-  profilesGroupLayout->addWidget(profileDestinationsTable);
-
-  profilesGroup->setLayout(profilesGroupLayout);
-  profilesTabLayout->addWidget(profilesGroup);
   profilesTabLayout->addStretch();
 
   /* Add Profiles tab to collapsible section */
-  CollapsibleSection *profilesSection = new CollapsibleSection("Profiles");
+  profilesSection = new CollapsibleSection("Profiles");
+
+  /* Add quick action toggle to Profiles header */
+  quickProfileToggleButton = new QPushButton("Start");
+  quickProfileToggleButton->setMaximumWidth(60);
+  quickProfileToggleButton->setToolTip("Start/Stop selected profile");
+  quickProfileToggleButton->setEnabled(false);  /* Disabled until profile is selected */
+  connect(quickProfileToggleButton, &QPushButton::clicked, this, [this]() {
+    if (!profileListWidget->currentItem()) {
+      return;
+    }
+
+    QString profileId = profileListWidget->currentItem()->data(Qt::UserRole).toString();
+    output_profile_t *profile = profile_manager_get_profile(profileManager, profileId.toUtf8().constData());
+
+    if (!profile) {
+      return;
+    }
+
+    if (profile->status == PROFILE_STATUS_ACTIVE || profile->status == PROFILE_STATUS_STARTING) {
+      onStopProfileClicked();
+    } else {
+      onStartProfileClicked();
+    }
+  });
+
+  /* Connect to profile selection to update button state */
+  connect(profileListWidget, &QListWidget::currentRowChanged, this, [this](int row) {
+    quickProfileToggleButton->setEnabled(row >= 0);
+    if (row >= 0 && profileListWidget->currentItem()) {
+      QString profileId = profileListWidget->currentItem()->data(Qt::UserRole).toString();
+      output_profile_t *profile = profile_manager_get_profile(profileManager, profileId.toUtf8().constData());
+      if (profile) {
+        bool isActive = (profile->status == PROFILE_STATUS_ACTIVE || profile->status == PROFILE_STATUS_STARTING);
+        quickProfileToggleButton->setText(isActive ? "Stop" : "Start");
+      }
+    }
+  });
+
+  profilesSection->addHeaderButton(quickProfileToggleButton);
+
   profilesSection->setContent(profilesTab);
   profilesSection->setExpanded(true, false);  /* Expanded by default */
   verticalLayout->addWidget(profilesSection);
@@ -634,9 +716,9 @@ void RestreamerDock::setupUI() {
   monitoringHelpLabel->setAlignment(Qt::AlignCenter);
   monitoringTabLayout->addWidget(monitoringHelpLabel);
 
-  /* Process List Group */
-  QGroupBox *processGroup = new QGroupBox("Active Processes");
-  QVBoxLayout *processLayout = new QVBoxLayout();
+  /* ===== Sub-group 1: Process Information ===== */
+  QGroupBox *processInfoGroup = new QGroupBox("Process Information");
+  QVBoxLayout *processInfoLayout = new QVBoxLayout();
 
   processList = new QListWidget();
   processList->setMaximumHeight(80);
@@ -677,24 +759,24 @@ void RestreamerDock::setupUI() {
   processButtonLayout->addWidget(restartButton);
   processButtonLayout->addStretch();
 
-  processLayout->addWidget(processList);
-  processLayout->addLayout(processButtonLayout);
-  processGroup->setLayout(processLayout);
-  monitoringTabLayout->addWidget(processGroup);
+  processInfoLayout->addWidget(processList);
+  processInfoLayout->addLayout(processButtonLayout);
+  processInfoGroup->setLayout(processInfoLayout);
+  monitoringTabLayout->addWidget(processInfoGroup);
 
-  /* Process Details Group */
-  QGroupBox *detailsGroup = new QGroupBox("Process Details");
-  QVBoxLayout *detailsMainLayout = new QVBoxLayout();
+  /* ===== Sub-group 2: Performance Metrics ===== */
+  QGroupBox *metricsGroup = new QGroupBox("Performance Metrics");
+  QVBoxLayout *metricsMainLayout = new QVBoxLayout();
 
-  /* Two-column layout for process details */
-  QHBoxLayout *detailsColumnsLayout = new QHBoxLayout();
-  detailsColumnsLayout->addStretch();
+  /* Compact two-column layout for metrics */
+  QHBoxLayout *metricsColumnsLayout = new QHBoxLayout();
+  metricsColumnsLayout->addStretch();
 
-  /* Left column - Basic info */
-  QFormLayout *detailsLeftLayout = new QFormLayout();
-  detailsLeftLayout->setFieldGrowthPolicy(QFormLayout::ExpandingFieldsGrow);
-  detailsLeftLayout->setFormAlignment(Qt::AlignHCenter | Qt::AlignTop);
-  detailsLeftLayout->setLabelAlignment(Qt::AlignRight);
+  /* Left column - System metrics */
+  QFormLayout *metricsLeftLayout = new QFormLayout();
+  metricsLeftLayout->setFieldGrowthPolicy(QFormLayout::ExpandingFieldsGrow);
+  metricsLeftLayout->setFormAlignment(Qt::AlignHCenter | Qt::AlignTop);
+  metricsLeftLayout->setLabelAlignment(Qt::AlignRight);
 
   processIdLabel = new QLabel("-");
   processStateLabel = new QLabel("-");
@@ -702,17 +784,17 @@ void RestreamerDock::setupUI() {
   processCpuLabel = new QLabel("-");
   processMemoryLabel = new QLabel("-");
 
-  detailsLeftLayout->addRow("ID:", processIdLabel);
-  detailsLeftLayout->addRow("State:", processStateLabel);
-  detailsLeftLayout->addRow("Uptime:", processUptimeLabel);
-  detailsLeftLayout->addRow("CPU:", processCpuLabel);
-  detailsLeftLayout->addRow("Memory:", processMemoryLabel);
+  metricsLeftLayout->addRow("Process ID:", processIdLabel);
+  metricsLeftLayout->addRow("State:", processStateLabel);
+  metricsLeftLayout->addRow("Uptime:", processUptimeLabel);
+  metricsLeftLayout->addRow("CPU Usage:", processCpuLabel);
+  metricsLeftLayout->addRow("Memory:", processMemoryLabel);
 
-  /* Right column - Stream info */
-  QFormLayout *detailsRightLayout = new QFormLayout();
-  detailsRightLayout->setFieldGrowthPolicy(QFormLayout::ExpandingFieldsGrow);
-  detailsRightLayout->setFormAlignment(Qt::AlignHCenter | Qt::AlignTop);
-  detailsRightLayout->setLabelAlignment(Qt::AlignRight);
+  /* Right column - Stream metrics */
+  QFormLayout *metricsRightLayout = new QFormLayout();
+  metricsRightLayout->setFieldGrowthPolicy(QFormLayout::ExpandingFieldsGrow);
+  metricsRightLayout->setFormAlignment(Qt::AlignHCenter | Qt::AlignTop);
+  metricsRightLayout->setLabelAlignment(Qt::AlignRight);
 
   processFramesLabel = new QLabel("-");
   processDroppedFramesLabel = new QLabel("-");
@@ -720,40 +802,40 @@ void RestreamerDock::setupUI() {
   processBitrateLabel = new QLabel("-");
   processProgressLabel = new QLabel("-");
 
-  detailsRightLayout->addRow("Frames:", processFramesLabel);
-  detailsRightLayout->addRow("Dropped:", processDroppedFramesLabel);
-  detailsRightLayout->addRow("FPS:", processFpsLabel);
-  detailsRightLayout->addRow("Bitrate:", processBitrateLabel);
-  detailsRightLayout->addRow("Progress:", processProgressLabel);
+  metricsRightLayout->addRow("Frames:", processFramesLabel);
+  metricsRightLayout->addRow("Dropped:", processDroppedFramesLabel);
+  metricsRightLayout->addRow("FPS:", processFpsLabel);
+  metricsRightLayout->addRow("Bitrate:", processBitrateLabel);
+  metricsRightLayout->addRow("Progress:", processProgressLabel);
 
-  detailsColumnsLayout->addLayout(detailsLeftLayout);
-  detailsColumnsLayout->addLayout(detailsRightLayout);
-  detailsColumnsLayout->addStretch();
-  detailsMainLayout->addLayout(detailsColumnsLayout);
+  metricsColumnsLayout->addLayout(metricsLeftLayout);
+  metricsColumnsLayout->addLayout(metricsRightLayout);
+  metricsColumnsLayout->addStretch();
+  metricsMainLayout->addLayout(metricsColumnsLayout);
 
-  /* Action buttons for extended API features */
-  QHBoxLayout *extendedButtonLayout = new QHBoxLayout();
+  /* Compact action buttons */
+  QHBoxLayout *metricsButtonLayout = new QHBoxLayout();
   probeInputButton = new QPushButton("Probe Input");
   probeInputButton->setMinimumWidth(120);
   probeInputButton->setToolTip("Probe input stream details");
   viewMetricsButton = new QPushButton("View Metrics");
   viewMetricsButton->setMinimumWidth(120);
   viewMetricsButton->setToolTip("View performance metrics");
-  extendedButtonLayout->addStretch();
-  extendedButtonLayout->addWidget(probeInputButton);
-  extendedButtonLayout->addWidget(viewMetricsButton);
-  extendedButtonLayout->addStretch();
-  detailsMainLayout->addLayout(extendedButtonLayout);
+  metricsButtonLayout->addStretch();
+  metricsButtonLayout->addWidget(probeInputButton);
+  metricsButtonLayout->addWidget(viewMetricsButton);
+  metricsButtonLayout->addStretch();
+  metricsMainLayout->addLayout(metricsButtonLayout);
 
   connect(probeInputButton, &QPushButton::clicked, this,
           &RestreamerDock::onProbeInputClicked);
   connect(viewMetricsButton, &QPushButton::clicked, this,
           &RestreamerDock::onViewMetricsClicked);
 
-  detailsGroup->setLayout(detailsMainLayout);
-  monitoringTabLayout->addWidget(detailsGroup);
+  metricsGroup->setLayout(metricsMainLayout);
+  monitoringTabLayout->addWidget(metricsGroup);
 
-  /* Sessions Group */
+  /* ===== Sub-group 3: Active Sessions ===== */
   QGroupBox *sessionsGroup = new QGroupBox("Active Sessions");
   QVBoxLayout *sessionsLayout = new QVBoxLayout();
 
@@ -770,7 +852,7 @@ void RestreamerDock::setupUI() {
   monitoringTabLayout->addStretch();
 
   /* Add Monitoring tab to collapsible section */
-  CollapsibleSection *monitoringSection = new CollapsibleSection("Monitoring");
+  monitoringSection = new CollapsibleSection("Monitoring");
   monitoringSection->setContent(monitoringTab);
   monitoringSection->setExpanded(false, false);  /* Collapsed by default */
   verticalLayout->addWidget(monitoringSection);
@@ -814,7 +896,7 @@ void RestreamerDock::setupUI() {
   systemTabLayout->addStretch();
 
   /* Add System tab to collapsible section */
-  CollapsibleSection *systemSection = new CollapsibleSection("System");
+  systemSection = new CollapsibleSection("System");
   systemSection->setContent(systemTab);
   systemSection->setExpanded(false, false);  /* Collapsed by default */
   verticalLayout->addWidget(systemSection);
@@ -937,7 +1019,7 @@ void RestreamerDock::setupUI() {
   advancedTabLayout->addStretch();
 
   /* Add Advanced tab to collapsible section */
-  CollapsibleSection *advancedSection = new CollapsibleSection("Advanced");
+  advancedSection = new CollapsibleSection("Advanced");
   advancedSection->setContent(advancedTab);
   advancedSection->setExpanded(false, false);  /* Collapsed by default */
   verticalLayout->addWidget(advancedSection);
@@ -1097,16 +1179,19 @@ void RestreamerDock::onTestConnectionClicked() {
   if (!api) {
     connectionStatusLabel->setText("Failed to create API");
     connectionStatusLabel->setStyleSheet(QString("color: %1;").arg(obs_theme_get_error_color().name()));
+    updateConnectionSectionTitle();
     return;
   }
 
   if (restreamer_api_test_connection(api)) {
     connectionStatusLabel->setText("Connected");
     connectionStatusLabel->setStyleSheet(QString("color: %1;").arg(obs_theme_get_success_color().name()));
+    updateConnectionSectionTitle();
     onRefreshClicked();
   } else {
     connectionStatusLabel->setText("Connection failed");
     connectionStatusLabel->setStyleSheet(QString("color: %1;").arg(obs_theme_get_error_color().name()));
+    updateConnectionSectionTitle();
     QMessageBox::warning(
         this, "Connection Error",
         QString("Failed to connect: %1").arg(restreamer_api_get_error(api)));
@@ -1197,6 +1282,7 @@ void RestreamerDock::updateProcessDetails() {
   }
   processStateLabel->setText(stateText);
   processStateLabel->setStyleSheet(QString("QLabel { color: %1; font-weight: bold; }").arg(stateColor));
+  updateMonitoringSectionTitle();
 
   /* Format uptime */
   uint64_t hours = process.uptime_seconds / 3600;
@@ -1727,6 +1813,7 @@ void RestreamerDock::onSaveBridgeSettingsClicked() {
     bridgeStatusLabel->setText("● Auto-start disabled");
     bridgeStatusLabel->setStyleSheet(QString("QLabel { color: %1; }").arg(obs_theme_get_muted_color().name()));
   }
+  updateBridgeSectionTitle();
 }
 
 /* Profile Management Functions */
@@ -1736,6 +1823,7 @@ void RestreamerDock::updateProfileList() {
 
   if (!profileManager || profileManager->profile_count == 0) {
     profileStatusLabel->setText("No profiles");
+    updateProfilesSectionTitle();
     deleteProfileButton->setEnabled(false);
     duplicateProfileButton->setEnabled(false);
     configureProfileButton->setEnabled(false);
@@ -1785,6 +1873,7 @@ void RestreamerDock::updateProfileList() {
   /* Update status label */
   profileStatusLabel->setText(
       QString("%1 profile(s)").arg(profileManager->profile_count));
+  updateProfilesSectionTitle();
 
   /* Update button states */
   stopAllProfilesButton->setEnabled(hasActiveProfile);
@@ -1859,6 +1948,13 @@ void RestreamerDock::updateProfileDetails() {
   }
   profileStatusLabel->setText(statusText);
   profileStatusLabel->setStyleSheet(QString("QLabel { color: %1; font-weight: bold; }").arg(statusColor));
+  updateProfilesSectionTitle();
+
+  /* Update quick action toggle button text */
+  if (quickProfileToggleButton) {
+    bool isActive = (profile->status == PROFILE_STATUS_ACTIVE || profile->status == PROFILE_STATUS_STARTING);
+    quickProfileToggleButton->setText(isActive ? "Stop" : "Start");
+  }
 
   /* Update button states based on profile status */
   deleteProfileButton->setEnabled(profile->status == PROFILE_STATUS_INACTIVE);
@@ -3261,4 +3357,110 @@ void RestreamerDock::onViewSrtStreamsClicked() {
   streamsDialog.exec();
 
   bfree(streams_json);
+}
+
+/* ===== Section Title Update Helpers ===== */
+
+void RestreamerDock::updateConnectionSectionTitle()
+{
+  if (!connectionSection) {
+    return;
+  }
+
+  QString status = connectionStatusLabel->text();
+  QString title = "Connection";
+
+  if (status == "Connected") {
+    title = "Connection ● Connected";
+  } else if (status == "Connection failed" || status == "Failed to create API") {
+    title = "Connection ● Disconnected";
+  }
+
+  connectionSection->setTitle(title);
+}
+
+void RestreamerDock::updateBridgeSectionTitle()
+{
+  if (!bridgeSection) {
+    return;
+  }
+
+  QString status = bridgeStatusLabel->text();
+  QString title = "Bridge";
+
+  if (status.contains("Auto-start enabled")) {
+    title = "Bridge 🟢 Active";
+  } else if (status.contains("Auto-start disabled") || status.contains("idle")) {
+    title = "Bridge ⚫ Inactive";
+  }
+
+  bridgeSection->setTitle(title);
+}
+
+void RestreamerDock::updateProfilesSectionTitle()
+{
+  if (!profilesSection) {
+    return;
+  }
+
+  QString status = profileStatusLabel->text();
+  QString title = "Profiles";
+
+  /* If we have a selected profile, show its name and status */
+  if (profileListWidget && profileListWidget->currentItem()) {
+    QString profileName = profileListWidget->currentItem()->text();
+
+    if (status.contains("🟢")) {
+      title = QString("Profiles - %1 🟢 Active").arg(profileName);
+    } else if (status.contains("⚫")) {
+      title = QString("Profiles - %1 ⚫ Idle").arg(profileName);
+    } else {
+      title = QString("Profiles - %1").arg(profileName);
+    }
+  } else if (profileManager && profileManager->profile_count > 0) {
+    title = QString("Profiles (%1)").arg(profileManager->profile_count);
+  }
+
+  profilesSection->setTitle(title);
+}
+
+void RestreamerDock::updateMonitoringSectionTitle()
+{
+  if (!monitoringSection) {
+    return;
+  }
+
+  QString state = processStateLabel->text();
+  QString title = "Monitoring";
+
+  /* Check if we're monitoring an active process */
+  if (state.contains("running") || state.contains("online")) {
+    title = "Monitoring 🟢 Active";
+  } else if (state.contains("stopped") || state.contains("No process")) {
+    title = "Monitoring ⚫ Idle";
+  }
+
+  monitoringSection->setTitle(title);
+}
+
+void RestreamerDock::updateSystemSectionTitle()
+{
+  if (!systemSection) {
+    return;
+  }
+
+  /* For now, just show static title - can be enhanced later with server health */
+  QString title = "System";
+  systemSection->setTitle(title);
+}
+
+void RestreamerDock::updateAdvancedSectionTitle()
+{
+  if (!advancedSection) {
+    return;
+  }
+
+  /* For now, just show static title - can be enhanced later with debug mode indicator */
+  QString title = "Advanced";
+  advancedSection->setTitle(title);
 }

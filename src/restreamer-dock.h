@@ -26,6 +26,9 @@ extern "C" {
   typedef struct obs_bridge obs_bridge_t;
 }
 
+/* Forward declare Qt classes */
+class CollapsibleSection;
+
 class RestreamerDock : public QWidget {
   Q_OBJECT
 
@@ -179,4 +182,23 @@ private:
 
   /* OBS Service Loader */
   OBSServiceLoader *serviceLoader;
+
+  /* Collapsible Section References */
+  CollapsibleSection *connectionSection;
+  CollapsibleSection *bridgeSection;
+  CollapsibleSection *profilesSection;
+  CollapsibleSection *monitoringSection;
+  CollapsibleSection *systemSection;
+  CollapsibleSection *advancedSection;
+
+  /* Quick Action Button References */
+  QPushButton *quickProfileToggleButton;
+
+  /* Helper methods for section titles */
+  void updateConnectionSectionTitle();
+  void updateBridgeSectionTitle();
+  void updateProfilesSectionTitle();
+  void updateMonitoringSectionTitle();
+  void updateSystemSectionTitle();
+  void updateAdvancedSectionTitle();
 };
