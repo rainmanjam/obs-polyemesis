@@ -12,33 +12,25 @@ if(APPLE)
   file(MAKE_DIRECTORY ${CMAKE_BINARY_DIR}/external/jansson/install/include)
   file(MAKE_DIRECTORY ${CMAKE_BINARY_DIR}/external/jansson/install/lib)
 
-  # For Xcode generator, we need to use Ninja for ExternalProject
-  # to avoid issues with CMAKE_OSX_ARCHITECTURES
-  find_program(NINJA_EXECUTABLE ninja)
-  if(NINJA_EXECUTABLE)
-    set(JANSSON_GENERATOR "Ninja")
-  else()
-    set(JANSSON_GENERATOR "Unix Makefiles")
-  endif()
-
-  # Build jansson as universal binary for macOS
+  # Build jansson as universal binary for macOS using CMAKE_CACHE_ARGS
   ExternalProject_Add(
     jansson_external
     URL ${JANSSON_URL}
     URL_HASH SHA256=${JANSSON_HASH}
     PREFIX ${CMAKE_BINARY_DIR}/external/jansson
-    CMAKE_GENERATOR ${JANSSON_GENERATOR}
-    CMAKE_ARGS
-      -DCMAKE_INSTALL_PREFIX=${CMAKE_BINARY_DIR}/external/jansson/install
-      -DCMAKE_BUILD_TYPE=Release
-      "-DCMAKE_OSX_ARCHITECTURES=arm64;x86_64"
-      -DCMAKE_OSX_DEPLOYMENT_TARGET=${CMAKE_OSX_DEPLOYMENT_TARGET}
-      -DJANSSON_BUILD_DOCS=OFF
-      -DJANSSON_BUILD_SHARED_LIBS=OFF
-      -DJANSSON_EXAMPLES=OFF
-      -DJANSSON_WITHOUT_TESTS=ON
-    BUILD_COMMAND ${CMAKE_COMMAND} --build . --config Release
-    INSTALL_COMMAND ${CMAKE_COMMAND} --install . --config Release
+    CMAKE_GENERATOR "Unix Makefiles"
+    CMAKE_CACHE_ARGS
+      -DCMAKE_INSTALL_PREFIX:PATH=${CMAKE_BINARY_DIR}/external/jansson/install
+      -DCMAKE_BUILD_TYPE:STRING=Release
+      -DCMAKE_OSX_ARCHITECTURES:STRING=arm64;x86_64
+      -DCMAKE_OSX_DEPLOYMENT_TARGET:STRING=${CMAKE_OSX_DEPLOYMENT_TARGET}
+      -DCMAKE_POLICY_VERSION_MINIMUM:STRING=3.5
+      -DJANSSON_BUILD_DOCS:BOOL=OFF
+      -DJANSSON_BUILD_SHARED_LIBS:BOOL=OFF
+      -DJANSSON_EXAMPLES:BOOL=OFF
+      -DJANSSON_WITHOUT_TESTS:BOOL=ON
+    BUILD_COMMAND ${CMAKE_COMMAND} --build <BINARY_DIR> --config Release
+    INSTALL_COMMAND ${CMAKE_COMMAND} --install <BINARY_DIR> --config Release
     BUILD_BYPRODUCTS
       ${CMAKE_BINARY_DIR}/external/jansson/install/lib/libjansson.a
       ${CMAKE_BINARY_DIR}/external/jansson/install/include/jansson.h
