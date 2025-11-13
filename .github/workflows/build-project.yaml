@@ -254,10 +254,12 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: >-
-            ${{ steps.setup.outputs.pluginName }}-${{ steps.setup.outputs.pluginVersion }}-${{ matrix.os }}-${{ matrix.arch }}-${{
-            needs.check-event.outputs.commitHash }}
+            ${{ steps.setup.outputs.pluginName }}-${{
+            steps.setup.outputs.pluginVersion }}-${{ matrix.os }}-${{
+            matrix.arch }}-${{ needs.check-event.outputs.commitHash }}
           path: >-
-            ${{ github.workspace }}/release/${{ steps.setup.outputs.pluginName }}-${{
+            ${{ github.workspace }}/release/${{
+            steps.setup.outputs.pluginName }}-${{
             steps.setup.outputs.pluginVersion }}-${{ matrix.arch }}*.*
 
       - name: Upload debug symbol artifacts 🪲
@@ -265,8 +267,9 @@ jobs:
         if: ${{ fromJSON(needs.check-event.outputs.package) }}
         with:
           name: >-
-            ${{ steps.setup.outputs.pluginName }}-${{ steps.setup.outputs.pluginVersion }}-${{ matrix.os }}-${{ matrix.arch }}-${{
-            needs.check-event.outputs.commitHash }}-dbgsym
+            ${{ steps.setup.outputs.pluginName }}-${{
+            steps.setup.outputs.pluginVersion }}-${{ matrix.os }}-${{
+            matrix.arch }}-${{ needs.check-event.outputs.commitHash }}-dbgsym
           path: >-
             ${{ github.workspace }}/release/${{ steps.setup.outputs.pluginName }}-${{
             steps.setup.outputs.pluginVersion }}-${{ matrix.arch }}*-dbgsym.ddeb
