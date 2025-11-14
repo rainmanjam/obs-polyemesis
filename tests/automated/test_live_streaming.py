@@ -4,13 +4,10 @@ OBS Polyemesis - Live Streaming Tests
 Tests actual streaming to platforms (requires valid stream keys)
 """
 
-import json
 import os
 import sys
 import time
 import unittest
-from typing import Dict, Optional
-import requests
 from test_polyemesis import RestreamerClient
 
 

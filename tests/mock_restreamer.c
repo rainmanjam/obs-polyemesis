@@ -120,7 +120,7 @@ static void handle_request(socket_t client_fd, const char *request) {
 
   /* Parse request line */
   /* JWT Login endpoint */
-  if (strstr(request, "POST /api/login") != NULL || strstr(request, "POST /api/v3/login") != NULL) {
+  if (strstr(request, "POST /api/login ") != NULL || strstr(request, "POST /api/v3/login ") != NULL) {
     printf("[MOCK] -> Matched: POST /api/login\n");
     response = RESPONSE_LOGIN;
   } else if (strstr(request, "POST /api/refresh") != NULL || strstr(request, "POST /api/v3/refresh") != NULL) {

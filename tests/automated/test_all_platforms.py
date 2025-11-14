@@ -4,13 +4,10 @@ OBS Polyemesis - All Platforms Simultaneous Streaming Test
 Tests streaming to YouTube + Twitch + Kick + Instagram simultaneously
 """
 
-import json
 import os
 import sys
 import time
 import unittest
-from typing import Dict, Optional
-import requests
 from test_polyemesis import RestreamerClient
 
 
