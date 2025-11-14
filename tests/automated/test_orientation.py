@@ -46,6 +46,7 @@ class TestOrientationStreaming(unittest.TestCase):
                 time.sleep(2)
                 cls.client.delete_process(process_id)
             except Exception:
+                # Ignore cleanup errors - process may already be stopped/deleted
                 pass
 
     def test_01_horizontal_multistream_1min(self):

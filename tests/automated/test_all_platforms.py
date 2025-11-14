@@ -48,6 +48,7 @@ class TestAllPlatforms(unittest.TestCase):
                 time.sleep(2)
                 cls.client.delete_process(process_id)
             except Exception:
+                # Ignore cleanup errors - process may already be stopped/deleted
                 pass
 
     def test_all_platforms_simultaneous_2min(self):

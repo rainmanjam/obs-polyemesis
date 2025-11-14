@@ -74,6 +74,7 @@ def check_kick_logs():
             client.stop_process(process_id)
             client.delete_process(process_id)
         except Exception:
+            # Ignore cleanup errors - process may already be stopped
             pass
 
 if __name__ == '__main__':

@@ -114,6 +114,7 @@ def test_kick_only():
             client.stop_process(process_id)
             client.delete_process(process_id)
         except Exception:
+            # Ignore cleanup errors - process may already be stopped
             pass
         return 1
 

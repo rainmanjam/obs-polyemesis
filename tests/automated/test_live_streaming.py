@@ -43,6 +43,7 @@ class TestLiveStreaming(unittest.TestCase):
                 time.sleep(2)
                 cls.client.delete_process(process_id)
             except Exception:
+                # Ignore cleanup errors - process may already be stopped/deleted
                 pass
 
     def test_01_twitch_stream(self):

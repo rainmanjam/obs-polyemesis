@@ -58,6 +58,7 @@ class PerformanceMonitor:
                     'timestamp': time.time()
                 })
             except Exception:
+                # Ignore monitoring errors - continue collecting other samples
                 pass
             time.sleep(0.5)
 
@@ -80,6 +81,7 @@ class TestPerformance(unittest.TestCase):
             try:
                 cls.client.delete(f'/api/v3/process/{process_id}')
             except Exception:
+                # Ignore cleanup errors - process may already be deleted
                 pass
 
     def test_01_api_response_time(self):
