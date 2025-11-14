@@ -158,9 +158,9 @@ class TestProfileManagement(unittest.TestCase):
         for process_id in cls.test_profiles:
             try:
                 cls.client.delete_process(process_id)
-            except:
+            except Exception:
+                # Ignore cleanup errors - process may already be stopped/deleted
                 pass
-
     def test_01_create_profile(self):
         """Test 2.1: Create new streaming profile"""
         process_id = f"test_profile_{int(time.time())}"
@@ -267,9 +267,9 @@ class TestStreamControl(unittest.TestCase):
             cls.client.stop_process(cls.test_process_id)
             time.sleep(2)
             cls.client.delete_process(cls.test_process_id)
-        except:
+        except Exception:
+            # Ignore cleanup errors - process may already be stopped/deleted
             pass
-
     def test_01_start_process(self):
         """Test 3.1: Start streaming process"""
         result = self.client.start_process(self.test_process_id)
@@ -344,9 +344,9 @@ class TestErrorHandling(unittest.TestCase):
         # Cleanup
         try:
             self.client.delete_process(process_id)
-        except:
+        except Exception:
+            # Ignore cleanup errors - process may already be stopped/deleted
             pass
-
     def test_03_duplicate_process_id(self):
         """Test duplicate process ID rejection"""
         process_id = f"test_dup_{int(time.time())}"
@@ -377,10 +377,9 @@ class TestErrorHandling(unittest.TestCase):
         # Cleanup
         try:
             self.client.delete_process(process_id)
-        except:
+        except Exception:
+            # Ignore cleanup errors - process may already be stopped/deleted
             pass
-
-
 class TestPerformance(unittest.TestCase):
     """Test performance and load handling"""
 
@@ -399,13 +398,14 @@ class TestPerformance(unittest.TestCase):
         for process_id in cls.test_processes:
             try:
                 cls.client.stop_process(process_id)
-            except:
+            except Exception:
+                # Ignore cleanup errors - process may already be stopped/deleted
                 pass
             try:
                 cls.client.delete_process(process_id)
-            except:
+            except Exception:
+                # Ignore cleanup errors - process may already be stopped/deleted
                 pass
-
     def test_01_multiple_profiles(self):
         """Test 5.1: Multiple concurrent profiles"""
         num_profiles = 3

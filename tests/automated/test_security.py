@@ -46,9 +46,9 @@ class TestSecurity(unittest.TestCase):
                         # Look for plaintext passwords (very basic check)
                         if 'password=' in content.lower() or 'token=' in content.lower():
                             exposed_credentials.append(location)
-                except:
+                except Exception:
+                    # Ignore cleanup errors - process may already be stopped/deleted
                     pass
-
         if exposed_credentials:
             print(f"⚠️  WARNING: Potential plaintext credentials in: {exposed_credentials}")
             # This is a warning, not a failure (depends on implementation)
@@ -156,7 +156,7 @@ class TestSecurity(unittest.TestCase):
                 if response.status_code == 200:
                     print(f"✅ HTTPS is available at {https_url}")
                     print("ℹ️  Recommend using HTTPS in production")
-            except:
+            except Exception:
                 print("ℹ️  HTTPS not configured (acceptable for local testing)")
 
         self.assertTrue(True, "HTTPS check completed")
@@ -207,9 +207,9 @@ class TestSecurity(unittest.TestCase):
                         for pattern in sensitive_patterns:
                             if pattern in content:
                                 found_issues.append((log_path, pattern))
-                except:
+                except Exception:
+                    # Ignore cleanup errors - process may already be stopped/deleted
                     pass
-
         if found_issues:
             print(f"⚠️  WARNING: Potential sensitive data in logs: {found_issues}")
         else:

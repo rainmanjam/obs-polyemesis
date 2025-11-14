@@ -199,9 +199,9 @@ class TestPerformance(unittest.TestCase):
                 self.client.put(f'/api/v3/process/{process_id}/command', {
                     'command': 'start'
                 })
-            except:
+            except Exception:
+                # Ignore cleanup errors - process may already be stopped/deleted
                 pass
-
             time.sleep(0.5)
 
             # Stop
@@ -209,9 +209,9 @@ class TestPerformance(unittest.TestCase):
                 self.client.put(f'/api/v3/process/{process_id}/command', {
                     'command': 'stop'
                 })
-            except:
+            except Exception:
+                # Ignore cleanup errors - process may already be stopped/deleted
                 pass
-
             elapsed = time.time() - start_time
             timings.append(elapsed)
             print(f"✅ Cycle {i+1}/{cycles}: {elapsed:.2f}s")
@@ -294,7 +294,7 @@ class TestPerformance(unittest.TestCase):
             try:
                 self.client.get('/api/v3/about')
                 request_count += 1
-            except:
+            except Exception:
                 errors += 1
 
         elapsed = time.time() - start_time
