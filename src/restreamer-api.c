@@ -1086,12 +1086,12 @@ bool restreamer_api_get_output_encoding(restreamer_api_t *api,
   /* Extract encoding parameters */
   json_t *video_bitrate = json_object_get(root, "video_bitrate");
   if (json_is_integer(video_bitrate)) {
-    params->video_bitrate_kbps = json_integer_value(video_bitrate) / 1000;
+    params->video_bitrate_kbps = (int)(json_integer_value(video_bitrate) / 1000);
   }
 
   json_t *audio_bitrate = json_object_get(root, "audio_bitrate");
   if (json_is_integer(audio_bitrate)) {
-    params->audio_bitrate_kbps = json_integer_value(audio_bitrate) / 1000;
+    params->audio_bitrate_kbps = (int)(json_integer_value(audio_bitrate) / 1000);
   }
 
   json_t *resolution = json_object_get(root, "resolution");
@@ -1099,8 +1099,8 @@ bool restreamer_api_get_output_encoding(restreamer_api_t *api,
     json_t *width = json_object_get(resolution, "width");
     json_t *height = json_object_get(resolution, "height");
     if (json_is_integer(width) && json_is_integer(height)) {
-      params->width = json_integer_value(width);
-      params->height = json_integer_value(height);
+      params->width = (int)json_integer_value(width);
+      params->height = (int)json_integer_value(height);
     }
   }
 
@@ -1109,8 +1109,8 @@ bool restreamer_api_get_output_encoding(restreamer_api_t *api,
     json_t *num = json_object_get(fps, "num");
     json_t *den = json_object_get(fps, "den");
     if (json_is_integer(num) && json_is_integer(den)) {
-      params->fps_num = json_integer_value(num);
-      params->fps_den = json_integer_value(den);
+      params->fps_num = (int)json_integer_value(num);
+      params->fps_den = (int)json_integer_value(den);
     }
   }
 
