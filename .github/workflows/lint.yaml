@@ -158,4 +158,5 @@ jobs:
         with:
           check_filenames: true
           skip: .git,*.png,*.jpg,*.svg,build,*.lock,*.html
+          # yamllint disable-line rule:line-length
           ignore_words_list: SectionIn,Sie,Aktive,Stopp,Vertikal,Prozess,connexion,Mot,Processus,processus,invalide,Nome,Impossibile,Controle
