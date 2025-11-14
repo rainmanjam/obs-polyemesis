@@ -1,12 +1,14 @@
 # OBS Polyemesis - Restreamer Control Plugin
 
 [![License](https://img.shields.io/badge/license-GPL--2.0-blue.svg)](LICENSE)
+[![Version](https://img.shields.io/badge/version-0.9.0-blue.svg)](https://github.com/rainmanjam/obs-polyemesis/releases)
 [![OBS Studio](https://img.shields.io/badge/OBS%20Studio-28%2B-green.svg)](https://obsproject.com/)
+[![Restreamer](https://img.shields.io/badge/Restreamer-v16.16.0-orange.svg)](https://github.com/datarhei/restreamer)
 [![CI Pipeline](https://github.com/rainmanjam/obs-polyemesis/actions/workflows/ci.yaml/badge.svg)](https://github.com/rainmanjam/obs-polyemesis/actions/workflows/ci.yaml)
 [![Security](https://github.com/rainmanjam/obs-polyemesis/actions/workflows/security.yaml/badge.svg)](https://github.com/rainmanjam/obs-polyemesis/actions/workflows/security.yaml)
 [![CodeQL](https://github.com/rainmanjam/obs-polyemesis/actions/workflows/security.yaml/badge.svg?event=schedule)](https://github.com/rainmanjam/obs-polyemesis/security/code-scanning)
 
-A comprehensive OBS Studio plugin for controlling and monitoring [datarhei Restreamer](https://github.com/datarhei/restreamer) with advanced multistreaming capabilities including orientation-aware routing.
+A comprehensive OBS Studio plugin for controlling and monitoring [datarhei Restreamer](https://github.com/datarhei/restreamer) with advanced multistreaming capabilities, JWT authentication support, and orientation-aware routing for seamless multi-platform streaming.
 
 ### 🔄 Architecture Overview
 
@@ -89,16 +91,50 @@ sequenceDiagram
 
 ## ✨ Key Features
 
+### Core Functionality
 - 🎮 **Complete Restreamer Control**: Manage processes, monitor stats, view logs
+- 🔐 **JWT Authentication**: Secure API v3 authentication with automatic token refresh
 - 📺 **Multiple Plugin Types**: Source, Output, and Dock UI
 - 🌐 **Advanced Multistreaming**: Stream to multiple platforms simultaneously
-- 📱 **Orientation-Aware**: Automatically route horizontal/vertical streams correctly
-- 🎯 **Service-Specific Routing**: Pre-configured for Twitch, YouTube, TikTok, Instagram, and more
+- 📱 **Orientation-Aware Routing**: Automatically route horizontal (16:9) and vertical (9:16) streams correctly
+- 🎯 **Service-Specific Routing**: Pre-configured for Twitch, YouTube, TikTok, Instagram, Kick, and Facebook
 - 📊 **Real-time Monitoring**: CPU, memory, uptime, and session tracking
 - ⚡ **Smart Transcoding**: Automatic video conversion between orientations
+
+### User Interface
 - 🎨 **Native OBS Theme Integration**: Seamlessly matches all 6 OBS themes (Yami, Grey, Acri, Dark, Rachni, Light)
-- 📱 **Modern Collapsible UI**: Clean, organized interface with collapsible sections and quick action buttons
+- 📱 **Modern Tabbed UI**: Clean, organized interface with Connection, Profiles, and Multistream tabs
+- ⌨️ **Global Hotkeys**: Start/stop all profiles, control horizontal/vertical streams via keyboard shortcuts
+- 🛠️ **Tools Menu Integration**: Quick access to common actions from OBS Tools menu
+
+### Platform Support
 - 🌍 **Cross-Platform**: Universal binaries for macOS (Intel + Apple Silicon), Windows x64, Linux x64/ARM64
+- 🌐 **Internationalization**: 11 languages supported (English, Japanese, Korean, Chinese (Simplified & Traditional), Spanish, Portuguese, German, French, Russian, Italian)
+- 🔄 **Auto-Start Profiles**: Automatically start/stop streams when OBS starts streaming
+
+## 🆕 What's New in v0.9.0
+
+### Major Features
+- ✅ **Restreamer API v3 Support** with JWT authentication and automatic token refresh
+- ✅ **Modern Tabbed UI** - Reorganized interface with Connection, Profiles, and Multistream tabs
+- ✅ **Global Hotkeys** - Control streaming from anywhere (start/stop all, horizontal/vertical profiles)
+- ✅ **Tools Menu Integration** - Quick access from OBS Tools menu
+- ✅ **11-Language Support** - Internationalization infrastructure ready (AI-translated, community refinement welcome)
+- ✅ **Universal macOS Binary** - Single installer for both Intel and Apple Silicon
+
+### Technical Improvements
+- ✅ **Comprehensive Test Suite** - 56+ unit tests with 43% code coverage
+- ✅ **Automated CI/CD** - Full build, test, and security scan pipeline
+- ✅ **Code Quality** - clang-format, cppcheck, CodeQL, SonarCloud integration
+- ✅ **Memory Safety** - Valgrind testing and RAII wrappers for OBS objects
+- ✅ **Documentation** - Extensive developer and user documentation
+
+### Known Issues Fixed
+- ✅ Fixed CURL state management for HTTP method switching
+- ✅ Fixed Content-Length issues in mock server
+- ✅ Fixed Qt6 compatibility across all platforms
+- ✅ Fixed type conversion warnings on Windows and Ubuntu
+- ✅ Fixed memory management in API client
 
 ## 🚀 Quick Start
 
@@ -163,37 +199,35 @@ cmake --install build
 - **[User Guide](docs/USER_GUIDE.md)** - Installation, setup, and usage instructions
 - **[Building](docs/BUILDING.md)** - Build instructions for all platforms
 - **[Deployment Guide](docs/DEPLOYMENT_GUIDE.md)** - Deployment and distribution
-
-### Architecture & Design
-- **[Output Profiles](docs/architecture/OUTPUT_PROFILES.md)** - Multi-stream profile management
-- **[Cross-Platform Status](docs/architecture/CROSS_PLATFORM_STATUS.md)** - Platform compatibility
-
-### API Documentation
-- **[API Gap Analysis](docs/api/API_GAP_ANALYSIS.md)** - Restreamer Core API coverage
-- **[WebSocket API](docs/api/WEBSOCKET_API.md)** - WebSocket integration
-- **[Platform API Integration Plan](docs/api/PLATFORM_API_INTEGRATION_PLAN.md)** - Platform integration roadmap
-
-### Developer Documentation
-- **[Contributing](CONTRIBUTING.md)** - Development workflow and contribution guidelines
-- **[Plugin Documentation](docs/developer/PLUGIN_DOCUMENTATION.md)** - Feature descriptions and API reference
-- **[Code Style](docs/developer/CODE_STYLE.md)** - Coding standards
-- **[Apple Code Signing](docs/developer/APPLE_CODE_SIGNING_SETUP.md)** - macOS signing setup
-- **[ACT Testing](docs/developer/ACT_TESTING.md)** - Local CI/CD testing
-- **[Quality Assurance](docs/developer/QUALITY_ASSURANCE.md)** - QA processes
+- **[Release Notes](docs/RELEASE_NOTES.md)** - Version history and changes
+- **[Localization Guide](docs/LOCALIZATION.md)** - Translating the plugin (11 languages supported)
 
 ### Testing Documentation
-- **[Testing Plan](docs/testing/TESTING_PLAN.md)** - Comprehensive testing strategy
-- **[Test Results](docs/testing/TEST_RESULTS.md)** - Test execution results
-- **[Automation Analysis](docs/testing/AUTOMATION_ANALYSIS.md)** - Test automation capabilities
+- **[Comprehensive Testing Guide](docs/testing/COMPREHENSIVE_TESTING_GUIDE.md)** - Complete testing infrastructure and execution
+- **[Testing Summary](docs/testing/TESTING_SUMMARY.md)** - Test suite details (56+ unit tests)
+- **[Testing Plan](docs/testing/TESTING_PLAN.md)** - Testing strategy and coverage
+- **[Test Results](docs/testing/TEST_RESULTS.md)** - Historical test results and metrics
+
+### Developer Documentation
+- **[Contributing Guide](CONTRIBUTING.md)** - Development workflow and contribution guidelines
+- **[Plugin Documentation](docs/developer/PLUGIN_DOCUMENTATION.md)** - Feature descriptions and API reference
+- **[Code Style](docs/developer/CODE_STYLE.md)** - Coding standards and formatting
+- **[ACT Testing](docs/developer/ACT_TESTING.md)** - Local CI/CD testing with act
+- **[Quality Assurance](docs/developer/QUALITY_ASSURANCE.md)** - QA processes and checklists
+- **[Apple Code Signing](docs/developer/APPLE_CODE_SIGNING_SETUP.md)** - macOS signing and notarization
+
+### Architecture & API
+- **[Output Profiles](docs/architecture/OUTPUT_PROFILES.md)** - Multi-stream profile management architecture
+- **[Cross-Platform Status](docs/architecture/CROSS_PLATFORM_STATUS.md)** - Platform compatibility matrix
+- **[WebSocket API](docs/api/WEBSOCKET_API.md)** - WebSocket integration (planned)
+- **[API Gap Analysis](docs/api/API_GAP_ANALYSIS.md)** - Restreamer Core API v3 coverage
 
 ### CI/CD & Releases
 - **[CI/CD Workflow](docs/cicd/CICD_WORKFLOW.md)** - Pipeline architecture and automation
-- **[Quick Release Guide](docs/releases/QUICK_RELEASE_GUIDE.md)** - Release process
-- **[Release Summaries](docs/releases/)** - Version-specific release notes
+- **[Quick Release Guide](docs/releases/QUICK_RELEASE_GUIDE.md)** - Step-by-step release process
 
-### Planning & Compliance
-- **[Improvements Roadmap](docs/planning/IMPROVEMENTS.md)** - Future enhancements
-- **[Compliance Review](docs/compliance/COMPLIANCE_REVIEW.md)** - Security and compliance
+### Compliance & Security
+- **[Compliance Review](docs/compliance/COMPLIANCE_REVIEW.md)** - Security audit and compliance status
 
 ## 🎯 Use Cases
 
@@ -208,18 +242,25 @@ One OBS setup, multiple platforms, correct orientations - automatically.
 
 ## ⚠️ Known Limitations
 
-- **macOS**: Apple Silicon only (Intel Macs not supported in 0.9.0)
-- **macOS**: Unsigned packages show security warning (right-click → Open to install)
-- **Requires datarhei Restreamer instance** (tested with v16.16.0)
+- **macOS**: Unsigned packages show security warning on first launch
+  - **Workaround**: Right-click → Open, or System Settings → Privacy & Security → "Open Anyway"
+- **Requires datarhei Restreamer instance** running with API v3 support
+  - Tested with datarhei Restreamer v16.16.0
+  - API v3 required for JWT authentication
+- **WebSocket API**: Planned for future release (code prepared, headers pending)
+- **Localization**: All non-English translations are AI-generated and may need refinement
 
 ## 🛠️ Requirements
 
-- **OBS Studio**: 28.0 or later
-- **datarhei Restreamer**: Running instance (local or remote)
-- **Dependencies**:
-  - libcurl
-  - jansson
-  - Qt6
+- **OBS Studio**: 28.0 or later (tested with 31.1.1)
+- **datarhei Restreamer**: Running instance with API v3 support
+  - Minimum: v16.16.0 or later
+  - Can be local (localhost) or remote
+  - Must have JWT authentication enabled for secure connections
+- **Build Dependencies** (for source builds):
+  - libcurl (for HTTPS API communication)
+  - jansson (for JSON parsing)
+  - Qt6 (for UI components)
 
 ## 🤝 Contributing
 
