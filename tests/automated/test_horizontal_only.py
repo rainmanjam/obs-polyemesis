@@ -135,7 +135,7 @@ def test_horizontal_platforms():
         try:
             client.stop_process(process_id)
             client.delete_process(process_id)
-        except:
+        except Exception:
             pass
         return 1
 

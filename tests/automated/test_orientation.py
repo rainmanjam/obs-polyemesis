@@ -4,13 +4,10 @@ OBS Polyemesis - Orientation-Specific Streaming Tests
 Tests horizontal (landscape) and vertical (portrait) streaming
 """
 
-import json
 import os
 import sys
 import time
 import unittest
-from typing import Dict, Optional
-import requests
 from test_polyemesis import RestreamerClient
 
 
@@ -48,7 +45,7 @@ class TestOrientationStreaming(unittest.TestCase):
                 cls.client.stop_process(process_id)
                 time.sleep(2)
                 cls.client.delete_process(process_id)
-            except:
+            except Exception:
                 pass
 
     def test_01_horizontal_multistream_1min(self):

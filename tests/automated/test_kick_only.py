@@ -113,7 +113,7 @@ def test_kick_only():
         try:
             client.stop_process(process_id)
             client.delete_process(process_id)
-        except:
+        except Exception:
             pass
         return 1
 

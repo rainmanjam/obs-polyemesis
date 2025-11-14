@@ -5,11 +5,9 @@ Tests that verify streams actually reach Twitch/YouTube platforms
 """
 
 import os
-import sys
 import time
 import unittest
 import requests
-from typing import Optional, Dict
 
 
 class PlatformVerifier:

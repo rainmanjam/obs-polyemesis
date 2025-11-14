@@ -5,12 +5,10 @@ Benchmarks API performance, resource usage, and stress testing
 """
 
 import os
-import sys
 import time
 import psutil
 import unittest
 import threading
-from typing import List, Dict
 from test_polyemesis import RestreamerClient
 
 
@@ -59,7 +57,7 @@ class PerformanceMonitor:
                     'memory': psutil.virtual_memory().percent,
                     'timestamp': time.time()
                 })
-            except:
+            except Exception:
                 pass
             time.sleep(0.5)
 
@@ -81,7 +79,7 @@ class TestPerformance(unittest.TestCase):
         for process_id in cls.created_processes:
             try:
                 cls.client.delete(f'/api/v3/process/{process_id}')
-            except:
+            except Exception:
                 pass
 
     def test_01_api_response_time(self):

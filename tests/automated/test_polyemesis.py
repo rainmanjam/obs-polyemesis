@@ -4,12 +4,11 @@ OBS Polyemesis - Automated Test Suite
 Tests profile management, stream control, and API integration
 """
 
-import json
 import os
 import sys
 import time
 import unittest
-from typing import Dict, List, Optional
+from typing import Dict, List
 import requests
 from requests.auth import HTTPBasicAuth
 

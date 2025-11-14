@@ -47,7 +47,7 @@ class TestAllPlatforms(unittest.TestCase):
                 cls.client.stop_process(process_id)
                 time.sleep(2)
                 cls.client.delete_process(process_id)
-            except:
+            except Exception:
                 pass
 
     def test_all_platforms_simultaneous_2min(self):

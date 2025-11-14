@@ -5,11 +5,9 @@ Tests credential storage, API security, and injection vulnerabilities
 """
 
 import os
-import sys
 import time
 import unittest
 import requests
-from typing import Optional
 from test_polyemesis import RestreamerClient
 
 

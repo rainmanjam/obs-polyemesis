@@ -73,7 +73,7 @@ def check_kick_logs():
         try:
             client.stop_process(process_id)
             client.delete_process(process_id)
-        except:
+        except Exception:
             pass
 
 if __name__ == '__main__':
