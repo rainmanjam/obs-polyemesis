@@ -10,7 +10,7 @@
 #include <stdlib.h>
 #include <string.h>
 
-/* Test framework macros */
+/* Test framework macros and helpers */
 #define TEST_ASSERT(condition, message)                                        \
   do {                                                                         \
     if (!(condition)) {                                                        \
@@ -19,6 +19,43 @@
       return false;                                                            \
     }                                                                          \
   } while (0)
+
+/* Alias for consistency with new tests */
+#define test_assert(condition, message) TEST_ASSERT(condition, message)
+
+/* Test section markers (for readability) */
+static void test_section_start(const char *name) {
+  (void)name; /* Unused - reserved for future use */
+  /* Optional: could print section header */
+}
+
+static void test_section_end(const char *name) {
+  (void)name; /* Unused - reserved for future use */
+  /* Optional: could print section footer */
+}
+
+/* Test start/end markers */
+static void test_start(const char *name) {
+  printf("  Testing %s...\n", name);
+}
+
+static void test_end(void) {
+  /* Optional: could print test completion */
+}
+
+/* Test suite start/end */
+static void test_suite_start(const char *name) {
+  printf("\n%s\n", name);
+  printf("========================================\n");
+}
+
+static void test_suite_end(const char *name, bool result) {
+  if (result) {
+    printf("✓ %s: PASSED\n", name);
+  } else {
+    printf("✗ %s: FAILED\n", name);
+  }
+}
 
 #define TEST_ASSERT_EQUAL(expected, actual, message)                           \
   do {                                                                         \
@@ -70,6 +107,9 @@ static int tests_failed = 0;
 extern bool run_api_client_tests(void);
 extern bool run_config_tests(void);
 extern bool run_multistream_tests(void);
+extern bool run_output_profile_tests(void);
+extern bool run_source_tests(void);
+extern bool run_output_tests(void);
 
 /* Test runner */
 static bool run_test_suite(const char *name, bool (*suite_func)(void)) {
@@ -118,6 +158,18 @@ int main(int argc, char **argv) {
 
   if (!suite_filter || strcmp(suite_filter, "multistream") == 0) {
     run_test_suite("Multistream Tests", run_multistream_tests);
+  }
+
+  if (!suite_filter || strcmp(suite_filter, "profile") == 0) {
+    run_test_suite("Output Profile Tests", run_output_profile_tests);
+  }
+
+  if (!suite_filter || strcmp(suite_filter, "source") == 0) {
+    run_test_suite("Source Plugin Tests", run_source_tests);
+  }
+
+  if (!suite_filter || strcmp(suite_filter, "output") == 0) {
+    run_test_suite("Output Plugin Tests", run_output_tests);
   }
 
   /* Print summary */

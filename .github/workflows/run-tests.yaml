@@ -131,7 +131,8 @@ jobs:
             -DENABLE_TESTING=ON \
             -DENABLE_FRONTEND_API=OFF \
             -DENABLE_QT=OFF \
-            -DCMAKE_BUILD_TYPE=Release
+            -DENABLE_ASAN=ON \
+            -DCMAKE_BUILD_TYPE=RelWithDebInfo
           echo '::endgroup::'
 
       - name: Build Tests 🧱
@@ -149,7 +150,8 @@ jobs:
           if [[ "${RUNNER_DEBUG}" ]]; then set -x; fi
 
           echo '::group::Run Test Suite'
-          .build/linux/tests/obs-polyemesis-tests
+          # Disable leak detection for AddressSanitizer (focus on crashes/corruption)
+          ASAN_OPTIONS=detect_leaks=0 .build/linux/tests/obs-polyemesis-tests
           echo '::endgroup::'
 
       - name: Run Tests with CTest 📊
@@ -159,7 +161,8 @@ jobs:
 
           echo '::group::Run CTest'
           cd .build/linux
-          ctest --output-on-failure --verbose
+          # Disable leak detection for AddressSanitizer (focus on crashes/corruption)
+          ASAN_OPTIONS=detect_leaks=0 ctest --output-on-failure --verbose
           echo '::endgroup::'
 
   unit-tests-windows:
@@ -184,7 +187,8 @@ jobs:
           cmake -B .build/windows `
             -DENABLE_TESTING=ON `
             -DENABLE_FRONTEND_API=OFF `
-            -DENABLE_QT=OFF
+            -DENABLE_QT=OFF `
+            -DENABLE_ASAN=ON
           Write-Host '::endgroup::'
 
       - name: Build Tests 🧱

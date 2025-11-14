@@ -21,46 +21,65 @@ find_package(CURL REQUIRED)
 target_link_libraries(${CMAKE_PROJECT_NAME} PRIVATE CURL::libcurl)
 
 # Find jansson for JSON parsing - cross-platform approach
-# Try to find static library first for better portability
-find_package(PkgConfig QUIET)
-if(PKG_CONFIG_FOUND)
-  pkg_check_modules(JANSSON jansson)
-endif()
+# On macOS with universal binary, build jansson from source
+# Otherwise, try to find system jansson library
+if(APPLE AND CMAKE_OSX_ARCHITECTURES MATCHES ".*;.*")
+  # Building universal binary (multiple architectures)
+  message(STATUS "Building universal binary - will build jansson from source")
+  include(${CMAKE_CURRENT_SOURCE_DIR}/cmake/BuildJanssonUniversal.cmake)
 
-if(NOT JANSSON_FOUND)
-  # Fallback: try to find jansson via find_library
-  # Look for static library first, then shared
-  find_path(JANSSON_INCLUDE_DIR jansson.h)
-  find_library(JANSSON_LIBRARY NAMES libjansson.a jansson)
+  # BuildJanssonUniversal.cmake creates Jansson::Jansson target
+  target_link_libraries(${CMAKE_PROJECT_NAME} PRIVATE Jansson::Jansson)
+  set(JANSSON_FOUND TRUE)
+else()
+  # Standard jansson finding for single-architecture builds
+  # Try to find static library first for better portability
+  find_package(PkgConfig QUIET)
+  if(PKG_CONFIG_FOUND)
+    pkg_check_modules(JANSSON jansson)
+  endif()
 
-  if(JANSSON_INCLUDE_DIR AND JANSSON_LIBRARY)
-    set(JANSSON_FOUND TRUE)
-    set(JANSSON_LIBRARIES ${JANSSON_LIBRARY})
-    set(JANSSON_INCLUDE_DIRS ${JANSSON_INCLUDE_DIR})
-    
-    # Detect and report which variant was found
-    get_filename_component(JANSSON_LIB_NAME ${JANSSON_LIBRARY} NAME)
-    if(JANSSON_LIB_NAME MATCHES "\\.(a|lib)$")
-      message(STATUS "Found jansson (static): ${JANSSON_LIBRARY}")
-    else()
-      message(STATUS "Found jansson (shared): ${JANSSON_LIBRARY}")
+  if(NOT JANSSON_FOUND)
+    # Fallback: try to find jansson via find_library
+    # Look for static library first, then shared
+    find_path(JANSSON_INCLUDE_DIR jansson.h)
+    find_library(JANSSON_LIBRARY NAMES libjansson.a jansson)
+
+    if(JANSSON_INCLUDE_DIR AND JANSSON_LIBRARY)
+      set(JANSSON_FOUND TRUE)
+      set(JANSSON_LIBRARIES ${JANSSON_LIBRARY})
+      set(JANSSON_INCLUDE_DIRS ${JANSSON_INCLUDE_DIR})
+
+      # Detect and report which variant was found
+      get_filename_component(JANSSON_LIB_NAME ${JANSSON_LIBRARY} NAME)
+      if(JANSSON_LIB_NAME MATCHES "\\.(a|lib)$")
+        message(STATUS "Found jansson (static): ${JANSSON_LIBRARY}")
+      else()
+        message(STATUS "Found jansson (shared): ${JANSSON_LIBRARY}")
+      endif()
     endif()
   endif()
-endif()
 
-if(JANSSON_FOUND)
-  target_link_libraries(${CMAKE_PROJECT_NAME} PRIVATE ${JANSSON_LIBRARIES})
-  target_include_directories(${CMAKE_PROJECT_NAME} PRIVATE ${JANSSON_INCLUDE_DIRS})
-  if(JANSSON_LIBRARY_DIRS)
-    target_link_directories(${CMAKE_PROJECT_NAME} PRIVATE ${JANSSON_LIBRARY_DIRS})
+  if(JANSSON_FOUND)
+    target_link_libraries(${CMAKE_PROJECT_NAME} PRIVATE ${JANSSON_LIBRARIES})
+    target_include_directories(${CMAKE_PROJECT_NAME} PRIVATE ${JANSSON_INCLUDE_DIRS})
+    if(JANSSON_LIBRARY_DIRS)
+      target_link_directories(${CMAKE_PROJECT_NAME} PRIVATE ${JANSSON_LIBRARY_DIRS})
+    endif()
+  else()
+    message(FATAL_ERROR "jansson library not found. Please install jansson.")
   endif()
-else()
-  message(FATAL_ERROR "jansson library not found. Please install jansson.")
 endif()
 
 if(ENABLE_FRONTEND_API)
   find_package(obs-frontend-api REQUIRED)
   target_link_libraries(${CMAKE_PROJECT_NAME} PRIVATE OBS::obs-frontend-api)
+  target_sources(
+    ${CMAKE_PROJECT_NAME}
+    PRIVATE
+      src/obs-bridge.c
+      src/obs-bridge.h
+  )
 endif()
 
 if(ENABLE_QT)
@@ -128,7 +147,20 @@ target_sources(
 if(ENABLE_QT)
   target_sources(
     ${CMAKE_PROJECT_NAME}
-    PRIVATE src/restreamer-dock.cpp src/restreamer-dock.h src/restreamer-dock-bridge.cpp
+    PRIVATE
+      src/restreamer-dock.cpp
+      src/restreamer-dock.h
+      src/restreamer-dock-bridge.cpp
+      src/obs-service-loader.cpp
+      src/obs-service-loader.h
+      src/obs-theme-utils.cpp
+      src/obs-theme-utils.h
+      src/collapsible-section.cpp
+      src/collapsible-section.h
+      # Temporarily disabled - requires OBS WebSocket plugin headers
+      # src/websocket-api.cpp
+      # src/websocket-api.h
+      src/plugin-main.h
   )
 endif()
 

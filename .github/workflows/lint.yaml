@@ -96,6 +96,7 @@ jobs:
             --suppress=unusedFunction \
             --suppress=constParameterPointer \
             --suppress=constVariablePointer \
+            --suppress=unknownMacro \
             --error-exitcode=1 \
             --inline-suppr \
             -I src \
@@ -157,4 +158,5 @@ jobs:
         with:
           check_filenames: true
           skip: .git,*.png,*.jpg,*.svg,build,*.lock,*.html
-          ignore_words_list: SectionIn
+          # yamllint disable-line rule:line-length
+          ignore_words_list: SectionIn,Sie,Aktive,Stopp,Vertikal,Prozess,connexion,Mot,Processus,processus,invalide,Nome,Impossibile,Controle

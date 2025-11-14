@@ -1,0 +1,34 @@
+version: '3.8'
+
+services:
+  restreamer:
+    image: datarhei/restreamer:latest
+    container_name: obs-polyemesis-restreamer-test
+    ports:
+      - "8080:8080"   # Web UI and API
+      - "1935:1935"   # RTMP
+      - "8181:8181"   # RTMPS
+      - "6000:6000"   # SRT
+    environment:
+      - RESTREAMER_USERNAME=admin
+      - RESTREAMER_PASSWORD=admin
+      - RESTREAMER_LOG_LEVEL=debug
+    volumes:
+      - restreamer-data:/core/data
+      - restreamer-config:/core/config
+    tmpfs:
+      - /tmp
+    read_only: true
+    security_opt:
+      - no-new-privileges:true
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080/api/v3/about"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+      start_period: 30s
+
+volumes:
+  restreamer-data:
+  restreamer-config:

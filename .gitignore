@@ -2,12 +2,16 @@
 build/
 build_*/
 .build/
+.build-universal/
 *.build/
 cmake/.CMakeBuildNumber
 
 # Dependencies
 .deps/
 deps/
+
+# Documentation
+docs/
 
 # IDE files
 .vscode/
@@ -28,6 +32,13 @@ deps/
 *.a
 *.lib
 *.exe
+
+# Debug symbols
+*.dSYM/
+
+# Test executables at root
+/test_*
+!/tests/
 
 # CMake
 CMakeCache.txt
@@ -55,6 +66,23 @@ release/
 # Temporary files
 *.log
 *.tmp
+
+# Coverage reports
+*.gcov
+*.gcda
+*.gcno
+build-test/
+src/Testing/
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+
+# Screenshots and images
+Screenshot*.png
+*.screenshot.png
 
 # Secrets and credentials
 .secrets

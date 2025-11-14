@@ -7,9 +7,130 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-## [1.0.0] - 2025-11-08
+## [0.9.0] - 2025-11-12
 
 ### Added
+- **Cross-Platform Build Enhancements (Phase 1)**
+  - macOS Universal Binary support (arm64 + x86_64)
+    - Automatic jansson build from source for universal binaries
+    - Single .pkg installer works on all Macs (Intel and Apple Silicon)
+  - Linux ARM64 support
+    - CI/CD workflow for ARM64 builds
+    - Native support for Raspberry Pi and ARM servers
+  - Comprehensive build matrix documentation
+    - All supported platforms documented
+    - Platform-specific build instructions
+
+- **OBS Theme Integration (Phase 2)**
+  - Complete removal of 257 lines of custom styling
+  - Native QPalette integration for seamless theme matching
+  - Support for all 6 OBS themes (Yami, Grey, Acri, Dark, Rachni, Light)
+  - Semantic color helpers for status indicators
+    - `obs_theme_get_success_color()` - Green variants per theme
+    - `obs_theme_get_error_color()` - Red variants per theme
+    - `obs_theme_get_warning_color()` - Orange/yellow variants per theme
+    - `obs_theme_get_muted_color()` - Subtle text colors per theme
+  - Dynamic theme switching support at runtime
+  - Simplified theme detection (Dark vs Light)
+
+- **UI Redesign (Phase 5)**
+  - CollapsibleSection custom widget
+    - Header with title label and expand/collapse chevron
+    - Optional quick action buttons in section headers
+    - Smooth 200ms expand/collapse animation
+    - Keyboard navigation support (Tab, Enter, Arrow keys)
+    - State persistence (save/restore collapsed state)
+  - Removed tab-based layout in favor of vertical scroll
+    - Better information density
+    - More natural navigation flow
+    - Collapsible sections for each major feature area
+  - Dynamic section titles with status indicators
+    - Connection: Shows connection state (Connected, Disconnected)
+    - Bridge: Shows auto-start state (Active, Inactive)
+    - Profiles: Shows selected profile name and status
+    - Monitoring: Shows process state (Active, Idle)
+  - Quick action buttons in section headers
+    - Connection: "Test" button for quick connection testing
+    - Bridge: "Enable/Disable" toggle for auto-start
+    - Profiles: "Start/Stop" toggle for active profile
+  - Copy-to-clipboard buttons for Bridge RTMP URLs
+    - One-click copy for horizontal RTMP URL
+    - One-click copy for vertical RTMP URL
+  - Organized sub-groups within sections
+    - Server Configuration and Connection Status
+    - Bridge Configuration and Bridge Status
+    - Profile Management, Actions, and Details
+    - Better visual hierarchy and information grouping
+
+- **OBS Integration Improvements**
+  - Hotkey support for quick profile control
+    - Start/Stop all profiles via keyboard shortcuts
+    - Start specific horizontal/vertical profiles
+    - Configurable in OBS Settings → Hotkeys
+  - Tools menu integration
+    - Quick access to "Start All Profiles", "Stop All Profiles", and "Open Settings"
+    - Convenient shortcuts without opening the dock
+  - Pre-load callbacks for better state management
+    - Plugin initializes before scene collections load
+    - Improved reliability on OBS startup
+
+- **UI/UX Enhancements**
+  - Color-coded status indicators with emoji icons
+    - Profile status: 🟢 Active, 🟡 Starting, 🟠 Stopping, 🔴 Error, ⚫ Inactive
+    - Process state: 🟢 Running, 🟡 Starting, 🟠 Stopping, 🔴 Failed
+    - CPU usage: Green (<50%), Orange (50-80%), Red (>80%)
+    - Memory usage: Green (<1GB), Orange (1-2GB), Red (>2GB)
+    - Dropped frames: Green (<1%), Orange (1-5%), Red (>5%)
+  - Improved dialog alignment across all forms
+    - Converted QFormLayout to QGridLayout for precise control
+    - Right-aligned labels with consistent spacing
+    - Professional appearance with 10px spacing
+  - Enhanced scene collection integration
+    - Saves last active profile for quick restoration
+    - Saves last selected process
+    - Tracks profile active states for potential auto-restart
+
+- **Streaming Service Integration**
+  - OBS Service Loader - Full access to OBS's streaming service database
+    - 100+ streaming services automatically loaded from OBS
+    - Common services (Twitch, YouTube, Facebook) shown first
+    - Regional server selection for each service (e.g., Twitch: Tokyo, Seoul, Singapore, etc.)
+  - Enhanced destination dialogs with server selection
+    - Service dropdown with full OBS service list
+    - Automatic server list population per service
+    - Direct links to get stream keys for each service
+    - Custom RTMP server option with full URL support
+    - Dynamic UI that shows/hides relevant fields
+  - Consistent alignment across all destination forms
+    - "Add Destination" (multistream)
+    - "Add Destination" (output profiles)
+    - "Edit Destination" (output profiles)
+    - "Configure Profile" basic settings
+
+### Improved
+- Dialog layouts now use QGridLayout for better alignment
+- Labels are consistently right-aligned with proper vertical centering
+- Input fields have consistent minimum widths (250-300px)
+- All dialogs follow professional spacing standards (10px)
+- Dynamic field visibility (custom RTMP vs regular services)
+
+### Technical Details
+- **New Files Created:**
+  - `cmake/BuildJanssonUniversal.cmake` - Universal binary build script for jansson
+  - `src/collapsible-section.h` and `src/collapsible-section.cpp` - Custom Qt widget for collapsible sections
+  - `src/obs-theme-utils.h` and `src/obs-theme-utils.cpp` - OBS theme integration utilities
+  - `BUILD_MATRIX.md` - Comprehensive build matrix documentation
+  - `THEME_AUDIT.md` - Theme system audit and migration plan
+- Added `obs-service-loader.h` and `obs-service-loader.cpp` for OBS service integration
+- Loads services from `/Applications/OBS.app/Contents/PlugIns/rtmp-services.plugin/Contents/Resources/services.json` (macOS)
+- Parses service name, servers, stream key links, and supported codecs
+- Hotkeys registered via `obs_hotkey_register_frontend()`
+- Tools menu items added via `obs_frontend_add_tools_menu_item()`
+- Pre-load callback registered via `obs_frontend_add_preload_callback()`
+- CollapsibleSection uses QPropertyAnimation for smooth transitions
+- Theme utilities use `obs_frontend_get_current_theme()` for theme detection
+- Dynamic section title updates triggered on state changes
+
 - **Core Features**
   - Full datarhei Restreamer API integration (v3)
   - REST API client with connection management
@@ -171,17 +292,26 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - rainmanjam - Initial development and implementation
 - Claude (Anthropic) - Development assistance
 
-## [0.9.0-beta] - Planned
+### Bug Fixes
 
-### Planned Features
-- Beta testing program
-- User feedback collection
-- Performance optimizations based on real-world usage
-- Bug fixes from community testing
+- **Memory Management**
+  - Fixed critical allocator mismatch bug causing crashes on Ubuntu/Windows
+  - Fixed heap-use-after-free in profile deletion tests
+  - Fixed Windows heap corruption in multistream tests
+  - Enabled AddressSanitizer for comprehensive memory testing
+
+- **Security**
+  - Fixed Bearer Security Scan SARIF validation handling
+  - All security scans now passing
+
+- **Cross-Platform**
+  - Fixed MSVC printf format warnings on Windows
+  - Fixed memory corruption issues on Linux
+  - All unit tests now passing on macOS, Windows, and Ubuntu
 
 ## Future Releases
 
-### Planned for 1.1.0
+### Planned for 1.0.0
 - UI tests for Qt dock panel
 - Performance benchmark suite
 - Additional platform integrations

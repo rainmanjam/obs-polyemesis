@@ -1,0 +1,17 @@
+title = "Gitleaks Configuration for OBS Polyemesis"
+
+# Exclude documentation and test files that contain example credentials
+[allowlist]
+description = "Allowlist for documentation and test files with example credentials"
+
+# Paths to exclude from scanning (simple string array)
+paths = [
+  '''TESTING_PLAN\.md''',
+  '''test-polyemesis\.sh''',
+  '''tests/.*'''
+]
+
+# Allow admin:password pattern in documentation and test scripts
+regexes = [
+  '''admin:password'''
+]

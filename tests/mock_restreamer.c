@@ -42,7 +42,7 @@ typedef int socket_t;
 typedef struct {
   socket_t socket_fd;
   uint16_t port;
-  bool running;
+  volatile bool running;  /* volatile for thread-safe access */
   thread_handle_t thread;
 } mock_server_t;
 
@@ -78,6 +78,12 @@ static const char *RESPONSE_PROCESS_STOP = "HTTP/1.1 200 OK\r\n"
                                            "\r\n"
                                            "{\"status\": \"process_stopped\"}";
 
+static const char *RESPONSE_PROCESS_RESTART = "HTTP/1.1 200 OK\r\n"
+                                               "Content-Type: application/json\r\n"
+                                               "Content-Length: 31\r\n"
+                                               "\r\n"
+                                               "{\"status\": \"process_restarted\"}";
+
 static const char *RESPONSE_UNAUTHORIZED = "HTTP/1.1 401 Unauthorized\r\n"
                                            "Content-Type: application/json\r\n"
                                            "Content-Length: 25\r\n"
@@ -90,19 +96,191 @@ static const char *RESPONSE_NOT_FOUND = "HTTP/1.1 404 Not Found\r\n"
                                         "\r\n"
                                         "{\"error\": \"not_found\"}";
 
+static const char *RESPONSE_LOGIN = "HTTP/1.1 200 OK\r\n"
+                                    "Content-Type: application/json\r\n"
+                                    "Content-Length: 114\r\n"
+                                    "\r\n"
+                                    "{\"access_token\": \"mock_access_token_12345\", "
+                                    "\"refresh_token\": \"mock_refresh_token_67890\", "
+                                    "\"expires_at\": 9999999999}";
+
 /* Handle HTTP request */
 static void handle_request(socket_t client_fd, const char *request) {
   const char *response = RESPONSE_NOT_FOUND;
 
+  /* Extract first line for logging */
+  char request_line[256] = {0};
+  const char *line_end = strstr(request, "\r\n");
+  if (line_end) {
+    size_t len = (line_end - request) < 255 ? (line_end - request) : 255;
+    strncpy(request_line, request, len);
+    request_line[len] = '\0';
+  }
+  printf("[MOCK] Request: %s\n", request_line);
+
   /* Parse request line */
-  /* Base API endpoint - used by test_connection() */
-  if (strstr(request, "GET /api/v3/ ") != NULL ||
+  /* JWT Login endpoint */
+  if (strstr(request, "POST /api/login ") != NULL || strstr(request, "POST /api/v3/login ") != NULL) {
+    printf("[MOCK] -> Matched: POST /api/login\n");
+    response = RESPONSE_LOGIN;
+  } else if (strstr(request, "POST /api/refresh") != NULL || strstr(request, "POST /api/v3/refresh") != NULL) {
+    /* Refresh token */
+    response = "HTTP/1.1 200 OK\r\n"
+               "Content-Type: application/json\r\n"
+               "Content-Length: 93\r\n"
+               "\r\n"
+               "{\"access_token\": \"refreshed_token\", \"refresh_token\": \"new_refresh\", \"expires_at\": 9999999999}";
+  } else if (strstr(request, "GET /api/v3/ ") != NULL ||
       strstr(request, "GET /api/v3 ") != NULL) {
+    /* Base API endpoint - used by test_connection() */
+    printf("[MOCK] -> Matched: GET /api/v3/ (base endpoint)\n");
     response = "HTTP/1.1 200 OK\r\n"
                "Content-Type: application/json\r\n"
                "Content-Length: 2\r\n"
                "\r\n"
                "{}";
+  } else if (strstr(request, "GET /api/v3/config") != NULL) {
+    /* Get config */
+    printf("[MOCK] -> Matched: GET /api/v3/config\n");
+    response = "HTTP/1.1 200 OK\r\n"
+               "Content-Type: application/json\r\n"
+               "Content-Length: 38\r\n"
+               "\r\n"
+               "{\"config\": \"test\", \"setting\": \"value\"}";
+  } else if (strstr(request, "PUT /api/v3/config") != NULL || strstr(request, "POST /api/v3/config ") != NULL) {
+    /* Set config */
+    response = "HTTP/1.1 200 OK\r\n"
+               "Content-Type: application/json\r\n"
+               "Content-Length: 16\r\n"
+               "\r\n"
+               "{\"status\": \"ok\"}";
+  } else if (strstr(request, "POST /api/v3/config/reload") != NULL) {
+    /* Reload config */
+    response = "HTTP/1.1 200 OK\r\n"
+               "Content-Type: application/json\r\n"
+               "Content-Length: 30\r\n"
+               "\r\n"
+               "{\"status\": \"reloaded\"}";
+  } else if (strstr(request, "GET /api/v3/metrics/prometheus") != NULL) {
+    /* Prometheus metrics */
+    response = "HTTP/1.1 200 OK\r\n"
+               "Content-Type: text/plain\r\n"
+               "Content-Length: 50\r\n"
+               "\r\n"
+               "# TYPE cpu_usage gauge\ncpu_usage 25.5\n";
+  } else if (strstr(request, "POST /api/v3/metrics/query") != NULL ||
+             strstr(request, "PUT /api/v3/metrics") != NULL) {
+    /* Query metrics */
+    response = "HTTP/1.1 200 OK\r\n"
+               "Content-Type: application/json\r\n"
+               "Content-Length: 30\r\n"
+               "\r\n"
+               "{\"results\": [{\"value\": 25.5}]}";
+  } else if (strstr(request, "GET /api/v3/metrics") != NULL) {
+    /* Get metrics list */
+    response = "HTTP/1.1 200 OK\r\n"
+               "Content-Type: application/json\r\n"
+               "Content-Length: 47\r\n"
+               "\r\n"
+               "{\"metrics\": [\"cpu_usage\", \"memory\", \"bitrate\"]}";
+  } else if (strstr(request, "GET /api/v3/sessions") != NULL) {
+    /* Get sessions */
+    response = "HTTP/1.1 200 OK\r\n"
+               "Content-Type: application/json\r\n"
+               "Content-Length: 68\r\n"
+               "\r\n"
+               "{\"sessions\": [{\"id\": \"session1\", \"active\": true, \"duration\": 3600}]}";
+  } else if (strstr(request, "GET /api/v3/metadata/") != NULL) {
+    /* Get metadata */
+    response = "HTTP/1.1 200 OK\r\n"
+               "Content-Type: application/json\r\n"
+               "Content-Length: 30\r\n"
+               "\r\n"
+               "{\"data\": \"metadata_value\"}";
+  } else if (strstr(request, "PUT /api/v3/metadata/") != NULL) {
+    /* Set metadata */
+    response = "HTTP/1.1 200 OK\r\n"
+               "Content-Type: application/json\r\n"
+               "Content-Length: 20\r\n"
+               "\r\n"
+               "{\"status\": \"ok\"}";
+  } else if (strstr(request, "DELETE /api/v3/process/") != NULL) {
+    /* Delete process */
+    response = "HTTP/1.1 200 OK\r\n"
+               "Content-Type: application/json\r\n"
+               "Content-Length: 28\r\n"
+               "\r\n"
+               "{\"status\": \"deleted\"}";
+  } else if (strstr(request, "POST /api/v3/process ") != NULL || strstr(request, "POST /api/v3/process\r\n") != NULL) {
+    /* Create process */
+    response = "HTTP/1.1 200 OK\r\n"
+               "Content-Type: application/json\r\n"
+               "Content-Length: 100\r\n"
+               "\r\n"
+               "{\"id\": \"new-process\", \"reference\": \"new-stream\", \"state\": \"idle\", \"created\": true}";
+  } else if (strstr(request, "GET /api/v3/process/") != NULL && strstr(request, "/state") != NULL) {
+    /* Get process state */
+    response = "HTTP/1.1 200 OK\r\n"
+               "Content-Type: application/json\r\n"
+               "Content-Length: 80\r\n"
+               "\r\n"
+               "{\"state\": \"running\", \"uptime\": 3600, \"cpu\": 25.5, \"memory\": 104857600}";
+  } else if (strstr(request, "GET /api/v3/process/") != NULL && strstr(request, "/logs") != NULL) {
+    /* Get process logs */
+    response = "HTTP/1.1 200 OK\r\n"
+               "Content-Type: application/json\r\n"
+               "Content-Length: 80\r\n"
+               "\r\n"
+               "{\"logs\": [{\"time\": 1234567890, \"level\": \"info\", \"message\": \"test\"}]}";
+  } else if (strstr(request, "GET /api/v3/process/") != NULL && strstr(request, "/playout") != NULL) {
+    /* Get playout status */
+    response = "HTTP/1.1 200 OK\r\n"
+               "Content-Type: application/json\r\n"
+               "Content-Length: 52\r\n"
+               "\r\n"
+               "{\"playing\": true, \"position\": 100, \"duration\": 3600}";
+  } else if (strstr(request, "GET /api/v3/process/") != NULL && strstr(request, "/metadata/") != NULL) {
+    /* Get process metadata */
+    response = "HTTP/1.1 200 OK\r\n"
+               "Content-Type: application/json\r\n"
+               "Content-Length: 35\r\n"
+               "\r\n"
+               "{\"proc_data\": \"process_value\"}";
+  } else if (strstr(request, "PUT /api/v3/process/") != NULL && strstr(request, "/metadata/") != NULL) {
+    /* Set process metadata */
+    response = "HTTP/1.1 200 OK\r\n"
+               "Content-Type: application/json\r\n"
+               "Content-Length: 20\r\n"
+               "\r\n"
+               "{\"status\": \"ok\"}";
+  } else if (strstr(request, "POST /api/v3/process/") != NULL && strstr(request, "/probe") != NULL) {
+    /* Probe input */
+    response = "HTTP/1.1 200 OK\r\n"
+               "Content-Type: application/json\r\n"
+               "Content-Length: 100\r\n"
+               "\r\n"
+               "{\"format\": \"rtmp\", \"duration\": 0, \"bitrate\": 5000000, \"streams\": [{\"type\": \"video\"}]}";
+  } else if (strstr(request, "GET /api/v3/process/") != NULL && strstr(request, "/snapshot") != NULL) {
+    /* Get keyframe */
+    response = "HTTP/1.1 200 OK\r\n"
+               "Content-Type: application/json\r\n"
+               "Content-Length: 50\r\n"
+               "\r\n"
+               "{\"data\": \"base64encodedimagedata\", \"size\": 1024}";
+  } else if (strstr(request, "POST /api/v3/process/") != NULL && strstr(request, "/switch") != NULL) {
+    /* Switch input stream */
+    response = "HTTP/1.1 200 OK\r\n"
+               "Content-Type: application/json\r\n"
+               "Content-Length: 28\r\n"
+               "\r\n"
+               "{\"status\": \"switched\"}";
+  } else if (strstr(request, "POST /api/v3/process/") != NULL && strstr(request, "/reopen") != NULL) {
+    /* Reopen input */
+    response = "HTTP/1.1 200 OK\r\n"
+               "Content-Type: application/json\r\n"
+               "Content-Length: 28\r\n"
+               "\r\n"
+               "{\"status\": \"reopened\"}";
   } else if (strstr(request, "GET /api/v3/process") != NULL) {
     /* Check for auth header */
     if (strstr(request, "Authorization:") == NULL) {
@@ -110,22 +288,69 @@ static void handle_request(socket_t client_fd, const char *request) {
     } else {
       response = RESPONSE_PROCESSES;
     }
+  } else if (strstr(request, "GET /api/v3/process/test-process-1 ") != NULL ||
+             strstr(request, "GET /api/v3/process/test-process-1\r\n") != NULL) {
+    /* Get single process */
+    if (strstr(request, "Authorization:") == NULL) {
+      response = RESPONSE_UNAUTHORIZED;
+    } else {
+      response = "HTTP/1.1 200 OK\r\n"
+                 "Content-Type: application/json\r\n"
+                 "Content-Length: 161\r\n"
+                 "\r\n"
+                 "{"
+                 "\"id\": \"test-process-1\","
+                 "\"reference\": \"test-stream\","
+                 "\"state\": \"running\","
+                 "\"uptime\": 3600,"
+                 "\"cpu_usage\": 25.5,"
+                 "\"memory_bytes\": 104857600"
+                 "}";
+    }
   } else if (strstr(request, "POST /api/v3/process/") != NULL &&
              strstr(request, "/command ") != NULL) {
-    /* Check for start or stop in the request body */
+    /* Check for start, stop, or restart in the request body */
     if (strstr(request, "Authorization:") == NULL) {
       response = RESPONSE_UNAUTHORIZED;
     } else if (strstr(request, "\"start\"") != NULL) {
       response = RESPONSE_PROCESS_START;
     } else if (strstr(request, "\"stop\"") != NULL) {
       response = RESPONSE_PROCESS_STOP;
+    } else if (strstr(request, "\"restart\"") != NULL) {
+      response = RESPONSE_PROCESS_RESTART;
     } else {
       response = RESPONSE_NOT_FOUND;
     }
   }
 
-  /* Send response */
-  send(client_fd, response, (int)strlen(response), 0);
+  /* Send response - loop to ensure all bytes are sent */
+  size_t total_len = strlen(response);
+  size_t sent = 0;
+  printf("[MOCK] Sending response: %zu bytes total\n", total_len);
+  while (sent < total_len) {
+    ssize_t n = send(client_fd, response + sent, (int)(total_len - sent), 0);
+    if (n < 0) {
+      /* Send error */
+#ifdef _WIN32
+      fprintf(stderr, "[MOCK] send() error: %d\n", WSAGetLastError());
+#else
+      perror("[MOCK] send() error");
+#endif
+      break;
+    } else if (n == 0) {
+      /* Connection closed */
+      fprintf(stderr, "[MOCK] send() returned 0, connection closed\n");
+      break;
+    }
+    sent += (size_t)n;
+    printf("[MOCK] Sent %d bytes, total so far: %zu/%zu\n", (int)n, sent, total_len);
+  }
+
+  if (sent < total_len) {
+    fprintf(stderr, "[MOCK] WARNING: Only sent %zu of %zu bytes\n", sent, total_len);
+  } else {
+    printf("[MOCK] Successfully sent all %zu bytes\n", sent);
+  }
 }
 
 /* Server thread function */
@@ -193,6 +418,15 @@ static void *server_thread(void *arg) {
 /* Start mock server */
 bool mock_restreamer_start(uint16_t port) {
   printf("[MOCK] Starting mock server on port %d...\n", port);
+
+  /* Ensure server is not already running */
+  if (g_server.running) {
+    fprintf(stderr, "[MOCK] ERROR: Server already running\n");
+    return false;
+  }
+
+  /* Set port for new server instance */
+  g_server.port = port;
 
 #ifdef _WIN32
   WSADATA wsa_data;
