@@ -95,7 +95,7 @@ bool restreamer_multistream_add_destination(multistream_config_t *config,
                                             streaming_service_t service,
                                             const char *stream_key,
                                             stream_orientation_t orientation) {
-  if (!config || !stream_key) {
+  if (!config || !stream_key || stream_key[0] == '\0') {
     return false;
   }
 
@@ -407,4 +407,267 @@ void restreamer_multistream_save_to_settings(multistream_config_t *config,
 
   obs_data_set_array(settings, "destinations", destinations_array);
   obs_data_array_release(destinations_array);
+}
+
+/* ========================================================================
+ * Dynamic Multistream Management Implementation
+ * ======================================================================== */
+
+bool restreamer_multistream_add_destination_live(restreamer_api_t *api,
+                                                 multistream_config_t *config,
+                                                 size_t dest_index) {
+  if (!api || !config || dest_index >= config->destination_count) {
+    return false;
+  }
+
+  if (!config->process_reference) {
+    obs_log(LOG_ERROR, "Cannot add destination: multistream not active");
+    return false;
+  }
+
+  stream_destination_t *dest = &config->destinations[dest_index];
+
+  /* Build output ID and URL */
+  struct dstr output_id;
+  dstr_init(&output_id);
+  dstr_printf(&output_id, "%s_%zu", dest->service_name, dest_index);
+
+  struct dstr output_url;
+  dstr_init(&output_url);
+  dstr_copy(&output_url, dest->rtmp_url);
+  dstr_cat(&output_url, "/");
+  dstr_cat(&output_url, dest->stream_key);
+
+  /* Build video filter if needed */
+  char *video_filter = restreamer_multistream_build_video_filter(
+      config->source_orientation, dest->supported_orientation);
+
+  /* Find process ID from reference */
+  restreamer_process_list_t list = {0};
+  bool found = false;
+  char *process_id = NULL;
+
+  if (restreamer_api_get_processes(api, &list)) {
+    for (size_t i = 0; i < list.count; i++) {
+      if (list.processes[i].reference &&
+          strcmp(list.processes[i].reference, config->process_reference) == 0) {
+        process_id = bstrdup(list.processes[i].id);
+        found = true;
+        break;
+      }
+    }
+    restreamer_api_free_process_list(&list);
+  }
+
+  if (!found) {
+    obs_log(LOG_ERROR, "Process not found: %s", config->process_reference);
+    dstr_free(&output_id);
+    dstr_free(&output_url);
+    bfree(video_filter);
+    return false;
+  }
+
+  /* Add output to running process */
+  bool result = restreamer_api_add_process_output(
+      api, process_id, output_id.array, output_url.array, video_filter);
+
+  bfree(process_id);
+  dstr_free(&output_id);
+  dstr_free(&output_url);
+  bfree(video_filter);
+
+  if (result) {
+    dest->enabled = true;
+    obs_log(LOG_INFO, "Successfully added destination %s to active multistream",
+            dest->service_name);
+  }
+
+  return result;
+}
+
+bool restreamer_multistream_remove_destination_live(
+    restreamer_api_t *api, multistream_config_t *config, size_t dest_index) {
+  if (!api || !config || dest_index >= config->destination_count) {
+    return false;
+  }
+
+  if (!config->process_reference) {
+    obs_log(LOG_ERROR, "Cannot remove destination: multistream not active");
+    return false;
+  }
+
+  stream_destination_t *dest = &config->destinations[dest_index];
+
+  /* Build output ID */
+  struct dstr output_id;
+  dstr_init(&output_id);
+  dstr_printf(&output_id, "%s_%zu", dest->service_name, dest_index);
+
+  /* Find process ID from reference */
+  restreamer_process_list_t list = {0};
+  bool found = false;
+  char *process_id = NULL;
+
+  if (restreamer_api_get_processes(api, &list)) {
+    for (size_t i = 0; i < list.count; i++) {
+      if (list.processes[i].reference &&
+          strcmp(list.processes[i].reference, config->process_reference) == 0) {
+        process_id = bstrdup(list.processes[i].id);
+        found = true;
+        break;
+      }
+    }
+    restreamer_api_free_process_list(&list);
+  }
+
+  if (!found) {
+    obs_log(LOG_ERROR, "Process not found: %s", config->process_reference);
+    dstr_free(&output_id);
+    return false;
+  }
+
+  /* Remove output from running process */
+  bool result =
+      restreamer_api_remove_process_output(api, process_id, output_id.array);
+
+  bfree(process_id);
+  dstr_free(&output_id);
+
+  if (result) {
+    dest->enabled = false;
+    obs_log(LOG_INFO,
+            "Successfully removed destination %s from active multistream",
+            dest->service_name);
+  }
+
+  return result;
+}
+
+bool restreamer_multistream_enable_destination_live(
+    restreamer_api_t *api, multistream_config_t *config, size_t dest_index,
+    bool enabled) {
+  if (!api || !config || dest_index >= config->destination_count) {
+    return false;
+  }
+
+  stream_destination_t *dest = &config->destinations[dest_index];
+
+  /* If already in desired state, nothing to do */
+  if (dest->enabled == enabled) {
+    return true;
+  }
+
+  /* Add or remove based on enabled flag */
+  if (enabled) {
+    return restreamer_multistream_add_destination_live(api, config, dest_index);
+  } else {
+    return restreamer_multistream_remove_destination_live(api, config,
+                                                          dest_index);
+  }
+}
+
+bool restreamer_multistream_update_destination_live(
+    restreamer_api_t *api, multistream_config_t *config, size_t dest_index,
+    const char *stream_key) {
+  if (!api || !config || dest_index >= config->destination_count ||
+      !stream_key) {
+    return false;
+  }
+
+  if (!config->process_reference) {
+    obs_log(LOG_ERROR, "Cannot update destination: multistream not active");
+    return false;
+  }
+
+  stream_destination_t *dest = &config->destinations[dest_index];
+
+  /* Update stream key */
+  bfree(dest->stream_key);
+  dest->stream_key = bstrdup(stream_key);
+
+  /* Build new output URL */
+  struct dstr output_url;
+  dstr_init(&output_url);
+  dstr_copy(&output_url, dest->rtmp_url);
+  dstr_cat(&output_url, "/");
+  dstr_cat(&output_url, stream_key);
+
+  /* Build output ID */
+  struct dstr output_id;
+  dstr_init(&output_id);
+  dstr_printf(&output_id, "%s_%zu", dest->service_name, dest_index);
+
+  /* Build video filter if needed */
+  char *video_filter = restreamer_multistream_build_video_filter(
+      config->source_orientation, dest->supported_orientation);
+
+  /* Find process ID from reference */
+  restreamer_process_list_t list = {0};
+  bool found = false;
+  char *process_id = NULL;
+
+  if (restreamer_api_get_processes(api, &list)) {
+    for (size_t i = 0; i < list.count; i++) {
+      if (list.processes[i].reference &&
+          strcmp(list.processes[i].reference, config->process_reference) == 0) {
+        process_id = bstrdup(list.processes[i].id);
+        found = true;
+        break;
+      }
+    }
+    restreamer_api_free_process_list(&list);
+  }
+
+  if (!found) {
+    obs_log(LOG_ERROR, "Process not found: %s", config->process_reference);
+    dstr_free(&output_id);
+    dstr_free(&output_url);
+    bfree(video_filter);
+    return false;
+  }
+
+  /* Update output in running process */
+  bool result = restreamer_api_update_process_output(
+      api, process_id, output_id.array, output_url.array, video_filter);
+
+  bfree(process_id);
+  dstr_free(&output_id);
+  dstr_free(&output_url);
+  bfree(video_filter);
+
+  if (result) {
+    obs_log(LOG_INFO,
+            "Successfully updated destination %s in active multistream",
+            dest->service_name);
+  }
+
+  return result;
+}
+
+bool restreamer_multistream_is_active(restreamer_api_t *api,
+                                      multistream_config_t *config) {
+  if (!api || !config || !config->process_reference) {
+    return false;
+  }
+
+  /* Check if process with this reference exists and is running */
+  restreamer_process_list_t list = {0};
+  bool is_active = false;
+
+  if (restreamer_api_get_processes(api, &list)) {
+    for (size_t i = 0; i < list.count; i++) {
+      if (list.processes[i].reference &&
+          strcmp(list.processes[i].reference, config->process_reference) == 0) {
+        /* Check if state is "running" */
+        if (list.processes[i].state &&
+            strcmp(list.processes[i].state, "running") == 0) {
+          is_active = true;
+        }
+        break;
+      }
+    }
+    restreamer_api_free_process_list(&list);
+  }
+
+  return is_active;
 }

@@ -6,6 +6,13 @@
 #include <util/platform.h>
 #include <util/threading.h>
 
+/* Allow testing access to plugin functions */
+#ifdef TESTING_MODE
+#define PLUGIN_STATIC
+#else
+#define PLUGIN_STATIC static
+#endif
+
 struct restreamer_source {
   obs_source_t *source;
   restreamer_api_t *api;
@@ -21,13 +28,13 @@ struct restreamer_source {
   obs_source_t *media_source;
 };
 
-static const char *restreamer_source_get_name(void *unused) {
+PLUGIN_STATIC const char *restreamer_source_get_name(void *unused) {
   UNUSED_PARAMETER(unused);
   return "Restreamer Stream";
 }
 
-static void *restreamer_source_create(obs_data_t *settings,
-                                      obs_source_t *source) {
+PLUGIN_STATIC void *restreamer_source_create(obs_data_t *settings,
+                                             obs_source_t *source) {
   struct restreamer_source *context = bzalloc(sizeof(struct restreamer_source));
   context->source = source;
 
@@ -60,7 +67,7 @@ static void *restreamer_source_create(obs_data_t *settings,
   return context;
 }
 
-static void restreamer_source_destroy(void *data) {
+PLUGIN_STATIC void restreamer_source_destroy(void *data) {
   struct restreamer_source *context = data;
 
   if (context->thread_running) {
@@ -87,7 +94,7 @@ static void restreamer_source_destroy(void *data) {
   obs_log(LOG_INFO, "Restreamer source destroyed");
 }
 
-static void restreamer_source_update(void *data, obs_data_t *settings) {
+PLUGIN_STATIC void restreamer_source_update(void *data, obs_data_t *settings) {
   struct restreamer_source *context = data;
 
   /* Update connection if needed */
@@ -130,15 +137,16 @@ static void restreamer_source_update(void *data, obs_data_t *settings) {
       (stream_url && strlen(stream_url) > 0) ? bstrdup(stream_url) : NULL;
 }
 
-static void restreamer_source_get_defaults(obs_data_t *settings) {
+PLUGIN_STATIC void restreamer_source_get_defaults(obs_data_t *settings) {
   obs_data_set_default_bool(settings, "use_global_connection", true);
   obs_data_set_default_string(settings, "host", "localhost");
   obs_data_set_default_int(settings, "port", 8080);
   obs_data_set_default_bool(settings, "use_https", false);
 }
 
-static bool refresh_processes_clicked(obs_properties_t *props,
-                                      obs_property_t *property, void *data) {
+PLUGIN_STATIC bool refresh_processes_clicked(obs_properties_t *props,
+                                             obs_property_t *property,
+                                             void *data) {
   UNUSED_PARAMETER(property);
   UNUSED_PARAMETER(data);
 
@@ -166,7 +174,7 @@ static bool refresh_processes_clicked(obs_properties_t *props,
   return true;
 }
 
-static obs_properties_t *restreamer_source_get_properties(void *data) {
+PLUGIN_STATIC obs_properties_t *restreamer_source_get_properties(void *data) {
   UNUSED_PARAMETER(data);
 
   obs_properties_t *props = obs_properties_create();
@@ -199,7 +207,8 @@ static obs_properties_t *restreamer_source_get_properties(void *data) {
   return props;
 }
 
-static void restreamer_source_video_render(void *data, gs_effect_t *effect) {
+PLUGIN_STATIC void restreamer_source_video_render(void *data,
+                                                  gs_effect_t *effect) {
   struct restreamer_source *context = data;
 
   if (context->media_source) {
@@ -209,7 +218,7 @@ static void restreamer_source_video_render(void *data, gs_effect_t *effect) {
   }
 }
 
-static uint32_t restreamer_source_get_width(void *data) {
+PLUGIN_STATIC uint32_t restreamer_source_get_width(void *data) {
   struct restreamer_source *context = data;
 
   if (context->media_source) {
@@ -219,7 +228,7 @@ static uint32_t restreamer_source_get_width(void *data) {
   return 0;
 }
 
-static uint32_t restreamer_source_get_height(void *data) {
+PLUGIN_STATIC uint32_t restreamer_source_get_height(void *data) {
   struct restreamer_source *context = data;
 
   if (context->media_source) {

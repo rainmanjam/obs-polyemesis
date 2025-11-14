@@ -13,7 +13,7 @@ OBS Polyemesis uses automated formatters to ensure consistent code style:
 Before committing code, run the verification script:
 
 ```bash
-./check-format.sh
+./scripts/check-format.sh
 ```
 
 If there are formatting issues, the script will tell you how to fix them automatically.
@@ -62,7 +62,7 @@ pip install gersemi
 Run the verification script to check all files:
 
 ```bash
-./check-format.sh
+./scripts/check-format.sh
 ```
 
 **Output:**
@@ -140,7 +140,7 @@ You can automatically check formatting before each commit:
 #!/bin/bash
 # Pre-commit hook to check code formatting
 
-./check-format.sh
+./scripts/check-format.sh
 if [ $? -ne 0 ]; then
     echo ""
     echo "Commit rejected due to formatting issues."
@@ -231,7 +231,7 @@ brew upgrade clang-format  # macOS
 
 ## Best Practices
 
-1. **Run before committing**: Always run `./check-format.sh` before committing
+1. **Run before committing**: Always run `./scripts/check-format.sh` before committing
 2. **Format incrementally**: Format files as you work on them
 3. **IDE integration**: Set up auto-formatting in your IDE
 4. **Pre-commit hooks**: Use the pre-commit hook to catch issues early
@@ -241,7 +241,7 @@ brew upgrade clang-format  # macOS
 
 When contributing to OBS Polyemesis:
 
-1. Ensure your code passes `./check-format.sh`
+1. Ensure your code passes `./scripts/check-format.sh`
 2. Run formatters before creating a pull request
 3. Address any formatting issues raised in code review
 4. Follow the existing code style in the project

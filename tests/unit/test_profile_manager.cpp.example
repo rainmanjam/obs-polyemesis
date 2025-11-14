@@ -1,0 +1,92 @@
+// Example Qt Test for Profile Manager
+// Rename to test_profile_manager.cpp and uncomment in CMakeLists.txt to enable
+
+#include <QtTest/QtTest>
+#include <QObject>
+#include <QString>
+
+// NOTE: This is an example template.
+// Actual implementation requires refactoring ProfileManager into a testable class
+
+class TestProfileManager : public QObject
+{
+    Q_OBJECT
+
+private slots:
+    void initTestCase()
+    {
+        // Called before the first test function
+        qDebug() << "Initializing ProfileManager tests...";
+    }
+
+    void cleanupTestCase()
+    {
+        // Called after the last test function
+        qDebug() << "Cleaning up ProfileManager tests...";
+    }
+
+    void init()
+    {
+        // Called before each test function
+    }
+
+    void cleanup()
+    {
+        // Called after each test function
+    }
+
+    // Test Cases
+    void testProfileCreation()
+    {
+        // Test creating a new profile
+        QString profileName = "Test Profile";
+
+        // Example assertions
+        QVERIFY(!profileName.isEmpty());
+        QCOMPARE(profileName, "Test Profile");
+
+        // TODO: Add actual ProfileManager API calls when class is refactored
+        // ProfileManager* manager = ProfileManager::instance();
+        // bool created = manager->createProfile(profileName);
+        // QVERIFY(created);
+    }
+
+    void testProfileDeletion()
+    {
+        // Test deleting a profile
+        // TODO: Implement when ProfileManager API is available
+        QSKIP("ProfileManager not yet refactored for testing");
+    }
+
+    void testProfileDuplication()
+    {
+        // Test duplicating a profile
+        // TODO: Implement when ProfileManager API is available
+        QSKIP("ProfileManager not yet refactored for testing");
+    }
+
+    void testDestinationManagement()
+    {
+        // Test adding/removing destinations
+        // TODO: Implement when ProfileManager API is available
+        QSKIP("ProfileManager not yet refactored for testing");
+    }
+
+    void testProfileValidation()
+    {
+        // Test profile name validation
+        QStringList invalidNames = {"", "   ", "Test/Profile", "Test\\Profile"};
+
+        for (const QString& name : invalidNames) {
+            // TODO: Validate using actual ProfileManager API
+            QVERIFY2(name.contains('/') || name.contains('\\') || name.trimmed().isEmpty(),
+                    "Profile name validation");
+        }
+    }
+};
+
+// Include the MOC file
+#include "test_profile_manager.moc"
+
+// Test main function
+QTEST_MAIN(TestProfileManager)

@@ -88,6 +88,33 @@ bool restreamer_multistream_start(restreamer_api_t *api,
 bool restreamer_multistream_stop(restreamer_api_t *api,
                                  const char *process_reference);
 
+/* ========================================================================
+ * Dynamic Multistream Management
+ * ======================================================================== */
+
+/* Add destination to active multistream (hot-add) */
+bool restreamer_multistream_add_destination_live(restreamer_api_t *api,
+                                                 multistream_config_t *config,
+                                                 size_t dest_index);
+
+/* Remove destination from active multistream (hot-remove) */
+bool restreamer_multistream_remove_destination_live(
+    restreamer_api_t *api, multistream_config_t *config, size_t dest_index);
+
+/* Enable destination in active multistream */
+bool restreamer_multistream_enable_destination_live(
+    restreamer_api_t *api, multistream_config_t *config, size_t dest_index,
+    bool enabled);
+
+/* Update destination settings in active multistream */
+bool restreamer_multistream_update_destination_live(
+    restreamer_api_t *api, multistream_config_t *config, size_t dest_index,
+    const char *stream_key);
+
+/* Check if multistream is currently active */
+bool restreamer_multistream_is_active(restreamer_api_t *api,
+                                      multistream_config_t *config);
+
 /* Load multistream config from settings */
 void restreamer_multistream_load_from_settings(multistream_config_t *config,
                                                obs_data_t *settings);

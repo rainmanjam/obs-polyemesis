@@ -406,7 +406,7 @@ Add these to your GitHub repository settings (Settings → Secrets and variables
 **Before Committing**:
 ```bash
 # Format code
-./check-format.sh
+./scripts/check-format.sh
 
 # Run tests
 cmake -B build -DENABLE_TESTING=ON

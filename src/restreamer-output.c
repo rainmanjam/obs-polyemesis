@@ -8,6 +8,13 @@
 #include <util/platform.h>
 #include <util/threading.h>
 
+/* Allow testing access to plugin functions */
+#ifdef TESTING_MODE
+#define PLUGIN_STATIC
+#else
+#define PLUGIN_STATIC static
+#endif
+
 struct restreamer_output {
   obs_output_t *output;
   restreamer_api_t *api;
@@ -22,13 +29,13 @@ struct restreamer_output {
   volatile bool stop_thread;
 };
 
-static const char *restreamer_output_getname(void *unused) {
+PLUGIN_STATIC const char *restreamer_output_getname(void *unused) {
   UNUSED_PARAMETER(unused);
   return "Restreamer Output";
 }
 
-static void *restreamer_output_create(obs_data_t *settings,
-                                      obs_output_t *output) {
+PLUGIN_STATIC void *restreamer_output_create(obs_data_t *settings,
+                                             obs_output_t *output) {
   struct restreamer_output *context = bzalloc(sizeof(struct restreamer_output));
   context->output = output;
 
@@ -49,7 +56,7 @@ static void *restreamer_output_create(obs_data_t *settings,
   return context;
 }
 
-static void restreamer_output_destroy(void *data) {
+PLUGIN_STATIC void restreamer_output_destroy(void *data) {
   struct restreamer_output *context = data;
 
   if (context->active) {
@@ -74,7 +81,7 @@ static void restreamer_output_destroy(void *data) {
   obs_log(LOG_INFO, "Restreamer output destroyed");
 }
 
-static bool restreamer_output_start(void *data) {
+PLUGIN_STATIC bool restreamer_output_start(void *data) {
   struct restreamer_output *context = data;
 
   if (!context->api) {
@@ -184,7 +191,7 @@ static bool restreamer_output_start(void *data) {
   }
 }
 
-static void restreamer_output_stop(void *data, uint64_t ts) {
+PLUGIN_STATIC void restreamer_output_stop(void *data, uint64_t ts) {
   UNUSED_PARAMETER(ts);
 
   struct restreamer_output *context = data;
@@ -211,7 +218,8 @@ static void restreamer_output_stop(void *data, uint64_t ts) {
   obs_log(LOG_INFO, "Restreamer output stopped");
 }
 
-static void restreamer_output_data(void *data, struct encoder_packet *packet) {
+PLUGIN_STATIC void restreamer_output_data(void *data,
+                                          struct encoder_packet *packet) {
   UNUSED_PARAMETER(data);
   UNUSED_PARAMETER(packet);
 
@@ -220,13 +228,14 @@ static void restreamer_output_data(void *data, struct encoder_packet *packet) {
      For now, this is a placeholder. */
 }
 
-static void restreamer_output_defaults(obs_data_t *settings) {
+PLUGIN_STATIC void restreamer_output_defaults(obs_data_t *settings) {
   obs_data_set_default_bool(settings, "enable_multistream", false);
   obs_data_set_default_bool(settings, "auto_detect_orientation", true);
 }
 
-static bool add_destination_clicked(obs_properties_t *props,
-                                    obs_property_t *property, void *data) {
+PLUGIN_STATIC bool add_destination_clicked(obs_properties_t *props,
+                                           obs_property_t *property,
+                                           void *data) {
   UNUSED_PARAMETER(props);
   UNUSED_PARAMETER(property);
   UNUSED_PARAMETER(data);
@@ -236,7 +245,7 @@ static bool add_destination_clicked(obs_properties_t *props,
   return true;
 }
 
-static obs_properties_t *restreamer_output_properties(void *data) {
+PLUGIN_STATIC obs_properties_t *restreamer_output_properties(void *data) {
   UNUSED_PARAMETER(data);
 
   obs_properties_t *props = obs_properties_create();

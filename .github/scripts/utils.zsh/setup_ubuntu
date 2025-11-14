@@ -56,10 +56,12 @@ if (( ! (${skips[(Ie)all]} + ${skips[(Ie)deps]}) )) {
       libqt5x11extras5-dev${suffix}
     )
   } else {
+    # Qt6 packages don't support architecture suffixes on Ubuntu
+    # Always install without suffix (works for both native and cross-compile)
     _qt_packages+=(
-      qt6-base-dev${suffix}
-      libqt6svg6-dev${suffix}
-      qt6-base-private-dev${suffix}
+      qt6-base-dev
+      libqt6svg6-dev
+      qt6-base-private-dev
     )
   }
 
