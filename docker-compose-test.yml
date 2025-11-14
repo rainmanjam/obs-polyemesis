@@ -16,6 +16,11 @@ services:
     volumes:
       - restreamer-data:/core/data
       - restreamer-config:/core/config
+    tmpfs:
+      - /tmp
+    read_only: true
+    security_opt:
+      - no-new-privileges:true
     restart: unless-stopped
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8080/api/v3/about"]
