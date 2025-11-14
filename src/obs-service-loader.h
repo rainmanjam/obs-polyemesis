@@ -1,8 +1,8 @@
 #pragma once
 
-#include <QString>
 #include <QList>
 #include <QMap>
+#include <QString>
 #include <jansson.h>
 
 /**
@@ -57,13 +57,13 @@ public:
    * @param name Service name
    * @return Pointer to service or nullptr if not found
    */
-  const StreamingService* getService(const QString& name) const;
+  const StreamingService *getService(const QString &name) const;
 
   /**
    * @brief Get all services
    * @return List of all services
    */
-  const QList<StreamingService>& getAllServices() const { return services; }
+  const QList<StreamingService> &getAllServices() const { return services; }
 
 private:
   QList<StreamingService> services;
@@ -74,12 +74,12 @@ private:
    * @param path Path to services.json
    * @return true if loaded successfully
    */
-  bool tryLoadFromPath(const QString& path);
+  bool tryLoadFromPath(const QString &path);
 
   /**
    * @brief Parse a service object from JSON
    * @param serviceObj JSON object representing a service
    * @return Parsed StreamingService
    */
-  StreamingService parseService(json_t* serviceObj);
+  StreamingService parseService(json_t *serviceObj);
 };

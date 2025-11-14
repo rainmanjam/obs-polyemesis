@@ -35,7 +35,7 @@ PLUGIN_STATIC const char *restreamer_output_getname(void *unused) {
 }
 
 PLUGIN_STATIC void *restreamer_output_create(obs_data_t *settings,
-                                      obs_output_t *output) {
+                                             obs_output_t *output) {
   struct restreamer_output *context = bzalloc(sizeof(struct restreamer_output));
   context->output = output;
 
@@ -218,7 +218,8 @@ PLUGIN_STATIC void restreamer_output_stop(void *data, uint64_t ts) {
   obs_log(LOG_INFO, "Restreamer output stopped");
 }
 
-PLUGIN_STATIC void restreamer_output_data(void *data, struct encoder_packet *packet) {
+PLUGIN_STATIC void restreamer_output_data(void *data,
+                                          struct encoder_packet *packet) {
   UNUSED_PARAMETER(data);
   UNUSED_PARAMETER(packet);
 
@@ -233,7 +234,8 @@ PLUGIN_STATIC void restreamer_output_defaults(obs_data_t *settings) {
 }
 
 PLUGIN_STATIC bool add_destination_clicked(obs_properties_t *props,
-                                    obs_property_t *property, void *data) {
+                                           obs_property_t *property,
+                                           void *data) {
   UNUSED_PARAMETER(props);
   UNUSED_PARAMETER(property);
   UNUSED_PARAMETER(data);

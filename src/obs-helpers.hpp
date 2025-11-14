@@ -1,7 +1,7 @@
 #pragma once
 
-#include <obs.h>
 #include <obs-frontend-api.h>
+#include <obs.h>
 
 /**
  * RAII wrapper for obs_source_t
@@ -9,40 +9,38 @@
  */
 class OBSSourceAutoRelease {
 public:
-	obs_source_t *source;
+  obs_source_t *source;
 
-	explicit OBSSourceAutoRelease(obs_source_t *src) : source(src) {}
+  explicit OBSSourceAutoRelease(obs_source_t *src) : source(src) {}
 
-	~OBSSourceAutoRelease()
-	{
-		if (source)
-			obs_source_release(source);
-	}
+  ~OBSSourceAutoRelease() {
+    if (source)
+      obs_source_release(source);
+  }
 
-	// Prevent copy to avoid double-free
-	OBSSourceAutoRelease(const OBSSourceAutoRelease &) = delete;
-	OBSSourceAutoRelease &operator=(const OBSSourceAutoRelease &) = delete;
+  // Prevent copy to avoid double-free
+  OBSSourceAutoRelease(const OBSSourceAutoRelease &) = delete;
+  OBSSourceAutoRelease &operator=(const OBSSourceAutoRelease &) = delete;
 
-	// Allow move semantics
-	OBSSourceAutoRelease(OBSSourceAutoRelease &&other) noexcept : source(other.source)
-	{
-		other.source = nullptr;
-	}
+  // Allow move semantics
+  OBSSourceAutoRelease(OBSSourceAutoRelease &&other) noexcept
+      : source(other.source) {
+    other.source = nullptr;
+  }
 
-	OBSSourceAutoRelease &operator=(OBSSourceAutoRelease &&other) noexcept
-	{
-		if (this != &other) {
-			if (source)
-				obs_source_release(source);
-			source = other.source;
-			other.source = nullptr;
-		}
-		return *this;
-	}
+  OBSSourceAutoRelease &operator=(OBSSourceAutoRelease &&other) noexcept {
+    if (this != &other) {
+      if (source)
+        obs_source_release(source);
+      source = other.source;
+      other.source = nullptr;
+    }
+    return *this;
+  }
 
-	operator obs_source_t *() { return source; }
-	operator bool() const { return source != nullptr; }
-	obs_source_t *get() { return source; }
+  operator obs_source_t *() { return source; }
+  operator bool() const { return source != nullptr; }
+  obs_source_t *get() { return source; }
 };
 
 /**
@@ -51,38 +49,35 @@ public:
  */
 class OBSDataAutoRelease {
 public:
-	obs_data_t *data;
+  obs_data_t *data;
 
-	explicit OBSDataAutoRelease(obs_data_t *d) : data(d) {}
+  explicit OBSDataAutoRelease(obs_data_t *d) : data(d) {}
 
-	~OBSDataAutoRelease()
-	{
-		if (data)
-			obs_data_release(data);
-	}
+  ~OBSDataAutoRelease() {
+    if (data)
+      obs_data_release(data);
+  }
 
-	OBSDataAutoRelease(const OBSDataAutoRelease &) = delete;
-	OBSDataAutoRelease &operator=(const OBSDataAutoRelease &) = delete;
+  OBSDataAutoRelease(const OBSDataAutoRelease &) = delete;
+  OBSDataAutoRelease &operator=(const OBSDataAutoRelease &) = delete;
 
-	OBSDataAutoRelease(OBSDataAutoRelease &&other) noexcept : data(other.data)
-	{
-		other.data = nullptr;
-	}
+  OBSDataAutoRelease(OBSDataAutoRelease &&other) noexcept : data(other.data) {
+    other.data = nullptr;
+  }
 
-	OBSDataAutoRelease &operator=(OBSDataAutoRelease &&other) noexcept
-	{
-		if (this != &other) {
-			if (data)
-				obs_data_release(data);
-			data = other.data;
-			other.data = nullptr;
-		}
-		return *this;
-	}
+  OBSDataAutoRelease &operator=(OBSDataAutoRelease &&other) noexcept {
+    if (this != &other) {
+      if (data)
+        obs_data_release(data);
+      data = other.data;
+      other.data = nullptr;
+    }
+    return *this;
+  }
 
-	operator obs_data_t *() { return data; }
-	operator bool() const { return data != nullptr; }
-	obs_data_t *get() { return data; }
+  operator obs_data_t *() { return data; }
+  operator bool() const { return data != nullptr; }
+  obs_data_t *get() { return data; }
 };
 
 /**
@@ -91,38 +86,36 @@ public:
  */
 class OBSDataArrayAutoRelease {
 public:
-	obs_data_array_t *array;
+  obs_data_array_t *array;
 
-	explicit OBSDataArrayAutoRelease(obs_data_array_t *arr) : array(arr) {}
+  explicit OBSDataArrayAutoRelease(obs_data_array_t *arr) : array(arr) {}
 
-	~OBSDataArrayAutoRelease()
-	{
-		if (array)
-			obs_data_array_release(array);
-	}
+  ~OBSDataArrayAutoRelease() {
+    if (array)
+      obs_data_array_release(array);
+  }
 
-	OBSDataArrayAutoRelease(const OBSDataArrayAutoRelease &) = delete;
-	OBSDataArrayAutoRelease &operator=(const OBSDataArrayAutoRelease &) = delete;
+  OBSDataArrayAutoRelease(const OBSDataArrayAutoRelease &) = delete;
+  OBSDataArrayAutoRelease &operator=(const OBSDataArrayAutoRelease &) = delete;
 
-	OBSDataArrayAutoRelease(OBSDataArrayAutoRelease &&other) noexcept : array(other.array)
-	{
-		other.array = nullptr;
-	}
+  OBSDataArrayAutoRelease(OBSDataArrayAutoRelease &&other) noexcept
+      : array(other.array) {
+    other.array = nullptr;
+  }
 
-	OBSDataArrayAutoRelease &operator=(OBSDataArrayAutoRelease &&other) noexcept
-	{
-		if (this != &other) {
-			if (array)
-				obs_data_array_release(array);
-			array = other.array;
-			other.array = nullptr;
-		}
-		return *this;
-	}
+  OBSDataArrayAutoRelease &operator=(OBSDataArrayAutoRelease &&other) noexcept {
+    if (this != &other) {
+      if (array)
+        obs_data_array_release(array);
+      array = other.array;
+      other.array = nullptr;
+    }
+    return *this;
+  }
 
-	operator obs_data_array_t *() { return array; }
-	operator bool() const { return array != nullptr; }
-	obs_data_array_t *get() { return array; }
+  operator obs_data_array_t *() { return array; }
+  operator bool() const { return array != nullptr; }
+  obs_data_array_t *get() { return array; }
 };
 
 /**
@@ -131,38 +124,36 @@ public:
  */
 class OBSOutputAutoRelease {
 public:
-	obs_output_t *output;
+  obs_output_t *output;
 
-	explicit OBSOutputAutoRelease(obs_output_t *out) : output(out) {}
+  explicit OBSOutputAutoRelease(obs_output_t *out) : output(out) {}
 
-	~OBSOutputAutoRelease()
-	{
-		if (output)
-			obs_output_release(output);
-	}
+  ~OBSOutputAutoRelease() {
+    if (output)
+      obs_output_release(output);
+  }
 
-	OBSOutputAutoRelease(const OBSOutputAutoRelease &) = delete;
-	OBSOutputAutoRelease &operator=(const OBSOutputAutoRelease &) = delete;
+  OBSOutputAutoRelease(const OBSOutputAutoRelease &) = delete;
+  OBSOutputAutoRelease &operator=(const OBSOutputAutoRelease &) = delete;
 
-	OBSOutputAutoRelease(OBSOutputAutoRelease &&other) noexcept : output(other.output)
-	{
-		other.output = nullptr;
-	}
+  OBSOutputAutoRelease(OBSOutputAutoRelease &&other) noexcept
+      : output(other.output) {
+    other.output = nullptr;
+  }
 
-	OBSOutputAutoRelease &operator=(OBSOutputAutoRelease &&other) noexcept
-	{
-		if (this != &other) {
-			if (output)
-				obs_output_release(output);
-			output = other.output;
-			other.output = nullptr;
-		}
-		return *this;
-	}
+  OBSOutputAutoRelease &operator=(OBSOutputAutoRelease &&other) noexcept {
+    if (this != &other) {
+      if (output)
+        obs_output_release(output);
+      output = other.output;
+      other.output = nullptr;
+    }
+    return *this;
+  }
 
-	operator obs_output_t *() { return output; }
-	operator bool() const { return output != nullptr; }
-	obs_output_t *get() { return output; }
+  operator obs_output_t *() { return output; }
+  operator bool() const { return output != nullptr; }
+  obs_output_t *get() { return output; }
 };
 
 /**
@@ -171,38 +162,36 @@ public:
  */
 class OBSEncoderAutoRelease {
 public:
-	obs_encoder_t *encoder;
+  obs_encoder_t *encoder;
 
-	explicit OBSEncoderAutoRelease(obs_encoder_t *enc) : encoder(enc) {}
+  explicit OBSEncoderAutoRelease(obs_encoder_t *enc) : encoder(enc) {}
 
-	~OBSEncoderAutoRelease()
-	{
-		if (encoder)
-			obs_encoder_release(encoder);
-	}
+  ~OBSEncoderAutoRelease() {
+    if (encoder)
+      obs_encoder_release(encoder);
+  }
 
-	OBSEncoderAutoRelease(const OBSEncoderAutoRelease &) = delete;
-	OBSEncoderAutoRelease &operator=(const OBSEncoderAutoRelease &) = delete;
+  OBSEncoderAutoRelease(const OBSEncoderAutoRelease &) = delete;
+  OBSEncoderAutoRelease &operator=(const OBSEncoderAutoRelease &) = delete;
 
-	OBSEncoderAutoRelease(OBSEncoderAutoRelease &&other) noexcept : encoder(other.encoder)
-	{
-		other.encoder = nullptr;
-	}
+  OBSEncoderAutoRelease(OBSEncoderAutoRelease &&other) noexcept
+      : encoder(other.encoder) {
+    other.encoder = nullptr;
+  }
 
-	OBSEncoderAutoRelease &operator=(OBSEncoderAutoRelease &&other) noexcept
-	{
-		if (this != &other) {
-			if (encoder)
-				obs_encoder_release(encoder);
-			encoder = other.encoder;
-			other.encoder = nullptr;
-		}
-		return *this;
-	}
+  OBSEncoderAutoRelease &operator=(OBSEncoderAutoRelease &&other) noexcept {
+    if (this != &other) {
+      if (encoder)
+        obs_encoder_release(encoder);
+      encoder = other.encoder;
+      other.encoder = nullptr;
+    }
+    return *this;
+  }
 
-	operator obs_encoder_t *() { return encoder; }
-	operator bool() const { return encoder != nullptr; }
-	obs_encoder_t *get() { return encoder; }
+  operator obs_encoder_t *() { return encoder; }
+  operator bool() const { return encoder != nullptr; }
+  obs_encoder_t *get() { return encoder; }
 };
 
 /**
@@ -211,38 +200,36 @@ public:
  */
 class OBSServiceAutoRelease {
 public:
-	obs_service_t *service;
+  obs_service_t *service;
 
-	explicit OBSServiceAutoRelease(obs_service_t *svc) : service(svc) {}
+  explicit OBSServiceAutoRelease(obs_service_t *svc) : service(svc) {}
 
-	~OBSServiceAutoRelease()
-	{
-		if (service)
-			obs_service_release(service);
-	}
+  ~OBSServiceAutoRelease() {
+    if (service)
+      obs_service_release(service);
+  }
 
-	OBSServiceAutoRelease(const OBSServiceAutoRelease &) = delete;
-	OBSServiceAutoRelease &operator=(const OBSServiceAutoRelease &) = delete;
+  OBSServiceAutoRelease(const OBSServiceAutoRelease &) = delete;
+  OBSServiceAutoRelease &operator=(const OBSServiceAutoRelease &) = delete;
 
-	OBSServiceAutoRelease(OBSServiceAutoRelease &&other) noexcept : service(other.service)
-	{
-		other.service = nullptr;
-	}
+  OBSServiceAutoRelease(OBSServiceAutoRelease &&other) noexcept
+      : service(other.service) {
+    other.service = nullptr;
+  }
 
-	OBSServiceAutoRelease &operator=(OBSServiceAutoRelease &&other) noexcept
-	{
-		if (this != &other) {
-			if (service)
-				obs_service_release(service);
-			service = other.service;
-			other.service = nullptr;
-		}
-		return *this;
-	}
+  OBSServiceAutoRelease &operator=(OBSServiceAutoRelease &&other) noexcept {
+    if (this != &other) {
+      if (service)
+        obs_service_release(service);
+      service = other.service;
+      other.service = nullptr;
+    }
+    return *this;
+  }
 
-	operator obs_service_t *() { return service; }
-	operator bool() const { return service != nullptr; }
-	obs_service_t *get() { return service; }
+  operator obs_service_t *() { return service; }
+  operator bool() const { return service != nullptr; }
+  obs_service_t *get() { return service; }
 };
 
 /**
@@ -251,36 +238,36 @@ public:
  */
 class OBSPropertiesAutoDestroy {
 public:
-	obs_properties_t *props;
+  obs_properties_t *props;
 
-	explicit OBSPropertiesAutoDestroy(obs_properties_t *p) : props(p) {}
+  explicit OBSPropertiesAutoDestroy(obs_properties_t *p) : props(p) {}
 
-	~OBSPropertiesAutoDestroy()
-	{
-		if (props)
-			obs_properties_destroy(props);
-	}
+  ~OBSPropertiesAutoDestroy() {
+    if (props)
+      obs_properties_destroy(props);
+  }
 
-	OBSPropertiesAutoDestroy(const OBSPropertiesAutoDestroy &) = delete;
-	OBSPropertiesAutoDestroy &operator=(const OBSPropertiesAutoDestroy &) = delete;
+  OBSPropertiesAutoDestroy(const OBSPropertiesAutoDestroy &) = delete;
+  OBSPropertiesAutoDestroy &
+  operator=(const OBSPropertiesAutoDestroy &) = delete;
 
-	OBSPropertiesAutoDestroy(OBSPropertiesAutoDestroy &&other) noexcept : props(other.props)
-	{
-		other.props = nullptr;
-	}
+  OBSPropertiesAutoDestroy(OBSPropertiesAutoDestroy &&other) noexcept
+      : props(other.props) {
+    other.props = nullptr;
+  }
 
-	OBSPropertiesAutoDestroy &operator=(OBSPropertiesAutoDestroy &&other) noexcept
-	{
-		if (this != &other) {
-			if (props)
-				obs_properties_destroy(props);
-			props = other.props;
-			other.props = nullptr;
-		}
-		return *this;
-	}
+  OBSPropertiesAutoDestroy &
+  operator=(OBSPropertiesAutoDestroy &&other) noexcept {
+    if (this != &other) {
+      if (props)
+        obs_properties_destroy(props);
+      props = other.props;
+      other.props = nullptr;
+    }
+    return *this;
+  }
 
-	operator obs_properties_t *() { return props; }
-	operator bool() const { return props != nullptr; }
-	obs_properties_t *get() { return props; }
+  operator obs_properties_t *() { return props; }
+  operator bool() const { return props != nullptr; }
+  obs_properties_t *get() { return props; }
 };

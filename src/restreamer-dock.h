@@ -16,14 +16,14 @@
 #include <QVBoxLayout>
 #include <mutex>
 
+#include "obs-service-loader.h"
 #include "restreamer-api.h"
 #include "restreamer-multistream.h"
 #include "restreamer-output-profile.h"
-#include "obs-service-loader.h"
 
 /* Forward declare C types */
 extern "C" {
-  typedef struct obs_bridge obs_bridge_t;
+typedef struct obs_bridge obs_bridge_t;
 }
 
 /* Forward declare Qt classes */
@@ -85,7 +85,8 @@ private slots:
 
 private:
   /* Frontend callbacks for scene collection save/load integration */
-  static void frontend_save_callback(obs_data_t *save_data, bool saving, void *private_data);
+  static void frontend_save_callback(obs_data_t *save_data, bool saving,
+                                     void *private_data);
   void onFrontendSave(obs_data_t *save_data, bool saving);
   void setupUI();
   void loadSettings();

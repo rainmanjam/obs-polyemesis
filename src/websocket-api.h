@@ -1,7 +1,7 @@
 #pragma once
 
-#include <obs-module.h>
 #include <obs-frontend-api.h>
+#include <obs-module.h>
 
 #ifdef __cplusplus
 extern "C" {
@@ -16,9 +16,11 @@ extern "C" {
  * obs-websocket clients like Python obswebsocket library.
  *
  * Vendor Requests:
- * - Profile Management: CreateProfile, DeleteProfile, DuplicateProfile, GetProfiles
+ * - Profile Management: CreateProfile, DeleteProfile, DuplicateProfile,
+ * GetProfiles
  * - Destination Management: AddDestination, RemoveDestination, EditDestination
- * - Stream Control: StartProfile, StopProfile, StartAllProfiles, StopAllProfiles
+ * - Stream Control: StartProfile, StopProfile, StartAllProfiles,
+ * StopAllProfiles
  * - State Queries: GetPluginState, GetProfileState, GetConnectionStatus
  * - UI State: GetButtonStates, IsProfileSelected
  *
@@ -41,7 +43,8 @@ void websocket_api_shutdown(void);
 /**
  * @brief Emit a WebSocket event to connected clients
  * @param event_name Name of the event
- * @param event_data JSON data for the event (obs_data_t will be released by caller)
+ * @param event_data JSON data for the event (obs_data_t will be released by
+ * caller)
  */
 void websocket_api_emit_event(const char *event_name, obs_data_t *event_data);
 

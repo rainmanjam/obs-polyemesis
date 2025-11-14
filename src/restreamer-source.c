@@ -34,7 +34,7 @@ PLUGIN_STATIC const char *restreamer_source_get_name(void *unused) {
 }
 
 PLUGIN_STATIC void *restreamer_source_create(obs_data_t *settings,
-                                      obs_source_t *source) {
+                                             obs_source_t *source) {
   struct restreamer_source *context = bzalloc(sizeof(struct restreamer_source));
   context->source = source;
 
@@ -145,7 +145,8 @@ PLUGIN_STATIC void restreamer_source_get_defaults(obs_data_t *settings) {
 }
 
 PLUGIN_STATIC bool refresh_processes_clicked(obs_properties_t *props,
-                                      obs_property_t *property, void *data) {
+                                             obs_property_t *property,
+                                             void *data) {
   UNUSED_PARAMETER(property);
   UNUSED_PARAMETER(data);
 
@@ -206,7 +207,8 @@ PLUGIN_STATIC obs_properties_t *restreamer_source_get_properties(void *data) {
   return props;
 }
 
-PLUGIN_STATIC void restreamer_source_video_render(void *data, gs_effect_t *effect) {
+PLUGIN_STATIC void restreamer_source_video_render(void *data,
+                                                  gs_effect_t *effect) {
   struct restreamer_source *context = data;
 
   if (context->media_source) {

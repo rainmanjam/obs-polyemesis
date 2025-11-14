@@ -707,7 +707,7 @@ watch -n 1 'curl -s -u admin:password http://localhost:8080/api/v3/process | jq 
 
 ```bash
 #!/bin/bash
-# test-polyemesis.sh
+# scripts/test-polyemesis.sh
 
 set -e
 
@@ -819,8 +819,8 @@ echo "=========================================="
 
 ### Save and run:
 ```bash
-chmod +x test-polyemesis.sh
-./test-polyemesis.sh
+chmod +x scripts/test-polyemesis.sh
+./scripts/test-polyemesis.sh
 ```
 
 ---
@@ -938,7 +938,7 @@ Use this checklist for pre-release validation:
 Run before every git commit:
 ```bash
 # Quick smoke test
-./test-polyemesis.sh
+./scripts/test-polyemesis.sh
 
 # Build test
 cmake --build build-test

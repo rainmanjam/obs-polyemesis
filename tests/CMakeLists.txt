@@ -136,10 +136,188 @@ else()
   message(STATUS "UI tests disabled (Qt not enabled)")
 endif()
 
+# Additional standalone crash-safe tests
+add_executable(test_profile_management_standalone test_profile_management.c obs_stubs.c)
+target_sources(test_profile_management_standalone PRIVATE
+    ${CMAKE_SOURCE_DIR}/src/restreamer-output-profile.c
+    ${CMAKE_SOURCE_DIR}/src/restreamer-multistream.c
+    ${CMAKE_SOURCE_DIR}/src/restreamer-api.c
+)
+target_include_directories(test_profile_management_standalone PRIVATE
+    ${CMAKE_SOURCE_DIR}/src
+    ${JANSSON_INCLUDE_DIRS}
+    ${CURL_INCLUDE_DIRS}
+)
+target_link_libraries(test_profile_management_standalone PRIVATE
+    ${JANSSON_LIBRARIES}
+    CURL::libcurl
+    OBS::libobs
+)
+
+add_executable(test_failover_standalone test_failover.c obs_stubs.c)
+target_sources(test_failover_standalone PRIVATE
+    ${CMAKE_SOURCE_DIR}/src/restreamer-output-profile.c
+    ${CMAKE_SOURCE_DIR}/src/restreamer-multistream.c
+    ${CMAKE_SOURCE_DIR}/src/restreamer-api.c
+)
+target_include_directories(test_failover_standalone PRIVATE
+    ${CMAKE_SOURCE_DIR}/src
+    ${JANSSON_INCLUDE_DIRS}
+    ${CURL_INCLUDE_DIRS}
+)
+target_link_libraries(test_failover_standalone PRIVATE
+    ${JANSSON_LIBRARIES}
+    CURL::libcurl
+    OBS::libobs
+)
+
+# Add sanitizers to standalone tests
+if(ENABLE_ASAN)
+    target_compile_options(test_profile_management_standalone PRIVATE
+        -fsanitize=address -fno-omit-frame-pointer -g)
+    target_link_options(test_profile_management_standalone PRIVATE -fsanitize=address)
+
+    target_compile_options(test_failover_standalone PRIVATE
+        -fsanitize=address -fno-omit-frame-pointer -g)
+    target_link_options(test_failover_standalone PRIVATE -fsanitize=address)
+endif()
+
+if(ENABLE_UBSAN)
+    target_compile_options(test_profile_management_standalone PRIVATE
+        -fsanitize=undefined -fno-omit-frame-pointer -g)
+    target_link_options(test_profile_management_standalone PRIVATE -fsanitize=undefined)
+
+    target_compile_options(test_failover_standalone PRIVATE
+        -fsanitize=undefined -fno-omit-frame-pointer -g)
+    target_link_options(test_failover_standalone PRIVATE -fsanitize=undefined)
+endif()
+
+# Add standalone tests to CTest
+add_test(NAME profile_management_crash_safe
+    COMMAND $<TARGET_FILE:test_profile_management_standalone>)
+add_test(NAME failover_crash_safe
+    COMMAND $<TARGET_FILE:test_failover_standalone>)
+
+# Edge case tests (comprehensive boundary and stress testing)
+add_executable(test_edge_cases_standalone test_edge_cases.c obs_stubs.c)
+target_sources(test_edge_cases_standalone PRIVATE
+    ${CMAKE_SOURCE_DIR}/src/restreamer-output-profile.c
+    ${CMAKE_SOURCE_DIR}/src/restreamer-multistream.c
+    ${CMAKE_SOURCE_DIR}/src/restreamer-api.c
+)
+target_include_directories(test_edge_cases_standalone PRIVATE
+    ${CMAKE_SOURCE_DIR}/src
+    ${JANSSON_INCLUDE_DIRS}
+    ${CURL_INCLUDE_DIRS}
+)
+target_link_libraries(test_edge_cases_standalone PRIVATE
+    ${JANSSON_LIBRARIES}
+    CURL::libcurl
+    OBS::libobs
+)
+
+# Add sanitizers to edge case tests
+if(ENABLE_ASAN)
+    target_compile_options(test_edge_cases_standalone PRIVATE
+        -fsanitize=address -fno-omit-frame-pointer -g)
+    target_link_options(test_edge_cases_standalone PRIVATE -fsanitize=address)
+endif()
+
+if(ENABLE_UBSAN)
+    target_compile_options(test_edge_cases_standalone PRIVATE
+        -fsanitize=undefined -fno-omit-frame-pointer -g)
+    target_link_options(test_edge_cases_standalone PRIVATE -fsanitize=undefined)
+endif()
+
+add_test(NAME edge_cases_crash_safe
+    COMMAND $<TARGET_FILE:test_edge_cases_standalone>)
+
+# Platform compatibility tests (Windows/Linux/macOS)
+add_executable(test_platform_compat_standalone test_platform_compat.c obs_stubs.c)
+target_sources(test_platform_compat_standalone PRIVATE
+    ${CMAKE_SOURCE_DIR}/src/restreamer-output-profile.c
+    ${CMAKE_SOURCE_DIR}/src/restreamer-multistream.c
+    ${CMAKE_SOURCE_DIR}/src/restreamer-api.c
+)
+target_include_directories(test_platform_compat_standalone PRIVATE
+    ${CMAKE_SOURCE_DIR}/src
+    ${JANSSON_INCLUDE_DIRS}
+    ${CURL_INCLUDE_DIRS}
+)
+target_link_libraries(test_platform_compat_standalone PRIVATE
+    ${JANSSON_LIBRARIES}
+    CURL::libcurl
+    OBS::libobs
+)
+
+# Add sanitizers to platform tests
+if(ENABLE_ASAN)
+    target_compile_options(test_platform_compat_standalone PRIVATE
+        -fsanitize=address -fno-omit-frame-pointer -g)
+    target_link_options(test_platform_compat_standalone PRIVATE -fsanitize=address)
+endif()
+
+if(ENABLE_UBSAN)
+    target_compile_options(test_platform_compat_standalone PRIVATE
+        -fsanitize=undefined -fno-omit-frame-pointer -g)
+    target_link_options(test_platform_compat_standalone PRIVATE -fsanitize=undefined)
+endif()
+
+add_test(NAME platform_compat_crash_safe
+    COMMAND $<TARGET_FILE:test_platform_compat_standalone>)
+
+# Integration tests (with live Restreamer API)
+add_executable(test_integration_restreamer_standalone test_integration_restreamer.c obs_stubs.c)
+target_sources(test_integration_restreamer_standalone PRIVATE
+    ${CMAKE_SOURCE_DIR}/src/restreamer-output-profile.c
+    ${CMAKE_SOURCE_DIR}/src/restreamer-multistream.c
+    ${CMAKE_SOURCE_DIR}/src/restreamer-api.c
+)
+target_include_directories(test_integration_restreamer_standalone PRIVATE
+    ${CMAKE_SOURCE_DIR}/src
+    ${JANSSON_INCLUDE_DIRS}
+    ${CURL_INCLUDE_DIRS}
+)
+target_link_libraries(test_integration_restreamer_standalone PRIVATE
+    ${JANSSON_LIBRARIES}
+    CURL::libcurl
+    OBS::libobs
+)
+
+add_test(NAME integration_restreamer_api
+    COMMAND $<TARGET_FILE:test_integration_restreamer_standalone>)
+
+# End-to-End workflow tests
+add_executable(test_e2e_workflows_standalone test_e2e_workflows.c obs_stubs.c)
+target_sources(test_e2e_workflows_standalone PRIVATE
+    ${CMAKE_SOURCE_DIR}/src/restreamer-output-profile.c
+    ${CMAKE_SOURCE_DIR}/src/restreamer-multistream.c
+    ${CMAKE_SOURCE_DIR}/src/restreamer-api.c
+)
+target_include_directories(test_e2e_workflows_standalone PRIVATE
+    ${CMAKE_SOURCE_DIR}/src
+    ${JANSSON_INCLUDE_DIRS}
+    ${CURL_INCLUDE_DIRS}
+)
+target_link_libraries(test_e2e_workflows_standalone PRIVATE
+    ${JANSSON_LIBRARIES}
+    CURL::libcurl
+    OBS::libobs
+)
+
+add_test(NAME e2e_workflows
+    COMMAND $<TARGET_FILE:test_e2e_workflows_standalone>)
+
 # Print test configuration
 message(STATUS "Test suite configuration:")
 message(STATUS "  - Core tests: ENABLED")
 message(STATUS "  - Performance benchmarks: ENABLED")
+message(STATUS "  - Crash-safe tests: ENABLED")
+message(STATUS "  - Edge case tests: ENABLED (12 tests)")
+message(STATUS "  - Platform compat tests: ENABLED (15 tests)")
+message(STATUS "  - Integration tests: ENABLED (5 tests)")
+message(STATUS "  - E2E workflow tests: ENABLED (5 tests)")
 message(STATUS "  - UI tests: ${Qt6Test_FOUND}")
 message(STATUS "  - Coverage: ${ENABLE_COVERAGE}")
 message(STATUS "  - AddressSanitizer: ${ENABLE_ASAN}")
+message(STATUS "  - UBSan: ${ENABLE_UBSAN}")

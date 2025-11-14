@@ -1,10 +1,10 @@
+#include "obs-bridge.h"
 #include "restreamer-dock.h"
 #include "restreamer-output-profile.h"
-#include "obs-bridge.h"
+#include <QMainWindow>
 #include <obs-frontend-api.h>
 #include <obs-module.h>
 #include <plugin-support.h>
-#include <QMainWindow>
 
 extern "C" {
 
@@ -19,19 +19,23 @@ void *restreamer_dock_create(void) {
   /* Create widget (NOT QDockWidget - OBS wraps it in its own dock) */
   RestreamerDock *widget = new RestreamerDock(main_window);
 
-  /* Set object name for dock state persistence - must match the ID used in obs_frontend_add_dock_by_id */
+  /* Set object name for dock state persistence - must match the ID used in
+   * obs_frontend_add_dock_by_id */
   widget->setObjectName("RestreamerControl");
 
   /* Set a reasonable minimum size */
   widget->setMinimumSize(300, 200);
 
   /* Register widget with OBS - OBS will wrap it in a managed QDockWidget.
-   * OBS handles all docking behavior, visibility toggling, and state persistence.
-   * The widget content will appear in View > Docks menu as "Restreamer Control".
+   * OBS handles all docking behavior, visibility toggling, and state
+   * persistence. The widget content will appear in View > Docks menu as
+   * "Restreamer Control".
    */
-  obs_frontend_add_dock_by_id("RestreamerControl", "Restreamer Control", widget);
+  obs_frontend_add_dock_by_id("RestreamerControl", "Restreamer Control",
+                              widget);
 
-  obs_log(LOG_INFO, "Restreamer Control widget created and registered with OBS");
+  obs_log(LOG_INFO,
+          "Restreamer Control widget created and registered with OBS");
 
   return widget;
 }

@@ -13,9 +13,9 @@ struct restreamer_api {
   CURL *curl;
   char error_buffer[CURL_ERROR_SIZE];
   struct dstr last_error;
-  char *access_token;     /* JWT access token */
-  char *refresh_token;    /* JWT refresh token */
-  time_t token_expires;   /* Token expiration timestamp */
+  char *access_token;   /* JWT access token */
+  char *refresh_token;  /* JWT refresh token */
+  time_t token_expires; /* Token expiration timestamp */
 };
 
 /* Memory write callback for curl */
@@ -75,7 +75,8 @@ restreamer_api_t *restreamer_api_create(restreamer_connection_t *connection) {
   curl_easy_setopt(api->curl, CURLOPT_TIMEOUT, 10L);
 
   /* Thread-safety options for multi-threaded environments */
-  curl_easy_setopt(api->curl, CURLOPT_NOSIGNAL, 1L);  /* Disable signals - required for thread safety */
+  curl_easy_setopt(api->curl, CURLOPT_NOSIGNAL,
+                   1L); /* Disable signals - required for thread safety */
 
   /* Initialize JWT token fields */
   api->access_token = NULL;
@@ -113,8 +114,10 @@ static bool restreamer_api_login(restreamer_api_t *api) {
 
   /* Build login request */
   json_t *login_data = json_object();
-  json_object_set_new(login_data, "username", json_string(api->connection.username));
-  json_object_set_new(login_data, "password", json_string(api->connection.password));
+  json_object_set_new(login_data, "username",
+                      json_string(api->connection.username));
+  json_object_set_new(login_data, "password",
+                      json_string(api->connection.password));
 
   char *post_data = json_dumps(login_data, 0);
   json_decref(login_data);
@@ -131,7 +134,8 @@ static bool restreamer_api_login(restreamer_api_t *api) {
 
   /* Set headers for login request - no auth needed */
   struct curl_slist *login_headers = NULL;
-  login_headers = curl_slist_append(login_headers, "Content-Type: application/json");
+  login_headers =
+      curl_slist_append(login_headers, "Content-Type: application/json");
 
   curl_easy_setopt(api->curl, CURLOPT_URL, url.array);
   curl_easy_setopt(api->curl, CURLOPT_HTTPHEADER, login_headers);
@@ -229,7 +233,8 @@ static bool make_request(restreamer_api_t *api, const char *endpoint,
 
   /* Create temporary headers list for this request */
   struct curl_slist *temp_headers = NULL;
-  temp_headers = curl_slist_append(temp_headers, "Content-Type: application/json");
+  temp_headers =
+      curl_slist_append(temp_headers, "Content-Type: application/json");
   temp_headers = curl_slist_append(temp_headers, auth_header.array);
   curl_easy_setopt(api->curl, CURLOPT_HTTPHEADER, temp_headers);
 
@@ -772,6 +777,368 @@ bool restreamer_api_delete_process(restreamer_api_t *api,
   return result;
 }
 
+/* ========================================================================
+ * Dynamic Process Modification API Implementation
+ * ======================================================================== */
+
+bool restreamer_api_add_process_output(restreamer_api_t *api,
+                                       const char *process_id,
+                                       const char *output_id,
+                                       const char *output_url,
+                                       const char *video_filter) {
+  if (!api || !process_id || !output_id || !output_url) {
+    return false;
+  }
+
+  /* Build endpoint: /api/v3/process/{id}/outputs */
+  struct dstr endpoint;
+  dstr_init_copy(&endpoint, "/api/v3/process/");
+  dstr_cat(&endpoint, process_id);
+  dstr_cat(&endpoint, "/outputs");
+
+  /* Build request body */
+  json_t *root = json_object();
+  json_object_set_new(root, "id", json_string(output_id));
+  json_object_set_new(root, "url", json_string(output_url));
+
+  if (video_filter) {
+    json_object_set_new(root, "video_filter", json_string(video_filter));
+  }
+
+  char *post_data = json_dumps(root, 0);
+  json_decref(root);
+
+  struct memory_struct response = {NULL, 0};
+  bool result = make_request(api, endpoint.array, "POST", post_data, &response);
+
+  dstr_free(&endpoint);
+  free(post_data);
+
+  if (result) {
+    free(response.memory);
+    obs_log(LOG_INFO, "Added output %s to process %s", output_id, process_id);
+  } else {
+    obs_log(LOG_ERROR, "Failed to add output %s to process %s: %s", output_id,
+            process_id, restreamer_api_get_error(api));
+  }
+
+  return result;
+}
+
+bool restreamer_api_remove_process_output(restreamer_api_t *api,
+                                          const char *process_id,
+                                          const char *output_id) {
+  if (!api || !process_id || !output_id) {
+    return false;
+  }
+
+  /* Build endpoint: /api/v3/process/{id}/outputs/{output_id} */
+  struct dstr endpoint;
+  dstr_init_copy(&endpoint, "/api/v3/process/");
+  dstr_cat(&endpoint, process_id);
+  dstr_cat(&endpoint, "/outputs/");
+  dstr_cat(&endpoint, output_id);
+
+  struct memory_struct response = {NULL, 0};
+  bool result = make_request(api, endpoint.array, "DELETE", NULL, &response);
+  dstr_free(&endpoint);
+
+  if (result) {
+    free(response.memory);
+    obs_log(LOG_INFO, "Removed output %s from process %s", output_id,
+            process_id);
+  } else {
+    obs_log(LOG_ERROR, "Failed to remove output %s from process %s: %s",
+            output_id, process_id, restreamer_api_get_error(api));
+  }
+
+  return result;
+}
+
+bool restreamer_api_update_process_output(restreamer_api_t *api,
+                                          const char *process_id,
+                                          const char *output_id,
+                                          const char *output_url,
+                                          const char *video_filter) {
+  if (!api || !process_id || !output_id) {
+    return false;
+  }
+
+  /* Build endpoint: /api/v3/process/{id}/outputs/{output_id} */
+  struct dstr endpoint;
+  dstr_init_copy(&endpoint, "/api/v3/process/");
+  dstr_cat(&endpoint, process_id);
+  dstr_cat(&endpoint, "/outputs/");
+  dstr_cat(&endpoint, output_id);
+
+  /* Build request body */
+  json_t *root = json_object();
+
+  if (output_url) {
+    json_object_set_new(root, "url", json_string(output_url));
+  }
+
+  if (video_filter) {
+    json_object_set_new(root, "video_filter", json_string(video_filter));
+  }
+
+  char *put_data = json_dumps(root, 0);
+  json_decref(root);
+
+  struct memory_struct response = {NULL, 0};
+  bool result = make_request(api, endpoint.array, "PUT", put_data, &response);
+
+  dstr_free(&endpoint);
+  free(put_data);
+
+  if (result) {
+    free(response.memory);
+    obs_log(LOG_INFO, "Updated output %s in process %s", output_id, process_id);
+  } else {
+    obs_log(LOG_ERROR, "Failed to update output %s in process %s: %s",
+            output_id, process_id, restreamer_api_get_error(api));
+  }
+
+  return result;
+}
+
+bool restreamer_api_get_process_outputs(restreamer_api_t *api,
+                                        const char *process_id,
+                                        char ***output_ids,
+                                        size_t *output_count) {
+  if (!api || !process_id || !output_ids || !output_count) {
+    return false;
+  }
+
+  /* Build endpoint: /api/v3/process/{id}/outputs */
+  struct dstr endpoint;
+  dstr_init_copy(&endpoint, "/api/v3/process/");
+  dstr_cat(&endpoint, process_id);
+  dstr_cat(&endpoint, "/outputs");
+
+  struct memory_struct response = {NULL, 0};
+  bool result = make_request(api, endpoint.array, "GET", NULL, &response);
+  dstr_free(&endpoint);
+
+  if (!result || !response.memory) {
+    return false;
+  }
+
+  /* Parse JSON response */
+  json_error_t error;
+  json_t *root = json_loads(response.memory, 0, &error);
+  free(response.memory);
+
+  if (!root || !json_is_object(root)) {
+    return false;
+  }
+
+  json_t *outputs_array = json_object_get(root, "outputs");
+  if (!outputs_array || !json_is_array(outputs_array)) {
+    json_decref(root);
+    return false;
+  }
+
+  size_t count = json_array_size(outputs_array);
+  char **ids = bzalloc(sizeof(char *) * count);
+
+  for (size_t i = 0; i < count; i++) {
+    json_t *output_obj = json_array_get(outputs_array, i);
+    json_t *id_obj = json_object_get(output_obj, "id");
+
+    if (json_is_string(id_obj)) {
+      ids[i] = bstrdup(json_string_value(id_obj));
+    }
+  }
+
+  *output_ids = ids;
+  *output_count = count;
+
+  json_decref(root);
+  return true;
+}
+
+void restreamer_api_free_outputs_list(char **output_ids, size_t count) {
+  if (!output_ids) {
+    return;
+  }
+
+  for (size_t i = 0; i < count; i++) {
+    bfree(output_ids[i]);
+  }
+
+  bfree(output_ids);
+}
+
+/* ========================================================================
+ * Live Encoding Settings API Implementation
+ * ======================================================================== */
+
+bool restreamer_api_update_output_encoding(restreamer_api_t *api,
+                                           const char *process_id,
+                                           const char *output_id,
+                                           encoding_params_t *params) {
+  if (!api || !process_id || !output_id || !params) {
+    return false;
+  }
+
+  /* Build endpoint: /api/v3/process/{id}/outputs/{output_id}/encoding */
+  struct dstr endpoint;
+  dstr_init_copy(&endpoint, "/api/v3/process/");
+  dstr_cat(&endpoint, process_id);
+  dstr_cat(&endpoint, "/outputs/");
+  dstr_cat(&endpoint, output_id);
+  dstr_cat(&endpoint, "/encoding");
+
+  /* Build request body with encoding parameters */
+  json_t *root = json_object();
+
+  if (params->video_bitrate_kbps > 0) {
+    json_object_set_new(root, "video_bitrate",
+                        json_integer(params->video_bitrate_kbps * 1000));
+  }
+
+  if (params->audio_bitrate_kbps > 0) {
+    json_object_set_new(root, "audio_bitrate",
+                        json_integer(params->audio_bitrate_kbps * 1000));
+  }
+
+  if (params->width > 0 && params->height > 0) {
+    json_t *resolution = json_object();
+    json_object_set_new(resolution, "width", json_integer(params->width));
+    json_object_set_new(resolution, "height", json_integer(params->height));
+    json_object_set_new(root, "resolution", resolution);
+  }
+
+  if (params->fps_num > 0 && params->fps_den > 0) {
+    json_t *fps = json_object();
+    json_object_set_new(fps, "num", json_integer(params->fps_num));
+    json_object_set_new(fps, "den", json_integer(params->fps_den));
+    json_object_set_new(root, "fps", fps);
+  }
+
+  if (params->preset) {
+    json_object_set_new(root, "preset", json_string(params->preset));
+  }
+
+  if (params->profile) {
+    json_object_set_new(root, "profile", json_string(params->profile));
+  }
+
+  char *put_data = json_dumps(root, 0);
+  json_decref(root);
+
+  struct memory_struct response = {NULL, 0};
+  bool result = make_request(api, endpoint.array, "PUT", put_data, &response);
+
+  dstr_free(&endpoint);
+  free(put_data);
+
+  if (result) {
+    free(response.memory);
+    obs_log(LOG_INFO, "Updated encoding settings for output %s in process %s",
+            output_id, process_id);
+  } else {
+    obs_log(LOG_ERROR,
+            "Failed to update encoding for output %s in process %s: %s",
+            output_id, process_id, restreamer_api_get_error(api));
+  }
+
+  return result;
+}
+
+bool restreamer_api_get_output_encoding(restreamer_api_t *api,
+                                        const char *process_id,
+                                        const char *output_id,
+                                        encoding_params_t *params) {
+  if (!api || !process_id || !output_id || !params) {
+    return false;
+  }
+
+  /* Initialize params */
+  memset(params, 0, sizeof(encoding_params_t));
+
+  /* Build endpoint: /api/v3/process/{id}/outputs/{output_id}/encoding */
+  struct dstr endpoint;
+  dstr_init_copy(&endpoint, "/api/v3/process/");
+  dstr_cat(&endpoint, process_id);
+  dstr_cat(&endpoint, "/outputs/");
+  dstr_cat(&endpoint, output_id);
+  dstr_cat(&endpoint, "/encoding");
+
+  struct memory_struct response = {NULL, 0};
+  bool result = make_request(api, endpoint.array, "GET", NULL, &response);
+  dstr_free(&endpoint);
+
+  if (!result || !response.memory) {
+    return false;
+  }
+
+  /* Parse JSON response */
+  json_error_t error;
+  json_t *root = json_loads(response.memory, 0, &error);
+  free(response.memory);
+
+  if (!root || !json_is_object(root)) {
+    return false;
+  }
+
+  /* Extract encoding parameters */
+  json_t *video_bitrate = json_object_get(root, "video_bitrate");
+  if (json_is_integer(video_bitrate)) {
+    params->video_bitrate_kbps = json_integer_value(video_bitrate) / 1000;
+  }
+
+  json_t *audio_bitrate = json_object_get(root, "audio_bitrate");
+  if (json_is_integer(audio_bitrate)) {
+    params->audio_bitrate_kbps = json_integer_value(audio_bitrate) / 1000;
+  }
+
+  json_t *resolution = json_object_get(root, "resolution");
+  if (json_is_object(resolution)) {
+    json_t *width = json_object_get(resolution, "width");
+    json_t *height = json_object_get(resolution, "height");
+    if (json_is_integer(width) && json_is_integer(height)) {
+      params->width = json_integer_value(width);
+      params->height = json_integer_value(height);
+    }
+  }
+
+  json_t *fps = json_object_get(root, "fps");
+  if (json_is_object(fps)) {
+    json_t *num = json_object_get(fps, "num");
+    json_t *den = json_object_get(fps, "den");
+    if (json_is_integer(num) && json_is_integer(den)) {
+      params->fps_num = json_integer_value(num);
+      params->fps_den = json_integer_value(den);
+    }
+  }
+
+  json_t *preset = json_object_get(root, "preset");
+  if (json_is_string(preset)) {
+    params->preset = bstrdup(json_string_value(preset));
+  }
+
+  json_t *profile = json_object_get(root, "profile");
+  if (json_is_string(profile)) {
+    params->profile = bstrdup(json_string_value(profile));
+  }
+
+  json_decref(root);
+  return true;
+}
+
+void restreamer_api_free_encoding_params(encoding_params_t *params) {
+  if (!params) {
+    return;
+  }
+
+  bfree(params->preset);
+  bfree(params->profile);
+
+  memset(params, 0, sizeof(encoding_params_t));
+}
+
 void restreamer_api_free_process_list(restreamer_process_list_t *list) {
   if (!list) {
     return;
@@ -847,192 +1214,198 @@ const char *restreamer_api_get_error(restreamer_api_t *api) {
 /* Generic HTTP GET request with JSON response */
 static bool api_request_json(restreamer_api_t *api, const char *endpoint,
                              json_t **response_json) {
-	if (!api || !endpoint) {
-		return false;
-	}
+  if (!api || !endpoint) {
+    return false;
+  }
 
-	/* Ensure we have a valid token */
-	if (!api->access_token && api->connection.username && api->connection.password) {
-		if (!restreamer_api_login(api)) {
-			return false;
-		}
-	}
+  /* Ensure we have a valid token */
+  if (!api->access_token && api->connection.username &&
+      api->connection.password) {
+    if (!restreamer_api_login(api)) {
+      return false;
+    }
+  }
 
-	/* Build URL */
-	struct dstr url;
-	dstr_init(&url);
-	const char *protocol = api->connection.use_https ? "https" : "http";
-	dstr_printf(&url, "%s://%s:%d%s", protocol, api->connection.host,
-	            api->connection.port, endpoint);
+  /* Build URL */
+  struct dstr url;
+  dstr_init(&url);
+  const char *protocol = api->connection.use_https ? "https" : "http";
+  dstr_printf(&url, "%s://%s:%d%s", protocol, api->connection.host,
+              api->connection.port, endpoint);
 
-	/* Setup request */
-	struct memory_struct response;
-	response.memory = NULL;  /* realloc(NULL, size) behaves like malloc(size) */
-	response.size = 0;
+  /* Setup request */
+  struct memory_struct response;
+  response.memory = NULL; /* realloc(NULL, size) behaves like malloc(size) */
+  response.size = 0;
 
-	/* Add authorization header */
-	struct curl_slist *headers = NULL;
-	headers = curl_slist_append(headers, "Content-Type: application/json");
+  /* Add authorization header */
+  struct curl_slist *headers = NULL;
+  headers = curl_slist_append(headers, "Content-Type: application/json");
 
-	/* Build authorization header if needed - keep it alive until after request completes */
-	struct dstr auth_header;
-	bool has_auth = false;
-	if (api->access_token) {
-		dstr_init(&auth_header);
-		dstr_printf(&auth_header, "Authorization: Bearer %s", api->access_token);
-		headers = curl_slist_append(headers, auth_header.array);
-		has_auth = true;
-	}
+  /* Build authorization header if needed - keep it alive until after request
+   * completes */
+  struct dstr auth_header;
+  bool has_auth = false;
+  if (api->access_token) {
+    dstr_init(&auth_header);
+    dstr_printf(&auth_header, "Authorization: Bearer %s", api->access_token);
+    headers = curl_slist_append(headers, auth_header.array);
+    has_auth = true;
+  }
 
-	curl_easy_setopt(api->curl, CURLOPT_URL, url.array);
+  curl_easy_setopt(api->curl, CURLOPT_URL, url.array);
 
-	/* Ensure GET method by clearing POST state and enabling HTTPGET */
-	curl_easy_setopt(api->curl, CURLOPT_POST, 0L);
-	curl_easy_setopt(api->curl, CURLOPT_POSTFIELDS, NULL);
-	curl_easy_setopt(api->curl, CURLOPT_POSTFIELDSIZE, 0L);
-	curl_easy_setopt(api->curl, CURLOPT_CUSTOMREQUEST, NULL);
-	curl_easy_setopt(api->curl, CURLOPT_HTTPGET, 1L);
+  /* Ensure GET method by clearing POST state and enabling HTTPGET */
+  curl_easy_setopt(api->curl, CURLOPT_POST, 0L);
+  curl_easy_setopt(api->curl, CURLOPT_POSTFIELDS, NULL);
+  curl_easy_setopt(api->curl, CURLOPT_POSTFIELDSIZE, 0L);
+  curl_easy_setopt(api->curl, CURLOPT_CUSTOMREQUEST, NULL);
+  curl_easy_setopt(api->curl, CURLOPT_HTTPGET, 1L);
 
-	curl_easy_setopt(api->curl, CURLOPT_HTTPHEADER, headers);
-	curl_easy_setopt(api->curl, CURLOPT_WRITEDATA, (void *)&response);
+  curl_easy_setopt(api->curl, CURLOPT_HTTPHEADER, headers);
+  curl_easy_setopt(api->curl, CURLOPT_WRITEDATA, (void *)&response);
 
-	CURLcode res = curl_easy_perform(api->curl);
+  CURLcode res = curl_easy_perform(api->curl);
 
-	curl_slist_free_all(headers);
-	curl_easy_setopt(api->curl, CURLOPT_HTTPHEADER, NULL);
-	if (has_auth) {
-		dstr_free(&auth_header);  /* Only free if we initialized it */
-	}
-	dstr_free(&url);
+  curl_slist_free_all(headers);
+  curl_easy_setopt(api->curl, CURLOPT_HTTPHEADER, NULL);
+  if (has_auth) {
+    dstr_free(&auth_header); /* Only free if we initialized it */
+  }
+  dstr_free(&url);
 
-	if (res != CURLE_OK) {
-		dstr_copy(&api->last_error, api->error_buffer);
-		free(response.memory);
-		return false;
-	}
+  if (res != CURLE_OK) {
+    dstr_copy(&api->last_error, api->error_buffer);
+    free(response.memory);
+    return false;
+  }
 
-	long http_code = 0;
-	curl_easy_getinfo(api->curl, CURLINFO_RESPONSE_CODE, &http_code);
+  long http_code = 0;
+  curl_easy_getinfo(api->curl, CURLINFO_RESPONSE_CODE, &http_code);
 
-	if (http_code < 200 || http_code >= 300) {
-		dstr_printf(&api->last_error, "HTTP %ld", http_code);
-		free(response.memory);
-		return false;
-	}
+  if (http_code < 200 || http_code >= 300) {
+    dstr_printf(&api->last_error, "HTTP %ld", http_code);
+    free(response.memory);
+    return false;
+  }
 
-	/* Parse JSON response */
-	if (response_json) {
-		json_error_t error;
-		*response_json = json_loads(response.memory, 0, &error);
-		if (!*response_json) {
-			dstr_printf(&api->last_error, "JSON parse error: %s", error.text);
-			free(response.memory);
-			return false;
-		}
-	}
+  /* Parse JSON response */
+  if (response_json) {
+    json_error_t error;
+    *response_json = json_loads(response.memory, 0, &error);
+    if (!*response_json) {
+      dstr_printf(&api->last_error, "JSON parse error: %s", error.text);
+      free(response.memory);
+      return false;
+    }
+  }
 
-	free(response.memory);
-	return true;
+  free(response.memory);
+  return true;
 }
 
 /* Generic HTTP PUT request */
 static bool api_request_put_json(restreamer_api_t *api, const char *endpoint,
-                                 const char *body_json, json_t **response_json) {
-	if (!api || !endpoint) {
-		return false;
-	}
+                                 const char *body_json,
+                                 json_t **response_json) {
+  if (!api || !endpoint) {
+    return false;
+  }
 
-	/* Ensure we have a valid token */
-	if (!api->access_token && api->connection.username && api->connection.password) {
-		if (!restreamer_api_login(api)) {
-			return false;
-		}
-	}
+  /* Ensure we have a valid token */
+  if (!api->access_token && api->connection.username &&
+      api->connection.password) {
+    if (!restreamer_api_login(api)) {
+      return false;
+    }
+  }
 
-	/* Build URL */
-	struct dstr url;
-	dstr_init(&url);
-	const char *protocol = api->connection.use_https ? "https" : "http";
-	dstr_printf(&url, "%s://%s:%d%s", protocol, api->connection.host,
-	            api->connection.port, endpoint);
+  /* Build URL */
+  struct dstr url;
+  dstr_init(&url);
+  const char *protocol = api->connection.use_https ? "https" : "http";
+  dstr_printf(&url, "%s://%s:%d%s", protocol, api->connection.host,
+              api->connection.port, endpoint);
 
-	/* Setup request */
-	struct memory_struct response;
-	response.memory = NULL;  /* realloc(NULL, size) behaves like malloc(size) */
-	response.size = 0;
+  /* Setup request */
+  struct memory_struct response;
+  response.memory = NULL; /* realloc(NULL, size) behaves like malloc(size) */
+  response.size = 0;
 
-	/* Add Content-Type header */
-	struct curl_slist *headers = NULL;
-	headers = curl_slist_append(headers, "Content-Type: application/json");
+  /* Add Content-Type header */
+  struct curl_slist *headers = NULL;
+  headers = curl_slist_append(headers, "Content-Type: application/json");
 
-	/* Build authorization header if needed - keep it alive until after request completes */
-	struct dstr auth_header;
-	bool has_auth = false;
-	if (api->access_token) {
-		dstr_init(&auth_header);
-		dstr_printf(&auth_header, "Authorization: Bearer %s", api->access_token);
-		headers = curl_slist_append(headers, auth_header.array);
-		has_auth = true;
-	}
+  /* Build authorization header if needed - keep it alive until after request
+   * completes */
+  struct dstr auth_header;
+  bool has_auth = false;
+  if (api->access_token) {
+    dstr_init(&auth_header);
+    dstr_printf(&auth_header, "Authorization: Bearer %s", api->access_token);
+    headers = curl_slist_append(headers, auth_header.array);
+    has_auth = true;
+  }
 
-	curl_easy_setopt(api->curl, CURLOPT_URL, url.array);
-	curl_easy_setopt(api->curl, CURLOPT_HTTPHEADER, headers);
-	curl_easy_setopt(api->curl, CURLOPT_HTTPGET, 0L);  /* Reset GET */
-	curl_easy_setopt(api->curl, CURLOPT_CUSTOMREQUEST, "PUT");
-	if (body_json) {
-		curl_easy_setopt(api->curl, CURLOPT_POST, 1L);  /* Enable POST mode for body */
-		curl_easy_setopt(api->curl, CURLOPT_POSTFIELDS, body_json);
-		curl_easy_setopt(api->curl, CURLOPT_POSTFIELDSIZE, strlen(body_json));
-	} else {
-		curl_easy_setopt(api->curl, CURLOPT_POST, 0L);
-		curl_easy_setopt(api->curl, CURLOPT_POSTFIELDSIZE, 0L);
-	}
-	curl_easy_setopt(api->curl, CURLOPT_WRITEDATA, (void *)&response);
+  curl_easy_setopt(api->curl, CURLOPT_URL, url.array);
+  curl_easy_setopt(api->curl, CURLOPT_HTTPHEADER, headers);
+  curl_easy_setopt(api->curl, CURLOPT_HTTPGET, 0L); /* Reset GET */
+  curl_easy_setopt(api->curl, CURLOPT_CUSTOMREQUEST, "PUT");
+  if (body_json) {
+    curl_easy_setopt(api->curl, CURLOPT_POST,
+                     1L); /* Enable POST mode for body */
+    curl_easy_setopt(api->curl, CURLOPT_POSTFIELDS, body_json);
+    curl_easy_setopt(api->curl, CURLOPT_POSTFIELDSIZE, strlen(body_json));
+  } else {
+    curl_easy_setopt(api->curl, CURLOPT_POST, 0L);
+    curl_easy_setopt(api->curl, CURLOPT_POSTFIELDSIZE, 0L);
+  }
+  curl_easy_setopt(api->curl, CURLOPT_WRITEDATA, (void *)&response);
 
-	CURLcode res = curl_easy_perform(api->curl);
+  CURLcode res = curl_easy_perform(api->curl);
 
-	/* Reset CURL state to avoid affecting subsequent requests */
-	curl_easy_setopt(api->curl, CURLOPT_POST, 0L);
-	curl_easy_setopt(api->curl, CURLOPT_POSTFIELDS, NULL);
-	curl_easy_setopt(api->curl, CURLOPT_POSTFIELDSIZE, 0L);
-	curl_easy_setopt(api->curl, CURLOPT_CUSTOMREQUEST, NULL);
+  /* Reset CURL state to avoid affecting subsequent requests */
+  curl_easy_setopt(api->curl, CURLOPT_POST, 0L);
+  curl_easy_setopt(api->curl, CURLOPT_POSTFIELDS, NULL);
+  curl_easy_setopt(api->curl, CURLOPT_POSTFIELDSIZE, 0L);
+  curl_easy_setopt(api->curl, CURLOPT_CUSTOMREQUEST, NULL);
 
-	/* Clean up headers - must match order in make_request() */
-	curl_slist_free_all(headers);
-	curl_easy_setopt(api->curl, CURLOPT_HTTPHEADER, NULL);
-	if (has_auth) {
-		dstr_free(&auth_header);  /* Only free if we initialized it */
-	}
-	dstr_free(&url);
+  /* Clean up headers - must match order in make_request() */
+  curl_slist_free_all(headers);
+  curl_easy_setopt(api->curl, CURLOPT_HTTPHEADER, NULL);
+  if (has_auth) {
+    dstr_free(&auth_header); /* Only free if we initialized it */
+  }
+  dstr_free(&url);
 
-	if (res != CURLE_OK) {
-		dstr_copy(&api->last_error, api->error_buffer);
-		free(response.memory);
-		return false;
-	}
+  if (res != CURLE_OK) {
+    dstr_copy(&api->last_error, api->error_buffer);
+    free(response.memory);
+    return false;
+  }
 
-	long http_code = 0;
-	curl_easy_getinfo(api->curl, CURLINFO_RESPONSE_CODE, &http_code);
+  long http_code = 0;
+  curl_easy_getinfo(api->curl, CURLINFO_RESPONSE_CODE, &http_code);
 
-	if (http_code < 200 || http_code >= 300) {
-		dstr_printf(&api->last_error, "HTTP %ld", http_code);
-		free(response.memory);
-		return false;
-	}
+  if (http_code < 200 || http_code >= 300) {
+    dstr_printf(&api->last_error, "HTTP %ld", http_code);
+    free(response.memory);
+    return false;
+  }
 
-	/* Parse JSON response */
-	if (response_json && response.size > 0) {
-		json_error_t error;
-		*response_json = json_loads(response.memory, 0, &error);
-		if (!*response_json) {
-			dstr_printf(&api->last_error, "JSON parse error: %s", error.text);
-			free(response.memory);
-			return false;
-		}
-	}
+  /* Parse JSON response */
+  if (response_json && response.size > 0) {
+    json_error_t error;
+    *response_json = json_loads(response.memory, 0, &error);
+    if (!*response_json) {
+      dstr_printf(&api->last_error, "JSON parse error: %s", error.text);
+      free(response.memory);
+      return false;
+    }
+  }
 
-	free(response.memory);
-	return true;
+  free(response.memory);
+  return true;
 }
 
 /* ========================================================================
@@ -1043,353 +1416,355 @@ static bool api_request_put_json(restreamer_api_t *api, const char *endpoint,
 bool restreamer_api_get_process_state(restreamer_api_t *api,
                                       const char *process_id,
                                       restreamer_process_state_t *state) {
-	if (!api || !process_id || !state) {
-		return false;
-	}
+  if (!api || !process_id || !state) {
+    return false;
+  }
 
-	memset(state, 0, sizeof(restreamer_process_state_t));
+  memset(state, 0, sizeof(restreamer_process_state_t));
 
-	struct dstr endpoint;
-	dstr_init(&endpoint);
-	dstr_printf(&endpoint, "/api/v3/process/%s/state", process_id);
+  struct dstr endpoint;
+  dstr_init(&endpoint);
+  dstr_printf(&endpoint, "/api/v3/process/%s/state", process_id);
 
-	json_t *response = NULL;
-	bool result = api_request_json(api, endpoint.array, &response);
-	dstr_free(&endpoint);
+  json_t *response = NULL;
+  bool result = api_request_json(api, endpoint.array, &response);
+  dstr_free(&endpoint);
 
-	if (!result || !response) {
-		return false;
-	}
+  if (!result || !response) {
+    return false;
+  }
 
-	/* Parse state response */
-	json_t *order = json_object_get(response, "order");
-	if (order && json_is_string(order)) {
-		state->order = bstrdup(json_string_value(order));
-	}
+  /* Parse state response */
+  json_t *order = json_object_get(response, "order");
+  if (order && json_is_string(order)) {
+    state->order = bstrdup(json_string_value(order));
+  }
 
-	json_t *progress = json_object_get(response, "progress");
-	if (progress && json_is_object(progress)) {
-		json_t *frames = json_object_get(progress, "frames");
-		if (frames && json_is_integer(frames)) {
-			state->frames = (uint64_t)json_integer_value(frames);
-		}
+  json_t *progress = json_object_get(response, "progress");
+  if (progress && json_is_object(progress)) {
+    json_t *frames = json_object_get(progress, "frames");
+    if (frames && json_is_integer(frames)) {
+      state->frames = (uint64_t)json_integer_value(frames);
+    }
 
-		json_t *dropped = json_object_get(progress, "dropped_frames");
-		if (dropped && json_is_integer(dropped)) {
-			state->dropped_frames = (uint64_t)json_integer_value(dropped);
-		}
+    json_t *dropped = json_object_get(progress, "dropped_frames");
+    if (dropped && json_is_integer(dropped)) {
+      state->dropped_frames = (uint64_t)json_integer_value(dropped);
+    }
 
-		json_t *bitrate = json_object_get(progress, "bitrate");
-		if (bitrate && json_is_integer(bitrate)) {
-			state->current_bitrate = (uint32_t)json_integer_value(bitrate);
-		}
+    json_t *bitrate = json_object_get(progress, "bitrate");
+    if (bitrate && json_is_integer(bitrate)) {
+      state->current_bitrate = (uint32_t)json_integer_value(bitrate);
+    }
 
-		json_t *fps = json_object_get(progress, "fps");
-		if (fps && json_is_number(fps)) {
-			state->fps = json_number_value(fps);
-		}
+    json_t *fps = json_object_get(progress, "fps");
+    if (fps && json_is_number(fps)) {
+      state->fps = json_number_value(fps);
+    }
 
-		json_t *bytes = json_object_get(progress, "size_kb");
-		if (bytes && json_is_integer(bytes)) {
-			state->bytes_written = (uint64_t)json_integer_value(bytes) * 1024;
-		}
+    json_t *bytes = json_object_get(progress, "size_kb");
+    if (bytes && json_is_integer(bytes)) {
+      state->bytes_written = (uint64_t)json_integer_value(bytes) * 1024;
+    }
 
-		json_t *packets = json_object_get(progress, "packets");
-		if (packets && json_is_integer(packets)) {
-			state->packets_sent = (uint64_t)json_integer_value(packets);
-		}
+    json_t *packets = json_object_get(progress, "packets");
+    if (packets && json_is_integer(packets)) {
+      state->packets_sent = (uint64_t)json_integer_value(packets);
+    }
 
-		json_t *percent = json_object_get(progress, "percent");
-		if (percent && json_is_number(percent)) {
-			state->progress = json_number_value(percent);
-		}
-	}
+    json_t *percent = json_object_get(progress, "percent");
+    if (percent && json_is_number(percent)) {
+      state->progress = json_number_value(percent);
+    }
+  }
 
-	json_t *running = json_object_get(response, "running");
-	if (running && json_is_boolean(running)) {
-		state->is_running = json_boolean_value(running);
-	}
+  json_t *running = json_object_get(response, "running");
+  if (running && json_is_boolean(running)) {
+    state->is_running = json_boolean_value(running);
+  }
 
-	json_decref(response);
-	return true;
+  json_decref(response);
+  return true;
 }
 
 void restreamer_api_free_process_state(restreamer_process_state_t *state) {
-	if (!state) {
-		return;
-	}
+  if (!state) {
+    return;
+  }
 
-	bfree(state->order);
-	memset(state, 0, sizeof(restreamer_process_state_t));
+  bfree(state->order);
+  memset(state, 0, sizeof(restreamer_process_state_t));
 }
 
 /* Input Probe API */
 bool restreamer_api_probe_input(restreamer_api_t *api, const char *process_id,
                                 restreamer_probe_info_t *info) {
-	if (!api || !process_id || !info) {
-		return false;
-	}
+  if (!api || !process_id || !info) {
+    return false;
+  }
 
-	memset(info, 0, sizeof(restreamer_probe_info_t));
+  memset(info, 0, sizeof(restreamer_probe_info_t));
 
-	struct dstr endpoint;
-	dstr_init(&endpoint);
-	dstr_printf(&endpoint, "/api/v3/process/%s/probe", process_id);
+  struct dstr endpoint;
+  dstr_init(&endpoint);
+  dstr_printf(&endpoint, "/api/v3/process/%s/probe", process_id);
 
-	json_t *response = NULL;
-	bool result = api_request_json(api, endpoint.array, &response);
-	dstr_free(&endpoint);
+  json_t *response = NULL;
+  bool result = api_request_json(api, endpoint.array, &response);
+  dstr_free(&endpoint);
 
-	if (!result || !response) {
-		return false;
-	}
+  if (!result || !response) {
+    return false;
+  }
 
-	/* Parse format info */
-	json_t *format = json_object_get(response, "format");
-	if (format && json_is_object(format)) {
-		json_t *format_name = json_object_get(format, "format_name");
-		if (format_name && json_is_string(format_name)) {
-			info->format_name = bstrdup(json_string_value(format_name));
-		}
+  /* Parse format info */
+  json_t *format = json_object_get(response, "format");
+  if (format && json_is_object(format)) {
+    json_t *format_name = json_object_get(format, "format_name");
+    if (format_name && json_is_string(format_name)) {
+      info->format_name = bstrdup(json_string_value(format_name));
+    }
 
-		json_t *format_long = json_object_get(format, "format_long_name");
-		if (format_long && json_is_string(format_long)) {
-			info->format_long_name = bstrdup(json_string_value(format_long));
-		}
+    json_t *format_long = json_object_get(format, "format_long_name");
+    if (format_long && json_is_string(format_long)) {
+      info->format_long_name = bstrdup(json_string_value(format_long));
+    }
 
-		json_t *duration = json_object_get(format, "duration");
-		if (duration && json_is_string(duration)) {
-			info->duration = (int64_t)(atof(json_string_value(duration)) * 1000000);
-		}
+    json_t *duration = json_object_get(format, "duration");
+    if (duration && json_is_string(duration)) {
+      info->duration = (int64_t)(atof(json_string_value(duration)) * 1000000);
+    }
 
-		json_t *size = json_object_get(format, "size");
-		if (size && json_is_string(size)) {
-			info->size = (uint64_t)atoll(json_string_value(size));
-		}
+    json_t *size = json_object_get(format, "size");
+    if (size && json_is_string(size)) {
+      info->size = (uint64_t)atoll(json_string_value(size));
+    }
 
-		json_t *bitrate = json_object_get(format, "bit_rate");
-		if (bitrate && json_is_string(bitrate)) {
-			info->bitrate = (uint32_t)atoi(json_string_value(bitrate));
-		}
-	}
+    json_t *bitrate = json_object_get(format, "bit_rate");
+    if (bitrate && json_is_string(bitrate)) {
+      info->bitrate = (uint32_t)atoi(json_string_value(bitrate));
+    }
+  }
 
-	/* Parse streams */
-	json_t *streams = json_object_get(response, "streams");
-	if (streams && json_is_array(streams)) {
-		size_t stream_count = json_array_size(streams);
-		info->stream_count = stream_count;
-		info->streams = bzalloc(sizeof(restreamer_stream_info_t) * stream_count);
+  /* Parse streams */
+  json_t *streams = json_object_get(response, "streams");
+  if (streams && json_is_array(streams)) {
+    size_t stream_count = json_array_size(streams);
+    info->stream_count = stream_count;
+    info->streams = bzalloc(sizeof(restreamer_stream_info_t) * stream_count);
 
-		for (size_t i = 0; i < stream_count; i++) {
-			json_t *stream = json_array_get(streams, i);
-			restreamer_stream_info_t *s = &info->streams[i];
+    for (size_t i = 0; i < stream_count; i++) {
+      json_t *stream = json_array_get(streams, i);
+      restreamer_stream_info_t *s = &info->streams[i];
 
-			json_t *codec_name = json_object_get(stream, "codec_name");
-			if (codec_name && json_is_string(codec_name)) {
-				s->codec_name = bstrdup(json_string_value(codec_name));
-			}
+      json_t *codec_name = json_object_get(stream, "codec_name");
+      if (codec_name && json_is_string(codec_name)) {
+        s->codec_name = bstrdup(json_string_value(codec_name));
+      }
 
-			json_t *codec_long = json_object_get(stream, "codec_long_name");
-			if (codec_long && json_is_string(codec_long)) {
-				s->codec_long_name = bstrdup(json_string_value(codec_long));
-			}
+      json_t *codec_long = json_object_get(stream, "codec_long_name");
+      if (codec_long && json_is_string(codec_long)) {
+        s->codec_long_name = bstrdup(json_string_value(codec_long));
+      }
 
-			json_t *codec_type = json_object_get(stream, "codec_type");
-			if (codec_type && json_is_string(codec_type)) {
-				s->codec_type = bstrdup(json_string_value(codec_type));
-			}
+      json_t *codec_type = json_object_get(stream, "codec_type");
+      if (codec_type && json_is_string(codec_type)) {
+        s->codec_type = bstrdup(json_string_value(codec_type));
+      }
 
-			json_t *width = json_object_get(stream, "width");
-			if (width && json_is_integer(width)) {
-				s->width = (uint32_t)json_integer_value(width);
-			}
+      json_t *width = json_object_get(stream, "width");
+      if (width && json_is_integer(width)) {
+        s->width = (uint32_t)json_integer_value(width);
+      }
 
-			json_t *height = json_object_get(stream, "height");
-			if (height && json_is_integer(height)) {
-				s->height = (uint32_t)json_integer_value(height);
-			}
+      json_t *height = json_object_get(stream, "height");
+      if (height && json_is_integer(height)) {
+        s->height = (uint32_t)json_integer_value(height);
+      }
 
-			json_t *bitrate = json_object_get(stream, "bit_rate");
-			if (bitrate && json_is_string(bitrate)) {
-				s->bitrate = (uint32_t)atoi(json_string_value(bitrate));
-			}
+      json_t *bitrate = json_object_get(stream, "bit_rate");
+      if (bitrate && json_is_string(bitrate)) {
+        s->bitrate = (uint32_t)atoi(json_string_value(bitrate));
+      }
 
-			json_t *sample_rate = json_object_get(stream, "sample_rate");
-			if (sample_rate && json_is_string(sample_rate)) {
-				s->sample_rate = (uint32_t)atoi(json_string_value(sample_rate));
-			}
+      json_t *sample_rate = json_object_get(stream, "sample_rate");
+      if (sample_rate && json_is_string(sample_rate)) {
+        s->sample_rate = (uint32_t)atoi(json_string_value(sample_rate));
+      }
 
-			json_t *channels = json_object_get(stream, "channels");
-			if (channels && json_is_integer(channels)) {
-				s->channels = (uint32_t)json_integer_value(channels);
-			}
+      json_t *channels = json_object_get(stream, "channels");
+      if (channels && json_is_integer(channels)) {
+        s->channels = (uint32_t)json_integer_value(channels);
+      }
 
-			json_t *pix_fmt = json_object_get(stream, "pix_fmt");
-			if (pix_fmt && json_is_string(pix_fmt)) {
-				s->pix_fmt = bstrdup(json_string_value(pix_fmt));
-			}
+      json_t *pix_fmt = json_object_get(stream, "pix_fmt");
+      if (pix_fmt && json_is_string(pix_fmt)) {
+        s->pix_fmt = bstrdup(json_string_value(pix_fmt));
+      }
 
-			json_t *profile = json_object_get(stream, "profile");
-			if (profile && json_is_string(profile)) {
-				s->profile = bstrdup(json_string_value(profile));
-			}
+      json_t *profile = json_object_get(stream, "profile");
+      if (profile && json_is_string(profile)) {
+        s->profile = bstrdup(json_string_value(profile));
+      }
 
-			/* Parse FPS from r_frame_rate */
-			json_t *fps = json_object_get(stream, "r_frame_rate");
-			if (fps && json_is_string(fps)) {
-				const char *fps_str = json_string_value(fps);
-				sscanf(fps_str, "%u/%u", &s->fps_num, &s->fps_den);
-			}
-		}
-	}
+      /* Parse FPS from r_frame_rate */
+      json_t *fps = json_object_get(stream, "r_frame_rate");
+      if (fps && json_is_string(fps)) {
+        const char *fps_str = json_string_value(fps);
+        sscanf(fps_str, "%u/%u", &s->fps_num, &s->fps_den);
+      }
+    }
+  }
 
-	json_decref(response);
-	return true;
+  json_decref(response);
+  return true;
 }
 
 void restreamer_api_free_probe_info(restreamer_probe_info_t *info) {
-	if (!info) {
-		return;
-	}
+  if (!info) {
+    return;
+  }
 
-	bfree(info->format_name);
-	bfree(info->format_long_name);
+  bfree(info->format_name);
+  bfree(info->format_long_name);
 
-	for (size_t i = 0; i < info->stream_count; i++) {
-		bfree(info->streams[i].codec_name);
-		bfree(info->streams[i].codec_long_name);
-		bfree(info->streams[i].codec_type);
-		bfree(info->streams[i].pix_fmt);
-		bfree(info->streams[i].profile);
-	}
+  for (size_t i = 0; i < info->stream_count; i++) {
+    bfree(info->streams[i].codec_name);
+    bfree(info->streams[i].codec_long_name);
+    bfree(info->streams[i].codec_type);
+    bfree(info->streams[i].pix_fmt);
+    bfree(info->streams[i].profile);
+  }
 
-	bfree(info->streams);
-	memset(info, 0, sizeof(restreamer_probe_info_t));
+  bfree(info->streams);
+  memset(info, 0, sizeof(restreamer_probe_info_t));
 }
 
 /* Configuration Management API */
 bool restreamer_api_get_config(restreamer_api_t *api, char **config_json) {
-	if (!api || !config_json) {
-		return false;
-	}
+  if (!api || !config_json) {
+    return false;
+  }
 
-	json_t *response = NULL;
-	bool result = api_request_json(api, "/api/v3/config", &response);
+  json_t *response = NULL;
+  bool result = api_request_json(api, "/api/v3/config", &response);
 
-	if (!result || !response) {
-		return false;
-	}
+  if (!result || !response) {
+    return false;
+  }
 
-	*config_json = json_dumps(response, JSON_INDENT(2));
-	json_decref(response);
+  *config_json = json_dumps(response, JSON_INDENT(2));
+  json_decref(response);
 
-	return *config_json != NULL;
+  return *config_json != NULL;
 }
 
 bool restreamer_api_set_config(restreamer_api_t *api, const char *config_json) {
-	if (!api || !config_json) {
-		return false;
-	}
+  if (!api || !config_json) {
+    return false;
+  }
 
-	return api_request_put_json(api, "/api/v3/config", config_json, NULL);
+  return api_request_put_json(api, "/api/v3/config", config_json, NULL);
 }
 
 bool restreamer_api_reload_config(restreamer_api_t *api) {
-	if (!api) {
-		return false;
-	}
+  if (!api) {
+    return false;
+  }
 
-	return api_request_json(api, "/api/v3/config/reload", NULL);
+  return api_request_json(api, "/api/v3/config/reload", NULL);
 }
 
 /* ========================================================================
  * Metrics API
  * ======================================================================== */
 
-bool restreamer_api_get_metrics_list(restreamer_api_t *api, char **metrics_json) {
-	if (!api || !metrics_json) {
-		return false;
-	}
+bool restreamer_api_get_metrics_list(restreamer_api_t *api,
+                                     char **metrics_json) {
+  if (!api || !metrics_json) {
+    return false;
+  }
 
-	json_t *response = NULL;
-	bool result = api_request_json(api, "/api/v3/metrics", &response);
+  json_t *response = NULL;
+  bool result = api_request_json(api, "/api/v3/metrics", &response);
 
-	if (!result || !response) {
-		return false;
-	}
+  if (!result || !response) {
+    return false;
+  }
 
-	*metrics_json = json_dumps(response, JSON_INDENT(2));
-	json_decref(response);
+  *metrics_json = json_dumps(response, JSON_INDENT(2));
+  json_decref(response);
 
-	return *metrics_json != NULL;
+  return *metrics_json != NULL;
 }
 
 bool restreamer_api_query_metrics(restreamer_api_t *api, const char *query_json,
                                   char **result_json) {
-	if (!api || !query_json || !result_json) {
-		return false;
-	}
+  if (!api || !query_json || !result_json) {
+    return false;
+  }
 
-	json_t *response = NULL;
-	bool result = api_request_put_json(api, "/api/v3/metrics", query_json, &response);
+  json_t *response = NULL;
+  bool result =
+      api_request_put_json(api, "/api/v3/metrics", query_json, &response);
 
-	if (!result || !response) {
-		return false;
-	}
+  if (!result || !response) {
+    return false;
+  }
 
-	*result_json = json_dumps(response, JSON_INDENT(2));
-	json_decref(response);
+  *result_json = json_dumps(response, JSON_INDENT(2));
+  json_decref(response);
 
-	return *result_json != NULL;
+  return *result_json != NULL;
 }
 
 bool restreamer_api_get_prometheus_metrics(restreamer_api_t *api,
                                            char **prometheus_text) {
-	if (!api || !prometheus_text) {
-		return false;
-	}
+  if (!api || !prometheus_text) {
+    return false;
+  }
 
-	/* Build URL */
-	struct dstr url;
-	dstr_init(&url);
-	const char *protocol = api->connection.use_https ? "https" : "http";
-	dstr_printf(&url, "%s://%s:%d/metrics", protocol, api->connection.host,
-	            api->connection.port);
+  /* Build URL */
+  struct dstr url;
+  dstr_init(&url);
+  const char *protocol = api->connection.use_https ? "https" : "http";
+  dstr_printf(&url, "%s://%s:%d/metrics", protocol, api->connection.host,
+              api->connection.port);
 
-	/* Setup request */
-	struct memory_struct response;
-	response.memory = NULL;  /* realloc(NULL, size) behaves like malloc(size) */
-	response.size = 0;
+  /* Setup request */
+  struct memory_struct response;
+  response.memory = NULL; /* realloc(NULL, size) behaves like malloc(size) */
+  response.size = 0;
 
-	curl_easy_setopt(api->curl, CURLOPT_URL, url.array);
-	curl_easy_setopt(api->curl, CURLOPT_HTTPGET, 1L);
-	curl_easy_setopt(api->curl, CURLOPT_WRITEDATA, (void *)&response);
+  curl_easy_setopt(api->curl, CURLOPT_URL, url.array);
+  curl_easy_setopt(api->curl, CURLOPT_HTTPGET, 1L);
+  curl_easy_setopt(api->curl, CURLOPT_WRITEDATA, (void *)&response);
 
-	CURLcode res = curl_easy_perform(api->curl);
-	dstr_free(&url);
+  CURLcode res = curl_easy_perform(api->curl);
+  dstr_free(&url);
 
-	if (res != CURLE_OK) {
-		dstr_copy(&api->last_error, api->error_buffer);
-		free(response.memory);
-		return false;
-	}
+  if (res != CURLE_OK) {
+    dstr_copy(&api->last_error, api->error_buffer);
+    free(response.memory);
+    return false;
+  }
 
-	*prometheus_text = response.memory;
-	return true;
+  *prometheus_text = response.memory;
+  return true;
 }
 
 void restreamer_api_free_metrics(restreamer_metrics_t *metrics) {
-	if (!metrics) {
-		return;
-	}
+  if (!metrics) {
+    return;
+  }
 
-	for (size_t i = 0; i < metrics->count; i++) {
-		bfree(metrics->metrics[i].name);
-		bfree(metrics->metrics[i].labels);
-	}
+  for (size_t i = 0; i < metrics->count; i++) {
+    bfree(metrics->metrics[i].name);
+    bfree(metrics->metrics[i].labels);
+  }
 
-	bfree(metrics->metrics);
-	memset(metrics, 0, sizeof(restreamer_metrics_t));
+  bfree(metrics->metrics);
+  memset(metrics, 0, sizeof(restreamer_metrics_t));
 }
 
 /* ========================================================================
@@ -1398,84 +1773,84 @@ void restreamer_api_free_metrics(restreamer_metrics_t *metrics) {
 
 bool restreamer_api_get_metadata(restreamer_api_t *api, const char *key,
                                  char **value) {
-	if (!api || !key || !value) {
-		return false;
-	}
+  if (!api || !key || !value) {
+    return false;
+  }
 
-	struct dstr endpoint;
-	dstr_init(&endpoint);
-	dstr_printf(&endpoint, "/api/v3/metadata/%s", key);
+  struct dstr endpoint;
+  dstr_init(&endpoint);
+  dstr_printf(&endpoint, "/api/v3/metadata/%s", key);
 
-	json_t *response = NULL;
-	bool result = api_request_json(api, endpoint.array, &response);
-	dstr_free(&endpoint);
+  json_t *response = NULL;
+  bool result = api_request_json(api, endpoint.array, &response);
+  dstr_free(&endpoint);
 
-	if (!result || !response) {
-		return false;
-	}
+  if (!result || !response) {
+    return false;
+  }
 
-	*value = json_dumps(response, JSON_INDENT(2));
-	json_decref(response);
+  *value = json_dumps(response, JSON_INDENT(2));
+  json_decref(response);
 
-	return *value != NULL;
+  return *value != NULL;
 }
 
 bool restreamer_api_set_metadata(restreamer_api_t *api, const char *key,
                                  const char *value) {
-	if (!api || !key || !value) {
-		return false;
-	}
+  if (!api || !key || !value) {
+    return false;
+  }
 
-	struct dstr endpoint;
-	dstr_init(&endpoint);
-	dstr_printf(&endpoint, "/api/v3/metadata/%s", key);
+  struct dstr endpoint;
+  dstr_init(&endpoint);
+  dstr_printf(&endpoint, "/api/v3/metadata/%s", key);
 
-	bool result = api_request_put_json(api, endpoint.array, value, NULL);
-	dstr_free(&endpoint);
+  bool result = api_request_put_json(api, endpoint.array, value, NULL);
+  dstr_free(&endpoint);
 
-	return result;
+  return result;
 }
 
 bool restreamer_api_get_process_metadata(restreamer_api_t *api,
                                          const char *process_id,
                                          const char *key, char **value) {
-	if (!api || !process_id || !key || !value) {
-		return false;
-	}
+  if (!api || !process_id || !key || !value) {
+    return false;
+  }
 
-	struct dstr endpoint;
-	dstr_init(&endpoint);
-	dstr_printf(&endpoint, "/api/v3/process/%s/metadata/%s", process_id, key);
+  struct dstr endpoint;
+  dstr_init(&endpoint);
+  dstr_printf(&endpoint, "/api/v3/process/%s/metadata/%s", process_id, key);
 
-	json_t *response = NULL;
-	bool result = api_request_json(api, endpoint.array, &response);
-	dstr_free(&endpoint);
+  json_t *response = NULL;
+  bool result = api_request_json(api, endpoint.array, &response);
+  dstr_free(&endpoint);
 
-	if (!result || !response) {
-		return false;
-	}
+  if (!result || !response) {
+    return false;
+  }
 
-	*value = json_dumps(response, JSON_INDENT(2));
-	json_decref(response);
+  *value = json_dumps(response, JSON_INDENT(2));
+  json_decref(response);
 
-	return *value != NULL;
+  return *value != NULL;
 }
 
 bool restreamer_api_set_process_metadata(restreamer_api_t *api,
                                          const char *process_id,
                                          const char *key, const char *value) {
-	if (!api || !process_id || !key || !value) {
-		return false;
-	}
+  if (!api || !process_id || !key || !value) {
+    return false;
+  }
 
-	struct dstr endpoint;
-	dstr_init(&endpoint);
-	dstr_printf(&endpoint, "/api/v3/process/%s/metadata/%s", process_id, key);
+  struct dstr endpoint;
+  dstr_init(&endpoint);
+  dstr_printf(&endpoint, "/api/v3/process/%s/metadata/%s", process_id, key);
 
-	bool result = api_request_put_json(api, endpoint.array, value, NULL);
-	dstr_free(&endpoint);
+  bool result = api_request_put_json(api, endpoint.array, value, NULL);
+  dstr_free(&endpoint);
 
-	return result;
+  return result;
 }
 
 /* ========================================================================
@@ -1486,151 +1861,154 @@ bool restreamer_api_get_playout_status(restreamer_api_t *api,
                                        const char *process_id,
                                        const char *input_id,
                                        restreamer_playout_status_t *status) {
-	if (!api || !process_id || !input_id || !status) {
-		return false;
-	}
+  if (!api || !process_id || !input_id || !status) {
+    return false;
+  }
 
-	memset(status, 0, sizeof(restreamer_playout_status_t));
+  memset(status, 0, sizeof(restreamer_playout_status_t));
 
-	struct dstr endpoint;
-	dstr_init(&endpoint);
-	dstr_printf(&endpoint, "/api/v3/process/%s/playout/%s/status", process_id, input_id);
+  struct dstr endpoint;
+  dstr_init(&endpoint);
+  dstr_printf(&endpoint, "/api/v3/process/%s/playout/%s/status", process_id,
+              input_id);
 
-	json_t *response = NULL;
-	bool result = api_request_json(api, endpoint.array, &response);
-	dstr_free(&endpoint);
+  json_t *response = NULL;
+  bool result = api_request_json(api, endpoint.array, &response);
+  dstr_free(&endpoint);
 
-	if (!result || !response) {
-		return false;
-	}
+  if (!result || !response) {
+    return false;
+  }
 
-	status->input_id = bstrdup(input_id);
+  status->input_id = bstrdup(input_id);
 
-	json_t *url = json_object_get(response, "url");
-	if (url && json_is_string(url)) {
-		status->url = bstrdup(json_string_value(url));
-	}
+  json_t *url = json_object_get(response, "url");
+  if (url && json_is_string(url)) {
+    status->url = bstrdup(json_string_value(url));
+  }
 
-	json_t *state = json_object_get(response, "state");
-	if (state && json_is_string(state)) {
-		status->state = bstrdup(json_string_value(state));
-	}
+  json_t *state = json_object_get(response, "state");
+  if (state && json_is_string(state)) {
+    status->state = bstrdup(json_string_value(state));
+  }
 
-	json_t *connected = json_object_get(response, "connected");
-	if (connected && json_is_boolean(connected)) {
-		status->is_connected = json_boolean_value(connected);
-	}
+  json_t *connected = json_object_get(response, "connected");
+  if (connected && json_is_boolean(connected)) {
+    status->is_connected = json_boolean_value(connected);
+  }
 
-	json_t *bytes = json_object_get(response, "bytes");
-	if (bytes && json_is_integer(bytes)) {
-		status->bytes_received = (uint64_t)json_integer_value(bytes);
-	}
+  json_t *bytes = json_object_get(response, "bytes");
+  if (bytes && json_is_integer(bytes)) {
+    status->bytes_received = (uint64_t)json_integer_value(bytes);
+  }
 
-	json_t *bitrate = json_object_get(response, "bitrate");
-	if (bitrate && json_is_integer(bitrate)) {
-		status->bitrate = (uint32_t)json_integer_value(bitrate);
-	}
+  json_t *bitrate = json_object_get(response, "bitrate");
+  if (bitrate && json_is_integer(bitrate)) {
+    status->bitrate = (uint32_t)json_integer_value(bitrate);
+  }
 
-	json_decref(response);
-	return true;
+  json_decref(response);
+  return true;
 }
 
 bool restreamer_api_switch_input_stream(restreamer_api_t *api,
                                         const char *process_id,
                                         const char *input_id,
                                         const char *new_url) {
-	if (!api || !process_id || !input_id || !new_url) {
-		return false;
-	}
+  if (!api || !process_id || !input_id || !new_url) {
+    return false;
+  }
 
-	struct dstr endpoint;
-	dstr_init(&endpoint);
-	dstr_printf(&endpoint, "/api/v3/process/%s/playout/%s/stream", process_id, input_id);
+  struct dstr endpoint;
+  dstr_init(&endpoint);
+  dstr_printf(&endpoint, "/api/v3/process/%s/playout/%s/stream", process_id,
+              input_id);
 
-	/* Create JSON body */
-	json_t *body = json_object();
-	json_object_set_new(body, "url", json_string(new_url));
-	char *body_json = json_dumps(body, 0);
-	json_decref(body);
+  /* Create JSON body */
+  json_t *body = json_object();
+  json_object_set_new(body, "url", json_string(new_url));
+  char *body_json = json_dumps(body, 0);
+  json_decref(body);
 
-	bool result = api_request_put_json(api, endpoint.array, body_json, NULL);
+  bool result = api_request_put_json(api, endpoint.array, body_json, NULL);
 
-	free(body_json);
-	dstr_free(&endpoint);
+  free(body_json);
+  dstr_free(&endpoint);
 
-	return result;
+  return result;
 }
 
 bool restreamer_api_reopen_input(restreamer_api_t *api, const char *process_id,
                                  const char *input_id) {
-	if (!api || !process_id || !input_id) {
-		return false;
-	}
+  if (!api || !process_id || !input_id) {
+    return false;
+  }
 
-	struct dstr endpoint;
-	dstr_init(&endpoint);
-	dstr_printf(&endpoint, "/api/v3/process/%s/playout/%s/reopen", process_id, input_id);
+  struct dstr endpoint;
+  dstr_init(&endpoint);
+  dstr_printf(&endpoint, "/api/v3/process/%s/playout/%s/reopen", process_id,
+              input_id);
 
-	bool result = api_request_json(api, endpoint.array, NULL);
-	dstr_free(&endpoint);
+  bool result = api_request_json(api, endpoint.array, NULL);
+  dstr_free(&endpoint);
 
-	return result;
+  return result;
 }
 
 bool restreamer_api_get_keyframe(restreamer_api_t *api, const char *process_id,
                                  const char *input_id, const char *name,
                                  unsigned char **data, size_t *size) {
-	if (!api || !process_id || !input_id || !name || !data || !size) {
-		return false;
-	}
+  if (!api || !process_id || !input_id || !name || !data || !size) {
+    return false;
+  }
 
-	struct dstr endpoint;
-	dstr_init(&endpoint);
-	dstr_printf(&endpoint, "/api/v3/process/%s/playout/%s/keyframe/%s",
-	            process_id, input_id, name);
+  struct dstr endpoint;
+  dstr_init(&endpoint);
+  dstr_printf(&endpoint, "/api/v3/process/%s/playout/%s/keyframe/%s",
+              process_id, input_id, name);
 
-	/* Setup request for binary data */
-	struct memory_struct response;
-	response.memory = NULL;  /* realloc(NULL, size) behaves like malloc(size) */
-	response.size = 0;
+  /* Setup request for binary data */
+  struct memory_struct response;
+  response.memory = NULL; /* realloc(NULL, size) behaves like malloc(size) */
+  response.size = 0;
 
-	/* Build URL */
-	struct dstr url;
-	dstr_init(&url);
-	const char *protocol = api->connection.use_https ? "https" : "http";
-	dstr_printf(&url, "%s://%s:%d%s", protocol, api->connection.host,
-	            api->connection.port, endpoint.array);
+  /* Build URL */
+  struct dstr url;
+  dstr_init(&url);
+  const char *protocol = api->connection.use_https ? "https" : "http";
+  dstr_printf(&url, "%s://%s:%d%s", protocol, api->connection.host,
+              api->connection.port, endpoint.array);
 
-	curl_easy_setopt(api->curl, CURLOPT_URL, url.array);
-	curl_easy_setopt(api->curl, CURLOPT_HTTPGET, 1L);
-	curl_easy_setopt(api->curl, CURLOPT_WRITEDATA, (void *)&response);
+  curl_easy_setopt(api->curl, CURLOPT_URL, url.array);
+  curl_easy_setopt(api->curl, CURLOPT_HTTPGET, 1L);
+  curl_easy_setopt(api->curl, CURLOPT_WRITEDATA, (void *)&response);
 
-	CURLcode res = curl_easy_perform(api->curl);
+  CURLcode res = curl_easy_perform(api->curl);
 
-	dstr_free(&url);
-	dstr_free(&endpoint);
+  dstr_free(&url);
+  dstr_free(&endpoint);
 
-	if (res != CURLE_OK) {
-		dstr_copy(&api->last_error, api->error_buffer);
-		free(response.memory);
-		return false;
-	}
+  if (res != CURLE_OK) {
+    dstr_copy(&api->last_error, api->error_buffer);
+    free(response.memory);
+    return false;
+  }
 
-	*data = (unsigned char *)response.memory;
-	*size = response.size;
+  *data = (unsigned char *)response.memory;
+  *size = response.size;
 
-	return true;
+  return true;
 }
 
 void restreamer_api_free_playout_status(restreamer_playout_status_t *status) {
-	if (!status) {
-		return;
-	}
+  if (!status) {
+    return;
+  }
 
-	bfree(status->input_id);
-	bfree(status->url);
-	bfree(status->state);
-	memset(status, 0, sizeof(restreamer_playout_status_t));
+  bfree(status->input_id);
+  bfree(status->url);
+  bfree(status->state);
+  memset(status, 0, sizeof(restreamer_playout_status_t));
 }
 
 /* ========================================================================
@@ -1638,370 +2016,375 @@ void restreamer_api_free_playout_status(restreamer_playout_status_t *status) {
  * ======================================================================== */
 
 bool restreamer_api_refresh_token(restreamer_api_t *api) {
-	if (!api) {
-		return false;
-	}
+  if (!api) {
+    return false;
+  }
 
-	if (!api->refresh_token) {
-		dstr_copy(&api->last_error, "No refresh token available");
-		return false;
-	}
+  if (!api->refresh_token) {
+    dstr_copy(&api->last_error, "No refresh token available");
+    return false;
+  }
 
-	/* Build refresh request */
-	struct dstr url;
-	dstr_init(&url);
-	const char *protocol = api->connection.use_https ? "https" : "http";
-	dstr_printf(&url, "%s://%s:%d/api/v3/refresh", protocol,
-	            api->connection.host, api->connection.port);
+  /* Build refresh request */
+  struct dstr url;
+  dstr_init(&url);
+  const char *protocol = api->connection.use_https ? "https" : "http";
+  dstr_printf(&url, "%s://%s:%d/api/v3/refresh", protocol, api->connection.host,
+              api->connection.port);
 
-	struct memory_struct response;
-	response.memory = NULL;  /* realloc(NULL, size) behaves like malloc(size) */
-	response.size = 0;
+  struct memory_struct response;
+  response.memory = NULL; /* realloc(NULL, size) behaves like malloc(size) */
+  response.size = 0;
 
-	/* Build authorization header with refresh token - keep it alive until after request completes */
-	struct dstr auth_header;
-	dstr_init(&auth_header);
-	dstr_printf(&auth_header, "Authorization: Bearer %s", api->refresh_token);
+  /* Build authorization header with refresh token - keep it alive until after
+   * request completes */
+  struct dstr auth_header;
+  dstr_init(&auth_header);
+  dstr_printf(&auth_header, "Authorization: Bearer %s", api->refresh_token);
 
-	/* Add refresh token to authorization header */
-	struct curl_slist *headers = NULL;
-	headers = curl_slist_append(headers, "Content-Type: application/json");
-	headers = curl_slist_append(headers, auth_header.array);
+  /* Add refresh token to authorization header */
+  struct curl_slist *headers = NULL;
+  headers = curl_slist_append(headers, "Content-Type: application/json");
+  headers = curl_slist_append(headers, auth_header.array);
 
-	curl_easy_setopt(api->curl, CURLOPT_URL, url.array);
-	curl_easy_setopt(api->curl, CURLOPT_HTTPHEADER, headers);
-	curl_easy_setopt(api->curl, CURLOPT_POST, 1L);
-	curl_easy_setopt(api->curl, CURLOPT_POSTFIELDS, "");
-	curl_easy_setopt(api->curl, CURLOPT_POSTFIELDSIZE, 0L);
-	curl_easy_setopt(api->curl, CURLOPT_WRITEDATA, (void *)&response);
+  curl_easy_setopt(api->curl, CURLOPT_URL, url.array);
+  curl_easy_setopt(api->curl, CURLOPT_HTTPHEADER, headers);
+  curl_easy_setopt(api->curl, CURLOPT_POST, 1L);
+  curl_easy_setopt(api->curl, CURLOPT_POSTFIELDS, "");
+  curl_easy_setopt(api->curl, CURLOPT_POSTFIELDSIZE, 0L);
+  curl_easy_setopt(api->curl, CURLOPT_WRITEDATA, (void *)&response);
 
-	CURLcode res = curl_easy_perform(api->curl);
+  CURLcode res = curl_easy_perform(api->curl);
 
-	curl_slist_free_all(headers);
-	curl_easy_setopt(api->curl, CURLOPT_HTTPHEADER, NULL); /* Reset headers to avoid use-after-free */
-	dstr_free(&auth_header);  /* Now safe to free */
-	dstr_free(&url);
+  curl_slist_free_all(headers);
+  curl_easy_setopt(api->curl, CURLOPT_HTTPHEADER,
+                   NULL);  /* Reset headers to avoid use-after-free */
+  dstr_free(&auth_header); /* Now safe to free */
+  dstr_free(&url);
 
-	if (res != CURLE_OK) {
-		dstr_copy(&api->last_error, api->error_buffer);
-		free(response.memory);
-		return false;
-	}
+  if (res != CURLE_OK) {
+    dstr_copy(&api->last_error, api->error_buffer);
+    free(response.memory);
+    return false;
+  }
 
-	long http_code = 0;
-	curl_easy_getinfo(api->curl, CURLINFO_RESPONSE_CODE, &http_code);
+  long http_code = 0;
+  curl_easy_getinfo(api->curl, CURLINFO_RESPONSE_CODE, &http_code);
 
-	if (http_code < 200 || http_code >= 300) {
-		dstr_printf(&api->last_error, "Token refresh failed: HTTP %ld", http_code);
-		free(response.memory);
-		return false;
-	}
+  if (http_code < 200 || http_code >= 300) {
+    dstr_printf(&api->last_error, "Token refresh failed: HTTP %ld", http_code);
+    free(response.memory);
+    return false;
+  }
 
-	/* Parse response to get new access token */
-	json_error_t error;
-	json_t *root = json_loads(response.memory, 0, &error);
-	free(response.memory);
+  /* Parse response to get new access token */
+  json_error_t error;
+  json_t *root = json_loads(response.memory, 0, &error);
+  free(response.memory);
 
-	if (!root) {
-		dstr_printf(&api->last_error, "JSON parse error: %s", error.text);
-		return false;
-	}
+  if (!root) {
+    dstr_printf(&api->last_error, "JSON parse error: %s", error.text);
+    return false;
+  }
 
-	json_t *access_token = json_object_get(root, "access_token");
-	json_t *expires_at = json_object_get(root, "expires_at");
+  json_t *access_token = json_object_get(root, "access_token");
+  json_t *expires_at = json_object_get(root, "expires_at");
 
-	if (!access_token || !json_is_string(access_token)) {
-		dstr_copy(&api->last_error, "No access token in refresh response");
-		json_decref(root);
-		return false;
-	}
+  if (!access_token || !json_is_string(access_token)) {
+    dstr_copy(&api->last_error, "No access token in refresh response");
+    json_decref(root);
+    return false;
+  }
 
-	/* Update access token */
-	bfree(api->access_token);
-	api->access_token = bstrdup(json_string_value(access_token));
+  /* Update access token */
+  bfree(api->access_token);
+  api->access_token = bstrdup(json_string_value(access_token));
 
-	if (expires_at && json_is_integer(expires_at)) {
-		api->token_expires = (time_t)json_integer_value(expires_at);
-	} else {
-		api->token_expires = time(NULL) + 3600;
-	}
+  if (expires_at && json_is_integer(expires_at)) {
+    api->token_expires = (time_t)json_integer_value(expires_at);
+  } else {
+    api->token_expires = time(NULL) + 3600;
+  }
 
-	json_decref(root);
-	obs_log(LOG_INFO, "Access token refreshed successfully");
+  json_decref(root);
+  obs_log(LOG_INFO, "Access token refreshed successfully");
 
-	return true;
+  return true;
 }
 
 bool restreamer_api_force_login(restreamer_api_t *api) {
-	if (!api) {
-		return false;
-	}
+  if (!api) {
+    return false;
+  }
 
-	/* Clear existing tokens */
-	bfree(api->access_token);
-	api->access_token = NULL;
-	bfree(api->refresh_token);
-	api->refresh_token = NULL;
-	api->token_expires = 0;
+  /* Clear existing tokens */
+  bfree(api->access_token);
+  api->access_token = NULL;
+  bfree(api->refresh_token);
+  api->refresh_token = NULL;
+  api->token_expires = 0;
 
-	/* Perform fresh login */
-	return restreamer_api_login(api);
+  /* Perform fresh login */
+  return restreamer_api_login(api);
 }
 
 /* ========================================================================
  * File System API
  * ======================================================================== */
 
-bool restreamer_api_list_filesystems(restreamer_api_t *api, char **filesystems_json) {
-	if (!api || !filesystems_json) {
-		return false;
-	}
+bool restreamer_api_list_filesystems(restreamer_api_t *api,
+                                     char **filesystems_json) {
+  if (!api || !filesystems_json) {
+    return false;
+  }
 
-	json_t *response = NULL;
-	bool result = api_request_json(api, "/api/v3/fs", &response);
+  json_t *response = NULL;
+  bool result = api_request_json(api, "/api/v3/fs", &response);
 
-	if (!result || !response) {
-		return false;
-	}
+  if (!result || !response) {
+    return false;
+  }
 
-	*filesystems_json = json_dumps(response, JSON_INDENT(2));
-	json_decref(response);
+  *filesystems_json = json_dumps(response, JSON_INDENT(2));
+  json_decref(response);
 
-	return *filesystems_json != NULL;
+  return *filesystems_json != NULL;
 }
 
 bool restreamer_api_list_files(restreamer_api_t *api, const char *storage,
                                const char *glob_pattern,
                                restreamer_fs_list_t *files) {
-	if (!api || !storage || !files) {
-		return false;
-	}
+  if (!api || !storage || !files) {
+    return false;
+  }
 
-	memset(files, 0, sizeof(restreamer_fs_list_t));
+  memset(files, 0, sizeof(restreamer_fs_list_t));
 
-	struct dstr endpoint;
-	dstr_init(&endpoint);
+  struct dstr endpoint;
+  dstr_init(&endpoint);
 
-	if (glob_pattern) {
-		/* URL encode the glob pattern */
-		char *encoded = curl_easy_escape(api->curl, glob_pattern, 0);
-		dstr_printf(&endpoint, "/api/v3/fs/%s?glob=%s", storage, encoded);
-		curl_free(encoded);
-	} else {
-		dstr_printf(&endpoint, "/api/v3/fs/%s", storage);
-	}
+  if (glob_pattern) {
+    /* URL encode the glob pattern */
+    char *encoded = curl_easy_escape(api->curl, glob_pattern, 0);
+    dstr_printf(&endpoint, "/api/v3/fs/%s?glob=%s", storage, encoded);
+    curl_free(encoded);
+  } else {
+    dstr_printf(&endpoint, "/api/v3/fs/%s", storage);
+  }
 
-	json_t *response = NULL;
-	bool result = api_request_json(api, endpoint.array, &response);
-	dstr_free(&endpoint);
+  json_t *response = NULL;
+  bool result = api_request_json(api, endpoint.array, &response);
+  dstr_free(&endpoint);
 
-	if (!result || !response) {
-		return false;
-	}
+  if (!result || !response) {
+    return false;
+  }
 
-	/* Parse file list */
-	if (json_is_array(response)) {
-		size_t count = json_array_size(response);
-		files->count = count;
-		files->entries = bzalloc(sizeof(restreamer_fs_entry_t) * count);
+  /* Parse file list */
+  if (json_is_array(response)) {
+    size_t count = json_array_size(response);
+    files->count = count;
+    files->entries = bzalloc(sizeof(restreamer_fs_entry_t) * count);
 
-		for (size_t i = 0; i < count; i++) {
-			json_t *entry = json_array_get(response, i);
-			restreamer_fs_entry_t *f = &files->entries[i];
+    for (size_t i = 0; i < count; i++) {
+      json_t *entry = json_array_get(response, i);
+      restreamer_fs_entry_t *f = &files->entries[i];
 
-			json_t *name = json_object_get(entry, "name");
-			if (name && json_is_string(name)) {
-				f->name = bstrdup(json_string_value(name));
-			}
+      json_t *name = json_object_get(entry, "name");
+      if (name && json_is_string(name)) {
+        f->name = bstrdup(json_string_value(name));
+      }
 
-			json_t *path = json_object_get(entry, "path");
-			if (path && json_is_string(path)) {
-				f->path = bstrdup(json_string_value(path));
-			}
+      json_t *path = json_object_get(entry, "path");
+      if (path && json_is_string(path)) {
+        f->path = bstrdup(json_string_value(path));
+      }
 
-			json_t *size = json_object_get(entry, "size");
-			if (size && json_is_integer(size)) {
-				f->size = (uint64_t)json_integer_value(size);
-			}
+      json_t *size = json_object_get(entry, "size");
+      if (size && json_is_integer(size)) {
+        f->size = (uint64_t)json_integer_value(size);
+      }
 
-			json_t *modified = json_object_get(entry, "modified");
-			if (modified && json_is_integer(modified)) {
-				f->modified = json_integer_value(modified);
-			}
+      json_t *modified = json_object_get(entry, "modified");
+      if (modified && json_is_integer(modified)) {
+        f->modified = json_integer_value(modified);
+      }
 
-			json_t *is_dir = json_object_get(entry, "is_directory");
-			if (is_dir && json_is_boolean(is_dir)) {
-				f->is_directory = json_boolean_value(is_dir);
-			}
-		}
-	}
+      json_t *is_dir = json_object_get(entry, "is_directory");
+      if (is_dir && json_is_boolean(is_dir)) {
+        f->is_directory = json_boolean_value(is_dir);
+      }
+    }
+  }
 
-	json_decref(response);
-	return true;
+  json_decref(response);
+  return true;
 }
 
 bool restreamer_api_download_file(restreamer_api_t *api, const char *storage,
-                                  const char *filepath,
-                                  unsigned char **data, size_t *size) {
-	if (!api || !storage || !filepath || !data || !size) {
-		return false;
-	}
+                                  const char *filepath, unsigned char **data,
+                                  size_t *size) {
+  if (!api || !storage || !filepath || !data || !size) {
+    return false;
+  }
 
-	struct dstr endpoint;
-	dstr_init(&endpoint);
-	dstr_printf(&endpoint, "/api/v3/fs/%s/%s", storage, filepath);
+  struct dstr endpoint;
+  dstr_init(&endpoint);
+  dstr_printf(&endpoint, "/api/v3/fs/%s/%s", storage, filepath);
 
-	/* Setup request for binary data */
-	struct memory_struct response;
-	response.memory = NULL;  /* realloc(NULL, size) behaves like malloc(size) */
-	response.size = 0;
+  /* Setup request for binary data */
+  struct memory_struct response;
+  response.memory = NULL; /* realloc(NULL, size) behaves like malloc(size) */
+  response.size = 0;
 
-	struct dstr url;
-	dstr_init(&url);
-	const char *protocol = api->connection.use_https ? "https" : "http";
-	dstr_printf(&url, "%s://%s:%d%s", protocol, api->connection.host,
-	            api->connection.port, endpoint.array);
+  struct dstr url;
+  dstr_init(&url);
+  const char *protocol = api->connection.use_https ? "https" : "http";
+  dstr_printf(&url, "%s://%s:%d%s", protocol, api->connection.host,
+              api->connection.port, endpoint.array);
 
-	curl_easy_setopt(api->curl, CURLOPT_URL, url.array);
-	curl_easy_setopt(api->curl, CURLOPT_HTTPGET, 1L);
-	curl_easy_setopt(api->curl, CURLOPT_WRITEDATA, (void *)&response);
+  curl_easy_setopt(api->curl, CURLOPT_URL, url.array);
+  curl_easy_setopt(api->curl, CURLOPT_HTTPGET, 1L);
+  curl_easy_setopt(api->curl, CURLOPT_WRITEDATA, (void *)&response);
 
-	CURLcode res = curl_easy_perform(api->curl);
+  CURLcode res = curl_easy_perform(api->curl);
 
-	dstr_free(&url);
-	dstr_free(&endpoint);
+  dstr_free(&url);
+  dstr_free(&endpoint);
 
-	if (res != CURLE_OK) {
-		dstr_copy(&api->last_error, api->error_buffer);
-		free(response.memory);
-		return false;
-	}
+  if (res != CURLE_OK) {
+    dstr_copy(&api->last_error, api->error_buffer);
+    free(response.memory);
+    return false;
+  }
 
-	*data = (unsigned char *)response.memory;
-	*size = response.size;
+  *data = (unsigned char *)response.memory;
+  *size = response.size;
 
-	return true;
+  return true;
 }
 
 bool restreamer_api_upload_file(restreamer_api_t *api, const char *storage,
-                                const char *filepath,
-                                const unsigned char *data, size_t size) {
-	if (!api || !storage || !filepath || !data) {
-		return false;
-	}
+                                const char *filepath, const unsigned char *data,
+                                size_t size) {
+  if (!api || !storage || !filepath || !data) {
+    return false;
+  }
 
-	struct dstr endpoint;
-	dstr_init(&endpoint);
-	dstr_printf(&endpoint, "/api/v3/fs/%s/%s", storage, filepath);
+  struct dstr endpoint;
+  dstr_init(&endpoint);
+  dstr_printf(&endpoint, "/api/v3/fs/%s/%s", storage, filepath);
 
-	struct dstr url;
-	dstr_init(&url);
-	const char *protocol = api->connection.use_https ? "https" : "http";
-	dstr_printf(&url, "%s://%s:%d%s", protocol, api->connection.host,
-	            api->connection.port, endpoint.array);
+  struct dstr url;
+  dstr_init(&url);
+  const char *protocol = api->connection.use_https ? "https" : "http";
+  dstr_printf(&url, "%s://%s:%d%s", protocol, api->connection.host,
+              api->connection.port, endpoint.array);
 
-	curl_easy_setopt(api->curl, CURLOPT_URL, url.array);
-	curl_easy_setopt(api->curl, CURLOPT_CUSTOMREQUEST, "PUT");
-	curl_easy_setopt(api->curl, CURLOPT_POSTFIELDS, data);
-	curl_easy_setopt(api->curl, CURLOPT_POSTFIELDSIZE, (long)size);
+  curl_easy_setopt(api->curl, CURLOPT_URL, url.array);
+  curl_easy_setopt(api->curl, CURLOPT_CUSTOMREQUEST, "PUT");
+  curl_easy_setopt(api->curl, CURLOPT_POSTFIELDS, data);
+  curl_easy_setopt(api->curl, CURLOPT_POSTFIELDSIZE, (long)size);
 
-	CURLcode res = curl_easy_perform(api->curl);
+  CURLcode res = curl_easy_perform(api->curl);
 
-	dstr_free(&url);
-	dstr_free(&endpoint);
+  dstr_free(&url);
+  dstr_free(&endpoint);
 
-	if (res != CURLE_OK) {
-		dstr_copy(&api->last_error, api->error_buffer);
-		return false;
-	}
+  if (res != CURLE_OK) {
+    dstr_copy(&api->last_error, api->error_buffer);
+    return false;
+  }
 
-	return true;
+  return true;
 }
 
 bool restreamer_api_delete_file(restreamer_api_t *api, const char *storage,
                                 const char *filepath) {
-	if (!api || !storage || !filepath) {
-		return false;
-	}
+  if (!api || !storage || !filepath) {
+    return false;
+  }
 
-	struct dstr endpoint;
-	dstr_init(&endpoint);
-	dstr_printf(&endpoint, "/api/v3/fs/%s/%s", storage, filepath);
+  struct dstr endpoint;
+  dstr_init(&endpoint);
+  dstr_printf(&endpoint, "/api/v3/fs/%s/%s", storage, filepath);
 
-	struct dstr url;
-	dstr_init(&url);
-	const char *protocol = api->connection.use_https ? "https" : "http";
-	dstr_printf(&url, "%s://%s:%d%s", protocol, api->connection.host,
-	            api->connection.port, endpoint.array);
+  struct dstr url;
+  dstr_init(&url);
+  const char *protocol = api->connection.use_https ? "https" : "http";
+  dstr_printf(&url, "%s://%s:%d%s", protocol, api->connection.host,
+              api->connection.port, endpoint.array);
 
-	curl_easy_setopt(api->curl, CURLOPT_URL, url.array);
-	curl_easy_setopt(api->curl, CURLOPT_CUSTOMREQUEST, "DELETE");
+  curl_easy_setopt(api->curl, CURLOPT_URL, url.array);
+  curl_easy_setopt(api->curl, CURLOPT_CUSTOMREQUEST, "DELETE");
 
-	CURLcode res = curl_easy_perform(api->curl);
+  CURLcode res = curl_easy_perform(api->curl);
 
-	dstr_free(&url);
-	dstr_free(&endpoint);
+  dstr_free(&url);
+  dstr_free(&endpoint);
 
-	if (res != CURLE_OK) {
-		dstr_copy(&api->last_error, api->error_buffer);
-		return false;
-	}
+  if (res != CURLE_OK) {
+    dstr_copy(&api->last_error, api->error_buffer);
+    return false;
+  }
 
-	return true;
+  return true;
 }
 
 void restreamer_api_free_fs_list(restreamer_fs_list_t *list) {
-	if (!list) {
-		return;
-	}
+  if (!list) {
+    return;
+  }
 
-	for (size_t i = 0; i < list->count; i++) {
-		bfree(list->entries[i].name);
-		bfree(list->entries[i].path);
-	}
+  for (size_t i = 0; i < list->count; i++) {
+    bfree(list->entries[i].name);
+    bfree(list->entries[i].path);
+  }
 
-	bfree(list->entries);
-	memset(list, 0, sizeof(restreamer_fs_list_t));
+  bfree(list->entries);
+  memset(list, 0, sizeof(restreamer_fs_list_t));
 }
 
 /* ========================================================================
  * Protocol Monitoring API
  * ======================================================================== */
 
-bool restreamer_api_get_rtmp_streams(restreamer_api_t *api, char **streams_json) {
-	if (!api || !streams_json) {
-		return false;
-	}
+bool restreamer_api_get_rtmp_streams(restreamer_api_t *api,
+                                     char **streams_json) {
+  if (!api || !streams_json) {
+    return false;
+  }
 
-	json_t *response = NULL;
-	bool result = api_request_json(api, "/api/v3/rtmp", &response);
+  json_t *response = NULL;
+  bool result = api_request_json(api, "/api/v3/rtmp", &response);
 
-	if (!result || !response) {
-		return false;
-	}
+  if (!result || !response) {
+    return false;
+  }
 
-	*streams_json = json_dumps(response, JSON_INDENT(2));
-	json_decref(response);
+  *streams_json = json_dumps(response, JSON_INDENT(2));
+  json_decref(response);
 
-	return *streams_json != NULL;
+  return *streams_json != NULL;
 }
 
-bool restreamer_api_get_srt_streams(restreamer_api_t *api, char **streams_json) {
-	if (!api || !streams_json) {
-		return false;
-	}
+bool restreamer_api_get_srt_streams(restreamer_api_t *api,
+                                    char **streams_json) {
+  if (!api || !streams_json) {
+    return false;
+  }
 
-	json_t *response = NULL;
-	bool result = api_request_json(api, "/api/v3/srt", &response);
+  json_t *response = NULL;
+  bool result = api_request_json(api, "/api/v3/srt", &response);
 
-	if (!result || !response) {
-		return false;
-	}
+  if (!result || !response) {
+    return false;
+  }
 
-	*streams_json = json_dumps(response, JSON_INDENT(2));
-	json_decref(response);
+  *streams_json = json_dumps(response, JSON_INDENT(2));
+  json_decref(response);
 
-	return *streams_json != NULL;
+  return *streams_json != NULL;
 }
 
 /* ========================================================================
@@ -2009,27 +2392,27 @@ bool restreamer_api_get_srt_streams(restreamer_api_t *api, char **streams_json) 
  * ======================================================================== */
 
 bool restreamer_api_get_skills(restreamer_api_t *api, char **skills_json) {
-	if (!api || !skills_json) {
-		return false;
-	}
+  if (!api || !skills_json) {
+    return false;
+  }
 
-	json_t *response = NULL;
-	bool result = api_request_json(api, "/api/v3/skills", &response);
+  json_t *response = NULL;
+  bool result = api_request_json(api, "/api/v3/skills", &response);
 
-	if (!result || !response) {
-		return false;
-	}
+  if (!result || !response) {
+    return false;
+  }
 
-	*skills_json = json_dumps(response, JSON_INDENT(2));
-	json_decref(response);
+  *skills_json = json_dumps(response, JSON_INDENT(2));
+  json_decref(response);
 
-	return *skills_json != NULL;
+  return *skills_json != NULL;
 }
 
 bool restreamer_api_reload_skills(restreamer_api_t *api) {
-	if (!api) {
-		return false;
-	}
+  if (!api) {
+    return false;
+  }
 
-	return api_request_json(api, "/api/v3/skills/reload", NULL);
+  return api_request_json(api, "/api/v3/skills/reload", NULL);
 }

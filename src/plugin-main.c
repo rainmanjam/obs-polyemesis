@@ -16,20 +16,21 @@ You should have received a copy of the GNU General Public License along
 with this program. If not, see <https://www.gnu.org/licenses/>
 */
 
-#include "restreamer-config.h"
 #include "plugin-main.h"
 #include "obs-bridge.h"
+#include "restreamer-config.h"
 #include <obs-module.h>
 #include <plugin-support.h>
 
 #ifdef ENABLE_QT
 #include <obs-frontend-api.h>
-// #include "websocket-api.h" // TODO: Enable when obs-websocket-api headers are available
+// #include "websocket-api.h" // TODO: Enable when obs-websocket-api headers are
+// available
 #endif
 
-#include <util/platform.h>
-#include <sys/stat.h>
 #include <jansson.h>
+#include <sys/stat.h>
+#include <util/platform.h>
 
 // cppcheck-suppress unknownMacro
 OBS_DECLARE_MODULE()
@@ -67,12 +68,15 @@ static obs_hotkey_id hotkey_start_horizontal;
 static obs_hotkey_id hotkey_start_vertical;
 
 /* Hotkey callbacks */
-static void hotkey_callback_start_all_profiles(void *data, obs_hotkey_id id, obs_hotkey_t *hotkey, bool pressed) {
+static void hotkey_callback_start_all_profiles(void *data, obs_hotkey_id id,
+                                               obs_hotkey_t *hotkey,
+                                               bool pressed) {
   (void)data;
   (void)id;
   (void)hotkey;
 
-  if (!pressed) return;
+  if (!pressed)
+    return;
 
   profile_manager_t *pm = plugin_get_profile_manager();
   if (pm) {
@@ -81,12 +85,15 @@ static void hotkey_callback_start_all_profiles(void *data, obs_hotkey_id id, obs
   }
 }
 
-static void hotkey_callback_stop_all_profiles(void *data, obs_hotkey_id id, obs_hotkey_t *hotkey, bool pressed) {
+static void hotkey_callback_stop_all_profiles(void *data, obs_hotkey_id id,
+                                              obs_hotkey_t *hotkey,
+                                              bool pressed) {
   (void)data;
   (void)id;
   (void)hotkey;
 
-  if (!pressed) return;
+  if (!pressed)
+    return;
 
   profile_manager_t *pm = plugin_get_profile_manager();
   if (pm) {
@@ -95,18 +102,22 @@ static void hotkey_callback_stop_all_profiles(void *data, obs_hotkey_id id, obs_
   }
 }
 
-static void hotkey_callback_start_horizontal(void *data, obs_hotkey_id id, obs_hotkey_t *hotkey, bool pressed) {
+static void hotkey_callback_start_horizontal(void *data, obs_hotkey_id id,
+                                             obs_hotkey_t *hotkey,
+                                             bool pressed) {
   (void)data;
   (void)id;
   (void)hotkey;
 
-  if (!pressed) return;
+  if (!pressed)
+    return;
 
   profile_manager_t *pm = plugin_get_profile_manager();
   if (pm) {
     /* Find and start horizontal profile */
     for (size_t i = 0; i < pm->profile_count; i++) {
-      if (pm->profiles[i] && strstr(pm->profiles[i]->profile_name, "Horizontal")) {
+      if (pm->profiles[i] &&
+          strstr(pm->profiles[i]->profile_name, "Horizontal")) {
         output_profile_start(pm, pm->profiles[i]->profile_id);
         obs_log(LOG_INFO, "Hotkey: Started horizontal profile");
         break;
@@ -115,18 +126,21 @@ static void hotkey_callback_start_horizontal(void *data, obs_hotkey_id id, obs_h
   }
 }
 
-static void hotkey_callback_start_vertical(void *data, obs_hotkey_id id, obs_hotkey_t *hotkey, bool pressed) {
+static void hotkey_callback_start_vertical(void *data, obs_hotkey_id id,
+                                           obs_hotkey_t *hotkey, bool pressed) {
   (void)data;
   (void)id;
   (void)hotkey;
 
-  if (!pressed) return;
+  if (!pressed)
+    return;
 
   profile_manager_t *pm = plugin_get_profile_manager();
   if (pm) {
     /* Find and start vertical profile */
     for (size_t i = 0; i < pm->profile_count; i++) {
-      if (pm->profiles[i] && strstr(pm->profiles[i]->profile_name, "Vertical")) {
+      if (pm->profiles[i] &&
+          strstr(pm->profiles[i]->profile_name, "Vertical")) {
         output_profile_start(pm, pm->profiles[i]->profile_id);
         obs_log(LOG_INFO, "Hotkey: Started vertical profile");
         break;
@@ -156,23 +170,27 @@ static void tools_menu_stop_all_profiles(void *data) {
 
 static void tools_menu_open_settings(void *data) {
   (void)data;
-  /* This will be handled by the dock widget directly - just bring focus to it */
+  /* This will be handled by the dock widget directly - just bring focus to it
+   */
   obs_log(LOG_INFO, "Tools menu: Open settings requested");
 }
 
 /* Pre-load callback for early initialization */
-static void frontend_preload_callback(obs_data_t *save_data, bool saving, void *private_data) {
+static void frontend_preload_callback(obs_data_t *save_data, bool saving,
+                                      void *private_data) {
   (void)save_data;
   (void)saving;
   (void)private_data;
   obs_log(LOG_INFO, "Pre-load callback: Preparing plugin state");
 
-  /* Initialize any state that needs to be ready before scene collection loads */
+  /* Initialize any state that needs to be ready before scene collection loads
+   */
   /* This is called before OBS loads scene collections */
 }
 
-static void frontend_event_callback(enum obs_frontend_event event, void *private_data) {
-  (void)private_data;  /* Unused */
+static void frontend_event_callback(enum obs_frontend_event event,
+                                    void *private_data) {
+  (void)private_data; /* Unused */
 
   if (event == OBS_FRONTEND_EVENT_FINISHED_LOADING) {
     dock_widget = restreamer_dock_create();
@@ -180,46 +198,40 @@ static void frontend_event_callback(enum obs_frontend_event event, void *private
 
     /* Register hotkeys */
     hotkey_start_all_profiles = obs_hotkey_register_frontend(
-      "obs_polyemesis.start_all_profiles",
-      "Polyemesis: Start All Profiles",
-      hotkey_callback_start_all_profiles,
-      NULL
-    );
+        "obs_polyemesis.start_all_profiles", "Polyemesis: Start All Profiles",
+        hotkey_callback_start_all_profiles, NULL);
 
     hotkey_stop_all_profiles = obs_hotkey_register_frontend(
-      "obs_polyemesis.stop_all_profiles",
-      "Polyemesis: Stop All Profiles",
-      hotkey_callback_stop_all_profiles,
-      NULL
-    );
+        "obs_polyemesis.stop_all_profiles", "Polyemesis: Stop All Profiles",
+        hotkey_callback_stop_all_profiles, NULL);
 
-    hotkey_start_horizontal = obs_hotkey_register_frontend(
-      "obs_polyemesis.start_horizontal",
-      "Polyemesis: Start Horizontal Profile",
-      hotkey_callback_start_horizontal,
-      NULL
-    );
+    hotkey_start_horizontal =
+        obs_hotkey_register_frontend("obs_polyemesis.start_horizontal",
+                                     "Polyemesis: Start Horizontal Profile",
+                                     hotkey_callback_start_horizontal, NULL);
 
     hotkey_start_vertical = obs_hotkey_register_frontend(
-      "obs_polyemesis.start_vertical",
-      "Polyemesis: Start Vertical Profile",
-      hotkey_callback_start_vertical,
-      NULL
-    );
+        "obs_polyemesis.start_vertical", "Polyemesis: Start Vertical Profile",
+        hotkey_callback_start_vertical, NULL);
 
     obs_log(LOG_INFO, "Registered Polyemesis hotkeys");
 
     /* Add tools menu items */
-    obs_frontend_add_tools_menu_item("Polyemesis: Start All Profiles", tools_menu_start_all_profiles, NULL);
-    obs_frontend_add_tools_menu_item("Polyemesis: Stop All Profiles", tools_menu_stop_all_profiles, NULL);
-    obs_frontend_add_tools_menu_item("Polyemesis: Open Settings", tools_menu_open_settings, NULL);
+    obs_frontend_add_tools_menu_item("Polyemesis: Start All Profiles",
+                                     tools_menu_start_all_profiles, NULL);
+    obs_frontend_add_tools_menu_item("Polyemesis: Stop All Profiles",
+                                     tools_menu_stop_all_profiles, NULL);
+    obs_frontend_add_tools_menu_item("Polyemesis: Open Settings",
+                                     tools_menu_open_settings, NULL);
     obs_log(LOG_INFO, "Added Polyemesis tools menu items");
 
-    /* TODO: Initialize WebSocket API after dock is ready (requires obs-websocket-api headers) */
+    /* TODO: Initialize WebSocket API after dock is ready (requires
+     * obs-websocket-api headers) */
     /* if (websocket_api_init()) {
       obs_log(LOG_INFO, "WebSocket Vendor API initialized");
     } else {
-      obs_log(LOG_WARNING, "WebSocket Vendor API initialization failed (obs-websocket may not be available)");
+      obs_log(LOG_WARNING, "WebSocket Vendor API initialization failed
+    (obs-websocket may not be available)");
     } */
   }
 
@@ -273,7 +285,8 @@ static void install_service_definition(void) {
   char service_dir[1024];
   char service_file[1024];
 
-  /* Navigate from plugin_config/obs-polyemesis to plugin_config/rtmp-services */
+  /* Navigate from plugin_config/obs-polyemesis to plugin_config/rtmp-services
+   */
   /* First, remove any trailing slash */
   size_t len = strlen(config_path);
   if (len > 0 && config_path[len - 1] == '/') {
@@ -286,16 +299,18 @@ static void install_service_definition(void) {
     bfree(config_path);
     return;
   }
-  *last_sep = '\0';  /* Remove /obs-polyemesis */
+  *last_sep = '\0'; /* Remove /obs-polyemesis */
 
-  int ret = snprintf(service_dir, sizeof(service_dir), "%s/rtmp-services", config_path);
+  int ret = snprintf(service_dir, sizeof(service_dir), "%s/rtmp-services",
+                     config_path);
   if (ret < 0 || (size_t)ret >= sizeof(service_dir)) {
     obs_log(LOG_ERROR, "Service directory path too long");
     bfree(config_path);
     return;
   }
 
-  ret = snprintf(service_file, sizeof(service_file), "%s/services.json", service_dir);
+  ret = snprintf(service_file, sizeof(service_file), "%s/services.json",
+                 service_dir);
   if (ret < 0 || (size_t)ret >= sizeof(service_file)) {
     obs_log(LOG_ERROR, "Service file path too long");
     bfree(config_path);
@@ -310,7 +325,8 @@ static void install_service_definition(void) {
   /* Load existing services.json */
   json_t *root = json_load_file(service_file, 0, NULL);
   if (!root) {
-    obs_log(LOG_WARNING, "Failed to load existing services.json, cannot add Polyemesis services");
+    obs_log(LOG_WARNING, "Failed to load existing services.json, cannot add "
+                         "Polyemesis services");
     bfree(config_path);
     return;
   }
@@ -343,31 +359,20 @@ static void install_service_definition(void) {
   /* Add Polyemesis Horizontal service if it doesn't exist */
   if (!has_horizontal) {
     json_t *horizontal_service = json_pack(
-      "{"
-      "s:s,"  // name
-      "s:b,"  // common
-      "s:s,"  // key (default stream key)
-      "s:[{s:s, s:s}, {s:s, s:s}],"  // servers
-      "s:[s],"  // supported video codecs
-      "s:{s:i, s:s, s:i, s:i, s:s, s:i}"  // recommended
-      "}",
-      "name", "Polyemesis Horizontal",
-      "common", 1,
-      "key", "obs_horizontal",
-      "servers",
-        "name", "Local Restreamer",
-        "url", "rtmp://localhost/live",
-        "name", "Custom Server",
-        "url", "rtmp://your-server/live",
-      "supported video codecs", "h264",
-      "recommended",
-        "keyint", 2,
-        "output", "rtmp_output",
-        "max audio bitrate", 160,
-        "max video bitrate", 6000,
-        "profile", "main",
-        "bframes", 2
-    );
+        "{"
+        "s:s,"                             // name
+        "s:b,"                             // common
+        "s:s,"                             // key (default stream key)
+        "s:[{s:s, s:s}, {s:s, s:s}],"      // servers
+        "s:[s],"                           // supported video codecs
+        "s:{s:i, s:s, s:i, s:i, s:s, s:i}" // recommended
+        "}",
+        "name", "Polyemesis Horizontal", "common", 1, "key", "obs_horizontal",
+        "servers", "name", "Local Restreamer", "url", "rtmp://localhost/live",
+        "name", "Custom Server", "url", "rtmp://your-server/live",
+        "supported video codecs", "h264", "recommended", "keyint", 2, "output",
+        "rtmp_output", "max audio bitrate", 160, "max video bitrate", 6000,
+        "profile", "main", "bframes", 2);
     if (horizontal_service) {
       json_array_append_new(services_array, horizontal_service);
       obs_log(LOG_INFO, "Added Polyemesis Horizontal service");
@@ -377,31 +382,20 @@ static void install_service_definition(void) {
   /* Add Polyemesis Vertical service if it doesn't exist */
   if (!has_vertical) {
     json_t *vertical_service = json_pack(
-      "{"
-      "s:s,"  // name
-      "s:b,"  // common
-      "s:s,"  // key (default stream key)
-      "s:[{s:s, s:s}, {s:s, s:s}],"  // servers
-      "s:[s],"  // supported video codecs
-      "s:{s:i, s:s, s:i, s:i, s:s, s:i}"  // recommended
-      "}",
-      "name", "Polyemesis Vertical",
-      "common", 1,
-      "key", "obs_vertical",
-      "servers",
-        "name", "Local Restreamer",
-        "url", "rtmp://localhost/live",
-        "name", "Custom Server",
-        "url", "rtmp://your-server/live",
-      "supported video codecs", "h264",
-      "recommended",
-        "keyint", 2,
-        "output", "rtmp_output",
-        "max audio bitrate", 160,
-        "max video bitrate", 6000,
-        "profile", "main",
-        "bframes", 2
-    );
+        "{"
+        "s:s,"                             // name
+        "s:b,"                             // common
+        "s:s,"                             // key (default stream key)
+        "s:[{s:s, s:s}, {s:s, s:s}],"      // servers
+        "s:[s],"                           // supported video codecs
+        "s:{s:i, s:s, s:i, s:i, s:s, s:i}" // recommended
+        "}",
+        "name", "Polyemesis Vertical", "common", 1, "key", "obs_vertical",
+        "servers", "name", "Local Restreamer", "url", "rtmp://localhost/live",
+        "name", "Custom Server", "url", "rtmp://your-server/live",
+        "supported video codecs", "h264", "recommended", "keyint", 2, "output",
+        "rtmp_output", "max audio bitrate", 160, "max video bitrate", 6000,
+        "profile", "main", "bframes", 2);
     if (vertical_service) {
       json_array_append_new(services_array, vertical_service);
       obs_log(LOG_INFO, "Added Polyemesis Vertical service");
@@ -411,7 +405,8 @@ static void install_service_definition(void) {
   /* Save updated services.json */
   if (!has_horizontal || !has_vertical) {
     if (json_dump_file(root, service_file, JSON_INDENT(2)) == 0) {
-      obs_log(LOG_INFO, "Successfully updated services.json with Polyemesis services");
+      obs_log(LOG_INFO,
+              "Successfully updated services.json with Polyemesis services");
     } else {
       obs_log(LOG_WARNING, "Failed to save updated services.json");
     }
@@ -466,7 +461,8 @@ void obs_module_unload(void) {
   obs_frontend_remove_event_callback(frontend_event_callback, NULL);
 
   if (dock_widget) {
-    /* OBS owns and will destroy the dock widget via obs_frontend_add_dock_by_id */
+    /* OBS owns and will destroy the dock widget via obs_frontend_add_dock_by_id
+     */
     dock_widget = NULL;
   }
 #endif

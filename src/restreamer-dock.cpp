@@ -404,16 +404,18 @@ void RestreamerDock::setupUI() {
   hostEdit->setToolTip("Restreamer server hostname or IP address");
   hostEdit->setMaximumWidth(300);
   hostEdit->setMinimumHeight(30); /* Taller field */
-  hostEdit->setFrame(true); /* Border box */
-  hostEdit->setStyleSheet("QLineEdit { border: 1px solid palette(mid); padding: 4px; }");
+  hostEdit->setFrame(true);       /* Border box */
+  hostEdit->setStyleSheet(
+      "QLineEdit { border: 1px solid palette(mid); padding: 4px; }");
 
   portEdit = new QLineEdit();
   portEdit->setPlaceholderText("8080");
   portEdit->setToolTip("Restreamer server port (1-65535)");
   portEdit->setMaximumWidth(300);
   portEdit->setMinimumHeight(30); /* Taller field */
-  portEdit->setFrame(true); /* Border box */
-  portEdit->setStyleSheet("QLineEdit { border: 1px solid palette(mid); padding: 4px; }");
+  portEdit->setFrame(true);       /* Border box */
+  portEdit->setStyleSheet(
+      "QLineEdit { border: 1px solid palette(mid); padding: 4px; }");
   /* Add port validator to ensure only valid port numbers are entered */
   QIntValidator *portValidator = new QIntValidator(1, 65535, portEdit);
   portEdit->setValidator(portValidator);
@@ -425,8 +427,9 @@ void RestreamerDock::setupUI() {
   usernameEdit->setToolTip("Restreamer username for authentication");
   usernameEdit->setMaximumWidth(300);
   usernameEdit->setMinimumHeight(30); /* Taller field */
-  usernameEdit->setFrame(true); /* Border box */
-  usernameEdit->setStyleSheet("QLineEdit { border: 1px solid palette(mid); padding: 4px; }");
+  usernameEdit->setFrame(true);       /* Border box */
+  usernameEdit->setStyleSheet(
+      "QLineEdit { border: 1px solid palette(mid); padding: 4px; }");
 
   passwordEdit = new QLineEdit();
   passwordEdit->setEchoMode(QLineEdit::Password);
@@ -434,8 +437,9 @@ void RestreamerDock::setupUI() {
   passwordEdit->setToolTip("Restreamer password for authentication");
   passwordEdit->setMaximumWidth(300);
   passwordEdit->setMinimumHeight(30); /* Taller field */
-  passwordEdit->setFrame(true); /* Border box */
-  passwordEdit->setStyleSheet("QLineEdit { border: 1px solid palette(mid); padding: 4px; }");
+  passwordEdit->setFrame(true);       /* Border box */
+  passwordEdit->setStyleSheet(
+      "QLineEdit { border: 1px solid palette(mid); padding: 4px; }");
 
   connectionFormLayout->addRow("Host:", hostEdit);
   connectionFormLayout->addRow("Port:", portEdit);
@@ -816,7 +820,8 @@ void RestreamerDock::setupUI() {
 
   processList = new QListWidget();
   processList->setMaximumHeight(80);
-  processList->setIconSize(QSize(48, 48)); /* Larger icon size for better visibility */
+  processList->setIconSize(
+      QSize(48, 48)); /* Larger icon size for better visibility */
   connect(processList, &QListWidget::currentRowChanged, this,
           &RestreamerDock::onProcessSelected);
 
@@ -965,6 +970,17 @@ void RestreamerDock::setupUI() {
 
   /* Add Monitoring tab to collapsible section */
   monitoringSection = new CollapsibleSection("Monitoring");
+
+  /* Add quick action button to Monitoring header */
+  QPushButton *quickRefreshButton = new QPushButton("Refresh");
+  quickRefreshButton->setMaximumWidth(70);
+  quickRefreshButton->setToolTip("Refresh process list and metrics");
+  connect(quickRefreshButton, &QPushButton::clicked, this, [this]() {
+    updateProcessList();
+    updateProcessDetails();
+  });
+  monitoringSection->addHeaderButton(quickRefreshButton);
+
   monitoringSection->setContent(monitoringTab);
   monitoringSection->setExpanded(false, false); /* Collapsed by default */
   verticalLayout->addWidget(monitoringSection);
@@ -1008,10 +1024,94 @@ void RestreamerDock::setupUI() {
   configGroup->setLayout(configLayout);
   systemTabLayout->addWidget(configGroup);
 
+  /* Plugin Settings Management */
+  QGroupBox *pluginSettingsGroup = new QGroupBox("Plugin Settings");
+  QVBoxLayout *pluginSettingsLayout = new QVBoxLayout();
+
+  QPushButton *clearSettingsButton = new QPushButton("Clear All Settings");
+  clearSettingsButton->setMinimumWidth(150);
+  clearSettingsButton->setToolTip(
+      "Clear all plugin settings and restart fresh");
+  clearSettingsButton->setStyleSheet("QPushButton { color: red; }");
+
+  connect(clearSettingsButton, &QPushButton::clicked, this, [this]() {
+    QMessageBox::StandardButton reply =
+        QMessageBox::question(this, "Clear All Settings",
+                              "This will clear ALL plugin settings including:\n"
+                              "• Connection settings\n"
+                              "• All profiles and destinations\n"
+                              "• Bridge configuration\n"
+                              "• Advanced settings\n\n"
+                              "This action cannot be undone. Continue?",
+                              QMessageBox::Yes | QMessageBox::No);
+
+    if (reply == QMessageBox::Yes) {
+      /* Clear all UI fields */
+      hostEdit->clear();
+      portEdit->clear();
+      usernameEdit->clear();
+      passwordEdit->clear();
+      httpsCheckbox->setChecked(false);
+
+      /* Clear bridge settings */
+      bridgeHorizontalUrlEdit->clear();
+      bridgeVerticalUrlEdit->clear();
+      bridgeAutoStartCheckbox->setChecked(true);
+
+      /* Clear profile manager */
+      if (profileManager) {
+        /* Stop all active profiles first */
+        for (size_t i = 0; i < profileManager->profile_count; i++) {
+          if (profileManager->profiles[i] &&
+              (profileManager->profiles[i]->status == PROFILE_STATUS_ACTIVE ||
+               profileManager->profiles[i]->status ==
+                   PROFILE_STATUS_STARTING)) {
+            output_profile_stop(profileManager,
+                                profileManager->profiles[i]->profile_id);
+          }
+        }
+
+        /* Remove all profiles */
+        while (profileManager->profile_count > 0) {
+          profile_manager_delete_profile(
+              profileManager, profileManager->profiles[0]->profile_id);
+        }
+      }
+
+      /* Update UI */
+      updateProfileList();
+
+      obs_log(LOG_INFO, "All plugin settings cleared");
+
+      QMessageBox::information(this, "Settings Cleared",
+                               "All settings have been cleared. The dock has "
+                               "been reset to defaults.");
+    }
+  });
+
+  /* Center the button */
+  QHBoxLayout *pluginSettingsButtonLayout = new QHBoxLayout();
+  pluginSettingsButtonLayout->addStretch();
+  pluginSettingsButtonLayout->addWidget(clearSettingsButton);
+  pluginSettingsButtonLayout->addStretch();
+
+  pluginSettingsLayout->addLayout(pluginSettingsButtonLayout);
+  pluginSettingsGroup->setLayout(pluginSettingsLayout);
+  systemTabLayout->addWidget(pluginSettingsGroup);
+
   systemTabLayout->addStretch();
 
   /* Add System tab to collapsible section */
   systemSection = new CollapsibleSection("System");
+
+  /* Add quick action button to System header */
+  QPushButton *quickReloadConfigButton = new QPushButton("Reload");
+  quickReloadConfigButton->setMaximumWidth(70);
+  quickReloadConfigButton->setToolTip("Reload server configuration");
+  connect(quickReloadConfigButton, &QPushButton::clicked, this,
+          &RestreamerDock::onReloadConfigClicked);
+  systemSection->addHeaderButton(quickReloadConfigButton);
+
   systemSection->setContent(systemTab);
   systemSection->setExpanded(false, false); /* Collapsed by default */
   verticalLayout->addWidget(systemSection);
@@ -1138,6 +1238,24 @@ void RestreamerDock::setupUI() {
 
   /* Add Advanced tab to collapsible section */
   advancedSection = new CollapsibleSection("Advanced");
+
+  /* Add quick action button to Advanced header */
+  QPushButton *quickSaveAdvancedButton = new QPushButton("Apply");
+  quickSaveAdvancedButton->setMaximumWidth(70);
+  quickSaveAdvancedButton->setToolTip("Apply multistream settings");
+  connect(quickSaveAdvancedButton, &QPushButton::clicked, this, [this]() {
+    /* Save multistream configuration */
+    if (multistreamConfig) {
+      multistream_config_t *config = multistreamConfig;
+      config->auto_detect_orientation = autoDetectOrientationCheck->isChecked();
+      config->source_orientation = static_cast<stream_orientation_t>(
+          orientationCombo->currentData().toInt());
+      /* Settings will be saved automatically on scene collection save */
+      obs_log(LOG_INFO, "Advanced multistream settings updated");
+    }
+  });
+  advancedSection->addHeaderButton(quickSaveAdvancedButton);
+
   advancedSection->setContent(advancedTab);
   advancedSection->setExpanded(false, false); /* Collapsed by default */
   verticalLayout->addWidget(advancedSection);
@@ -1234,9 +1352,10 @@ void RestreamerDock::loadSettings() {
                          obs_data_has_user_value(settings, "port");
   if (hasServerConfig && !hostEdit->text().isEmpty() &&
       !portEdit->text().isEmpty()) {
-    obs_log(LOG_INFO,
-            "[obs-polyemesis] Server configuration detected, testing connection "
-            "automatically");
+    obs_log(
+        LOG_INFO,
+        "[obs-polyemesis] Server configuration detected, testing connection "
+        "automatically");
     /* Delay the test slightly to let UI finish initializing */
     QTimer::singleShot(500, this, &RestreamerDock::onTestConnectionClicked);
   }
@@ -2135,10 +2254,12 @@ void RestreamerDock::updateProfileDetails() {
   }
 
   /* Update button states based on profile status */
+  /* DYNAMIC STREAMING ENABLED: Allow configuration changes during active
+   * streaming */
   deleteProfileButton->setEnabled(profile->status == PROFILE_STATUS_INACTIVE);
   duplicateProfileButton->setEnabled(true);
-  configureProfileButton->setEnabled(profile->status ==
-                                     PROFILE_STATUS_INACTIVE);
+  configureProfileButton->setEnabled(
+      true); /* NOW ALLOWED DURING ACTIVE STREAMING */
   startProfileButton->setEnabled(profile->status == PROFILE_STATUS_INACTIVE);
   stopProfileButton->setEnabled(profile->status == PROFILE_STATUS_ACTIVE ||
                                 profile->status == PROFILE_STATUS_STARTING);

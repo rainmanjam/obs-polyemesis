@@ -2,6 +2,7 @@
 build/
 build_*/
 .build/
+.build-universal/
 *.build/
 cmake/.CMakeBuildNumber
 
@@ -31,6 +32,13 @@ docs/
 *.a
 *.lib
 *.exe
+
+# Debug symbols
+*.dSYM/
+
+# Test executables at root
+/test_*
+!/tests/
 
 # CMake
 CMakeCache.txt
