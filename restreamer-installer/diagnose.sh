@@ -338,42 +338,34 @@ fi
 # HTTPS checks
 print_section "HTTPS Configuration"
 
-if [ -f /etc/nginx/sites-available/restreamer ] || grep -q "restreamer" /etc/nginx/nginx.conf 2>/dev/null; then
-    check_item "pass" "nginx configuration found (HTTPS mode)"
+# Check if Restreamer has HTTPS enabled by checking environment variables
+if docker ps --filter "name=restreamer" --format "{{.Names}}" | grep -q "^restreamer$"; then
+    HTTPS_ENABLED=$(docker inspect restreamer 2>/dev/null | grep -c "CORE_TLS_ENABLE=true")
+    HTTPS_AUTO=$(docker inspect restreamer 2>/dev/null | grep -c "CORE_TLS_AUTO=true")
 
-    if systemctl is-active --quiet nginx; then
-        check_item "pass" "nginx is running"
+    if [ "$HTTPS_ENABLED" -gt 0 ]; then
+        check_item "pass" "Restreamer HTTPS enabled (built-in Let's Encrypt)"
+
+        if [ "$HTTPS_AUTO" -gt 0 ]; then
+            check_item "pass" "Automatic SSL certificate management enabled"
+            check_item "info" "SSL certificates are managed by Restreamer's built-in Let's Encrypt"
+            check_item "info" "Certificates auto-renew automatically - no manual intervention needed"
+        else
+            check_item "info" "Manual SSL certificate configuration"
+        fi
+
+        # Check if HTTPS port is accessible
+        if curl -s -k -f https://localhost:443/api > /dev/null 2>&1; then
+            check_item "pass" "HTTPS endpoint responding"
+        else
+            check_item "warn" "HTTPS endpoint not accessible yet (may still be obtaining certificate)"
+            check_item "info" "Check logs: docker logs restreamer"
+        fi
     else
-        check_item "fail" "nginx is not running" "Run: sudo systemctl start nginx"
-        ((ISSUES_FOUND++))
-    fi
-
-    # Check SSL certificate
-    if command -v certbot &> /dev/null; then
-        CERT_COUNT=$(certbot certificates 2>/dev/null | grep "Certificate Name:" | wc -l)
-        if [ "$CERT_COUNT" -gt 0 ]; then
-            check_item "pass" "SSL certificate(s) found"
-            CERT_EXPIRY=$(certbot certificates 2>/dev/null | grep "Expiry Date:" | head -1 | awk '{print $3}')
-            if [ ! -z "$CERT_EXPIRY" ]; then
-                check_item "info" "Certificate expires: $CERT_EXPIRY"
-            fi
-        else
-            check_item "warn" "No SSL certificates found"
-            ((WARNINGS_FOUND++))
-        fi
-
-        # Check certbot timer/cron
-        if systemctl is-enabled --quiet certbot.timer 2>/dev/null; then
-            check_item "pass" "SSL auto-renewal configured (systemd)"
-        elif crontab -l 2>/dev/null | grep -q "certbot renew"; then
-            check_item "pass" "SSL auto-renewal configured (cron)"
-        else
-            check_item "warn" "SSL auto-renewal not configured"
-            ((WARNINGS_FOUND++))
-        fi
+        check_item "info" "Restreamer running in HTTP mode (no HTTPS)"
     fi
 else
-    check_item "info" "nginx not configured (HTTP mode)"
+    check_item "info" "Cannot check HTTPS config (container not running)"
 fi
 
 # Container logs check

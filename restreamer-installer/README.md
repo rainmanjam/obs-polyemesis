@@ -94,25 +94,18 @@ flowchart TD
     ContinueDNS -->|No| End
     ContinueDNS -->|Yes| DNSSkip[Continue with Warning]
 
-    DNSOk --> InstallNginx[Install nginx]
-    DNSSkip --> InstallNginx
-    InstallNginx --> InstallCertbot[Install Certbot]
-    InstallCertbot --> HTTPSPorts[Ports: 80, 443]
+    DNSOk --> HTTPSPorts[Ports: 80, 443]
+    DNSSkip --> HTTPSPorts
     HTTPSPorts --> ConfigFirewall
 
     ConfigFirewall[Configure Firewall] --> StartContainer[Start Restreamer Container]
-    StartContainer --> GetSSL{HTTPS Mode?}
+    StartContainer --> ContainerHTTPS{HTTPS Mode?}
 
-    GetSSL -->|Yes| RequestSSL[Request SSL Certificate]
-    RequestSSL --> SSLSuccess{Certificate<br/>Obtained?}
-    SSLSuccess -->|Yes| SetupRenewal[Configure Auto-Renewal]
-    SSLSuccess -->|No| SSLFailed[Show Troubleshooting]
-    SSLFailed --> ContinueNoSSL{Continue without<br/>SSL?}
-    ContinueNoSSL -->|No| End
-    ContinueNoSSL -->|Yes| OptionalFeatures
-    SetupRenewal --> OptionalFeatures
+    ContainerHTTPS -->|Yes| BuiltInSSL[Restreamer Auto-Obtains SSL]
+    BuiltInSSL --> SSLNote[Built-in Let's Encrypt<br/>Auto-Renewal]
+    SSLNote --> OptionalFeatures
 
-    GetSSL -->|No| OptionalFeatures[Ask About Optional Features]
+    ContainerHTTPS -->|No| OptionalFeatures[Ask About Optional Features]
 
     OptionalFeatures --> AutoUpdate{Enable<br/>Auto-Updates?}
     AutoUpdate -->|Yes| InstallWatchtower[Install Watchtower]
@@ -190,14 +183,12 @@ Would you like to remove what was installed and start fresh? [y/N]:
 ### What Gets Removed During Rollback
 
 When you choose to clean up:
-- ✅ Restreamer Docker container (stopped and removed)
+- ✅ Restreamer Docker container (stopped and removed, includes SSL certificates)
 - ✅ Watchtower container (if installed)
-- ✅ SSL certificates (if obtained)
-- ✅ nginx configuration files
 - ✅ Management scripts
 - ✅ Cron jobs
 - ⚠️ Data directories (you'll be asked)
-- ❌ Docker, nginx, certbot (kept - may be useful for other purposes)
+- ❌ Docker (kept - may be useful for other purposes)
 
 ### Example Rollback Scenario
 
@@ -242,10 +233,11 @@ The installer automatically configures the right mode based on whether you have 
 ### With a Domain Name (HTTPS - Recommended for Production)
 
 - Access on standard ports 80 (HTTP redirect) and 443 (HTTPS)
-- Automatic SSL certificate from Let's Encrypt
+- **Automatic SSL certificate from Let's Encrypt** (managed by Restreamer's built-in support)
+- **Automatic certificate renewal** - no manual intervention needed
 - Requires a domain name pointing to your server
 - Production-ready security
-- **Automatic DNS verification** before SSL certificate request
+- **Automatic DNS verification** before starting container
 
 #### Prerequisites for HTTPS Mode
 
@@ -298,9 +290,9 @@ Enter email address for Let's Encrypt SSL notifications: your@email.com
 - ✓ Verify your server's public IP address
 - ✓ Check if the domain resolves to the correct IP
 - ✓ Warn you if DNS isn't configured correctly
-- ✓ Proceed with SSL certificate only if DNS is valid
-- ✓ Configure nginx reverse proxy
-- ✓ Set up automatic certificate renewal
+- ✓ Configure Restreamer with built-in Let's Encrypt support
+- ✓ Enable automatic SSL certificate obtainment and renewal
+- ✓ Set up HTTPS on ports 80/443
 
 ### Without a Domain Name (HTTP - For Local/Testing)
 
@@ -491,27 +483,22 @@ docker rm restreamer
 # Re-run the installer or manually start with docker run
 ```
 
-### Configure nginx (HTTPS Mode Only)
+### SSL Certificates (HTTPS Mode Only)
 
-nginx configuration is located at:
-```
-/etc/nginx/sites-available/restreamer
-```
+SSL certificates are **managed automatically by Restreamer's built-in Let's Encrypt support**:
 
-After modifying:
+- ✅ Certificates are obtained automatically on first HTTPS access
+- ✅ Certificates renew automatically (no manual intervention needed)
+- ✅ No external tools (nginx, certbot) required
+- ✅ All certificate management happens inside the Restreamer container
+
+**To check certificate status:**
 ```bash
-sudo nginx -t          # Test configuration
-sudo systemctl reload nginx
+# View Restreamer logs for SSL certificate information
+docker logs restreamer | grep -i "certificate\|ssl\|tls"
 ```
 
-### SSL Certificate Renewal (HTTPS Mode Only)
-
-Certificates automatically renew via systemd timer or cron. To manually renew:
-
-```bash
-sudo certbot renew
-sudo systemctl reload nginx
-```
+**SSL certificates are stored in the container's data volume** and persist across container restarts.
 
 ## Troubleshooting
 
@@ -548,15 +535,18 @@ curl http://localhost:8080/api
 
 **HTTPS certificate errors**
 ```bash
-# Check nginx status
-sudo systemctl status nginx
+# Check Restreamer logs for SSL/certificate issues
+docker logs restreamer | grep -i "certificate\|ssl\|tls\|let's encrypt"
 
-# Check certificate
-sudo certbot certificates
+# Verify DNS is correctly pointing to your server
+dig your-domain.com
 
-# Renew certificate
-sudo certbot renew --force-renewal
-sudo systemctl reload nginx
+# Ensure ports 80 and 443 are accessible
+curl -I http://your-domain.com
+curl -I https://your-domain.com
+
+# Restart Restreamer to retry certificate obtainment
+docker restart restreamer
 ```
 
 ### Container Issues
@@ -626,11 +616,7 @@ sudo rm /usr/local/bin/restreamer-monitor
 # Remove cron jobs
 crontab -l | grep -v restreamer | crontab -
 
-# For HTTPS mode, also remove:
-sudo rm /etc/nginx/sites-available/restreamer
-sudo rm /etc/nginx/sites-enabled/restreamer
-sudo systemctl reload nginx
-sudo certbot delete --cert-name your-domain.com
+# Note: SSL certificates are managed by Restreamer and removed with the container
 ```
 
 ## Security Best Practices
@@ -691,15 +677,16 @@ sudo certbot delete --cert-name your-domain.com
 ┌─────────────────────────────────────────────────┐
 │              Your Server                        │
 │  ┌───────────────────────────────────────────┐  │
-│  │  HTTP Mode          │  HTTPS Mode         │  │
-│  │  Port 8080         │  nginx (80/443)     │  │
-│  │      │             │      │               │  │
-│  │      ▼             │      ▼               │  │
 │  │  datarhei/restreamer  (Docker)           │  │
+│  │                                           │  │
+│  │  HTTP Mode:     Ports 8080/8181          │  │
+│  │  HTTPS Mode:    Ports 80/443             │  │
+│  │                 (Built-in Let's Encrypt) │  │
 │  │                                           │  │
 │  │  - Process management                     │  │
 │  │  - Multi-destination streaming            │  │
 │  │  - Orientation-aware routing              │  │
+│  │  - Automatic SSL management (HTTPS)       │  │
 │  └───────────────────────────────────────────┘  │
 │                                                  │
 │  ┌───────────────────────────────────────────┐  │
