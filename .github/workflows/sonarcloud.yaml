@@ -4,13 +4,13 @@ on:
   push:
     branches: [main, develop]
   pull_request:
-    branches: [main, develop]
+    types: [opened, synchronize, reopened]
   workflow_dispatch:
   workflow_call:
 
 jobs:
-  sonarcloud:
-    name: SonarCloud Scan
+  build:
+    name: Build and analyze
     runs-on: ubuntu-latest
     env:
       BUILD_WRAPPER_OUT_DIR: build_wrapper_output_directory
@@ -33,15 +33,8 @@ jobs:
             ninja-build \
             gcovr
 
-      - name: Install SonarCloud Build Wrapper
-        env:
-          SONAR_SERVER_URL: "https://sonarcloud.io"
-        run: |
-          mkdir -p $HOME/.sonar
-          curl -sSLo $HOME/.sonar/build-wrapper-linux-x86.zip \
-            ${{ env.SONAR_SERVER_URL }}/static/cpp/build-wrapper-linux-x86.zip
-          unzip -o $HOME/.sonar/build-wrapper-linux-x86.zip -d $HOME/.sonar/
-          echo "$HOME/.sonar/build-wrapper-linux-x86" >> $GITHUB_PATH
+      - name: Install Build Wrapper
+        uses: SonarSource/sonarqube-scan-action/install-build-wrapper@v6
 
       - name: Configure CMake
         run: |
@@ -52,7 +45,7 @@ jobs:
             -DENABLE_TESTING=ON \
             -DENABLE_COVERAGE=ON
 
-      - name: Build with Build Wrapper
+      - name: Run Build Wrapper
         run: |
           build-wrapper-linux-x86-64 --out-dir ${{ env.BUILD_WRAPPER_OUT_DIR }} \
             cmake --build build
@@ -70,18 +63,10 @@ jobs:
             --exclude tests/ \
             --exclude '.*/test_.*'
 
-      - name: SonarCloud Scan
-        uses: SonarSource/sonarcloud-github-action@v3
+      - name: SonarQube Scan
+        uses: SonarSource/sonarqube-scan-action@v6
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
         with:
           args: >
-            -Dsonar.organization=rainmanjam
-            -Dsonar.projectKey=rainmanjam_obs-polyemesis
-            -Dsonar.sources=src
-            -Dsonar.tests=tests
-            -Dsonar.cfamily.build-wrapper-output=${{ env.BUILD_WRAPPER_OUT_DIR }}
-            -Dsonar.coverageReportPaths=coverage.xml
-            -Dsonar.exclusions=build/**,tests/**,packaging/**,.deps/**
-            -Dsonar.cpd.exclusions=tests/**
+            --define "sonar.cfamily.compile-commands=${{ env.BUILD_WRAPPER_OUT_DIR }}/compile_commands.json"
