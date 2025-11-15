@@ -476,12 +476,26 @@ configure_firewall() {
 
                 # Enable UFW if not already enabled
                 if ! ufw status | grep -q "Status: active"; then
-                    print_warning "UFW is not active. Enable it? [Y/n]"
+                    # Detect SSH port to prevent lockout
+                    SSH_PORT=$(ss -tnlp 2>/dev/null | grep sshd | grep -oP ':\K[0-9]+' | head -1)
+                    SSH_PORT=${SSH_PORT:-22}  # Default to 22 if detection fails
+
+                    print_warning "UFW is not active."
+                    print_info "Detected SSH on port ${SSH_PORT}"
+
+                    # Ensure SSH is allowed before enabling firewall
+                    if ! ufw status | grep -q "${SSH_PORT}/tcp"; then
+                        print_info "Adding firewall rule to preserve SSH access..."
+                        ufw allow ${SSH_PORT}/tcp comment 'SSH - auto-detected'
+                        print_success "SSH access secured on port ${SSH_PORT}"
+                    fi
+
+                    print_warning "Enable UFW firewall? [Y/n]"
                     read -p "> " ENABLE_UFW
                     ENABLE_UFW=${ENABLE_UFW:-Y}
                     if [[ $ENABLE_UFW =~ ^[Yy]$ ]]; then
                         ufw --force enable
-                        print_success "UFW enabled"
+                        print_success "UFW enabled with SSH access preserved"
                     fi
                 fi
 
@@ -493,6 +507,19 @@ configure_firewall() {
             ;;
         firewalld)
             if command -v firewall-cmd &> /dev/null; then
+                # Detect SSH port to prevent lockout
+                SSH_PORT=$(ss -tnlp 2>/dev/null | grep sshd | grep -oP ':\K[0-9]+' | head -1)
+                SSH_PORT=${SSH_PORT:-22}  # Default to 22 if detection fails
+
+                # Ensure SSH is allowed
+                if ! firewall-cmd --list-ports 2>/dev/null | grep -q "${SSH_PORT}/tcp"; then
+                    print_info "Detected SSH on port ${SSH_PORT}"
+                    print_info "Adding firewall rule to preserve SSH access..."
+                    firewall-cmd --permanent --add-port=${SSH_PORT}/tcp
+                    print_success "SSH access secured on port ${SSH_PORT}"
+                fi
+
+                # Add Restreamer ports
                 firewall-cmd --permanent --add-port=$HTTP_PORT/tcp
                 firewall-cmd --permanent --add-port=$HTTPS_PORT/tcp
                 firewall-cmd --permanent --add-port=$RTMP_PORT/tcp

@@ -13,7 +13,7 @@ Get Restreamer up and running in 5 minutes!
 ### 1. Run the One-Line Installer
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/rainmanjam/obs-polyemesis/main/install.sh | sudo bash
+curl -fsSL https://raw.githubusercontent.com/rainmanjam/obs-polyemesis/main/restreamer-installer/install.sh | sudo bash
 ```
 
 ### 2. Answer the Prompts
@@ -67,7 +67,7 @@ The installer will:
 - Update your system
 - Install Docker
 - Download and configure Restreamer
-- Set up firewall rules
+- Set up firewall rules (with automatic SSH protection to prevent lockouts)
 - Configure backups and monitoring
 
 This takes 2-5 minutes depending on your server.
@@ -299,7 +299,7 @@ restreamer-manage restore /var/backups/restreamer/restreamer_backup_YYYYMMDD_HHM
 To completely remove Restreamer:
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/rainmanjam/obs-polyemesis/main/uninstall.sh | sudo bash
+curl -fsSL https://raw.githubusercontent.com/rainmanjam/obs-polyemesis/main/restreamer-installer/uninstall.sh | sudo bash
 ```
 
 ---

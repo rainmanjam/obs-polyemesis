@@ -50,7 +50,7 @@ This installer automatically:
 5. **Sets up HTTP or HTTPS** - Your choice:
    - HTTP mode (ports 8080/8181) for local/testing
    - HTTPS mode (ports 80/443) with automatic Let's Encrypt SSL
-6. **Configures firewall** - Auto-detects and configures ufw or firewalld
+6. **Configures firewall** - Auto-detects and configures ufw or firewalld (with SSH lockout protection)
 7. **Enables auto-updates** - Optional Watchtower integration for automatic container updates
 8. **Creates backup tools** - Automatic daily backups with restore capability
 9. **Installs monitoring** - System resource monitoring and log viewing tools
@@ -445,7 +445,7 @@ You can set environment variables before running the installer:
 ```bash
 # Use specific Restreamer version
 export RESTREAMER_VERSION="16.16.0"
-curl -fsSL https://raw.githubusercontent.com/rainmanjam/obs-polyemesis/main/install.sh | sudo -E bash
+curl -fsSL https://raw.githubusercontent.com/rainmanjam/obs-polyemesis/main/restreamer-installer/install.sh | sudo -E bash
 
 # Change data directory (default: /var/lib/restreamer)
 # Edit the script or modify after installation
@@ -520,7 +520,7 @@ sudo systemctl reload nginx
 **Error: "Please run as root or with sudo"**
 ```bash
 # Make sure to use sudo
-curl -fsSL https://raw.githubusercontent.com/rainmanjam/obs-polyemesis/main/install.sh | sudo bash
+curl -fsSL https://raw.githubusercontent.com/rainmanjam/obs-polyemesis/main/restreamer-installer/install.sh | sudo bash
 ```
 
 **Error: "Unable to detect Linux distribution"**
@@ -649,6 +649,7 @@ sudo certbot delete --cert-name your-domain.com
 - Detects Ubuntu, Debian, CentOS, RHEL, Fedora, Arch Linux, and derivatives
 - Auto-selects appropriate package manager (apt, dnf, yum, pacman)
 - Configures firewall based on detected system (ufw or firewalld)
+- **SSH Protection**: Auto-detects SSH port and ensures it remains accessible before enabling firewall
 
 ### Docker Integration
 - Installs Docker automatically if not present
