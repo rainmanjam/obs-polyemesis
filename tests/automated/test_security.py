@@ -152,10 +152,14 @@ class TestSecurity(unittest.TestCase):
             # Try HTTPS equivalent
             https_url = self.base_url.replace('http://', 'https://')
             try:
-                response = requests.get(f"{https_url}/api/v3/about", verify=False, timeout=5)
+                # Attempt HTTPS with proper certificate verification
+                response = requests.get(f"{https_url}/api/v3/about", timeout=5)
                 if response.status_code == 200:
                     print(f"✅ HTTPS is available at {https_url}")
                     print("ℹ️  Recommend using HTTPS in production")
+            except requests.exceptions.SSLError:
+                print("⚠️  HTTPS available but certificate verification failed")
+                print("ℹ️  For production, use valid SSL certificates")
             except Exception:
                 print("ℹ️  HTTPS not configured (acceptable for local testing)")
 
