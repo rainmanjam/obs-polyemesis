@@ -13,8 +13,6 @@ jobs:
     name: SonarCloud Scan
     runs-on: ubuntu-latest
     env:
-      SONAR_SCANNER_VERSION: 5.0.1.3006
-      SONAR_SERVER_URL: "https://sonarcloud.io"
       BUILD_WRAPPER_OUT_DIR: build_wrapper_output_directory
 
     steps:
@@ -35,30 +33,8 @@ jobs:
             ninja-build \
             gcovr
 
-      - name: Set up JDK 17
-        uses: actions/setup-java@v4
-        with:
-          distribution: 'temurin'
-          java-version: '17'
-
-      - name: Download and set up sonar-scanner
-        env:
-          SONAR_SCANNER_DOWNLOAD_URL: >-
-            https://binaries.sonarsource.com/Distribution/sonar-scanner-cli/sonar-scanner-cli-${{
-            env.SONAR_SCANNER_VERSION }}-linux.zip
-        run: |
-          mkdir -p $HOME/.sonar
-          curl -sSLo $HOME/.sonar/sonar-scanner.zip ${{ env.SONAR_SCANNER_DOWNLOAD_URL }}
-          unzip -o $HOME/.sonar/sonar-scanner.zip -d $HOME/.sonar/
-          echo "$HOME/.sonar/sonar-scanner-${{ env.SONAR_SCANNER_VERSION }}-linux/bin" >> $GITHUB_PATH
-
-      - name: Download and set up build-wrapper
-        env:
-          BUILD_WRAPPER_DOWNLOAD_URL: ${{ env.SONAR_SERVER_URL }}/static/cpp/build-wrapper-linux-x86.zip
-        run: |
-          curl -sSLo $HOME/.sonar/build-wrapper-linux-x86.zip ${{ env.BUILD_WRAPPER_DOWNLOAD_URL }}
-          unzip -o $HOME/.sonar/build-wrapper-linux-x86.zip -d $HOME/.sonar/
-          echo "$HOME/.sonar/build-wrapper-linux-x86" >> $GITHUB_PATH
+      - name: Install SonarCloud Build Wrapper
+        uses: SonarSource/sonarcloud-github-action/install-build-wrapper@v3
 
       - name: Configure CMake
         run: |
@@ -69,10 +45,10 @@ jobs:
             -DENABLE_TESTING=ON \
             -DENABLE_COVERAGE=ON
 
-      - name: Run build-wrapper
+      - name: Build with Build Wrapper
         run: |
           build-wrapper-linux-x86-64 --out-dir ${{ env.BUILD_WRAPPER_OUT_DIR }} \
-            cmake --build build --target obs-polyemesis-tests
+            cmake --build build
 
       - name: Run Tests with Coverage
         run: |
@@ -87,24 +63,18 @@ jobs:
             --exclude tests/ \
             --exclude '.*/test_.*'
 
-      - name: Run sonar-scanner
+      - name: SonarCloud Scan
+        uses: SonarSource/sonarcloud-github-action@v3
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
-        continue-on-error: true  # Allow failure if SONAR_TOKEN not configured
-        run: |
-          if [ -z "$SONAR_TOKEN" ]; then
-            echo "::warning::SONAR_TOKEN not configured. Skipping SonarCloud analysis."
-            echo "To enable SonarCloud, add SONAR_TOKEN to repository secrets."
-            exit 0
-          fi
-          sonar-scanner \
-            --define sonar.organization=rainmanjam \
-            --define sonar.projectKey=rainmanjam_obs-polyemesis \
-            --define sonar.sources=src \
-            --define sonar.tests=tests \
-            --define sonar.host.url="${{ env.SONAR_SERVER_URL }}" \
-            --define sonar.cfamily.build-wrapper-output="${{ env.BUILD_WRAPPER_OUT_DIR }}" \
-            --define sonar.coverageReportPaths=coverage.xml \
-            --define sonar.exclusions="build/**,tests/**,packaging/**,.deps/**" \
-            --define sonar.cpd.exclusions="tests/**"
+        with:
+          args: >
+            -Dsonar.organization=rainmanjam
+            -Dsonar.projectKey=rainmanjam_obs-polyemesis
+            -Dsonar.sources=src
+            -Dsonar.tests=tests
+            -Dsonar.cfamily.compile-commands=${{ env.BUILD_WRAPPER_OUT_DIR }}/compile_commands.json
+            -Dsonar.coverageReportPaths=coverage.xml
+            -Dsonar.exclusions=build/**,tests/**,packaging/**,.deps/**
+            -Dsonar.cpd.exclusions=tests/**
