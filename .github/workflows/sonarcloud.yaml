@@ -81,7 +81,7 @@ jobs:
             -Dsonar.projectKey=rainmanjam_obs-polyemesis
             -Dsonar.sources=src
             -Dsonar.tests=tests
-            -Dsonar.cfamily.compile-commands=${{ env.BUILD_WRAPPER_OUT_DIR }}/compile_commands.json
+            -Dsonar.cfamily.build-wrapper-output=${{ env.BUILD_WRAPPER_OUT_DIR }}
             -Dsonar.coverageReportPaths=coverage.xml
             -Dsonar.exclusions=build/**,tests/**,packaging/**,.deps/**
             -Dsonar.cpd.exclusions=tests/**
