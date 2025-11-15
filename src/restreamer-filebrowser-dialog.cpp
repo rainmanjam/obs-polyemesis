@@ -7,6 +7,7 @@
 #include <QJsonArray>
 #include <QMessageBox>
 #include <QScrollArea>
+#include <QRegularExpression>
 
 RestreamerFileBrowserDialog::RestreamerFileBrowserDialog(QWidget *parent,
 							 restreamer_api_t *api)
@@ -21,6 +22,41 @@ RestreamerFileBrowserDialog::RestreamerFileBrowserDialog(QWidget *parent,
 
 RestreamerFileBrowserDialog::~RestreamerFileBrowserDialog()
 {
+}
+
+/*
+ * Sanitize filename to prevent path traversal attacks (OWASP compliant)
+ * Uses whitelist approach: only allows safe characters
+ * Returns empty string if validation fails
+ */
+static QString sanitizeFilename(const QString &input)
+{
+	if (input.isEmpty() || input.length() > 255) {
+		return QString(); /* Empty or too long */
+	}
+
+	/* Reject path traversal patterns */
+	if (input.contains("..") || input.contains(QChar('/')) ||
+	    input.contains(QChar('\\')) || input.startsWith(QChar('.'))) {
+		return QString(); /* Contains dangerous patterns */
+	}
+
+	/* Whitelist: only allow safe characters (alphanumeric, dash, underscore, dot, space) */
+	static QRegularExpression safePattern("^[a-zA-Z0-9._\\- ]+$");
+	if (!safePattern.match(input).hasMatch()) {
+		return QString(); /* Contains unsafe characters */
+	}
+
+	/* Additional check: get basename only */
+	QFileInfo fileInfo(input);
+	QString basename = fileInfo.fileName();
+
+	/* Ensure basename matches the input (no path components) */
+	if (basename != input) {
+		return QString(); /* Input contained path separators */
+	}
+
+	return basename; /* Returns sanitized filename */
 }
 
 void RestreamerFileBrowserDialog::setupUI()
@@ -309,18 +345,26 @@ void RestreamerFileBrowserDialog::onDownloadClicked()
 		return;
 	}
 
-	/* Sanitize filename to prevent path traversal */
-	QString sanitizedFileName = QFileInfo(fileName).fileName();
-
-	/* Validate that path doesn't contain traversal sequences */
-	if (filePath.contains("..") || filePath.startsWith("/") ||
-	    filePath.contains("\\") || sanitizedFileName.isEmpty()) {
-		QMessageBox::warning(this, "Download File",
-				     "Invalid file path detected.");
+	/* SECURITY: Sanitize filename using whitelist approach (OWASP best practice)
+	 * This breaks the taint chain from user input to file operations */
+	QString sanitizedFileName = sanitizeFilename(fileName);
+	if (sanitizedFileName.isEmpty()) {
+		QMessageBox::warning(
+			this, "Download File",
+			"Invalid filename. Only alphanumeric characters, spaces, dots, dashes and underscores are allowed.");
 		return;
 	}
 
-	/* Ask user where to save - use sanitized filename */
+	/* SECURITY: Validate API path doesn't contain traversal sequences
+	 * The path comes from the remote server and cannot be trusted */
+	if (filePath.contains("..") || filePath.startsWith("/") ||
+	    filePath.contains("\\")) {
+		QMessageBox::warning(this, "Download File",
+				     "Invalid file path from server.");
+		return;
+	}
+
+	/* Ask user where to save - use sanitized filename (taint broken by sanitization) */
 	QString saveFilePath = QFileDialog::getSaveFileName(
 		this, "Save File As", sanitizedFileName, "All Files (*)");
 
@@ -328,12 +372,13 @@ void RestreamerFileBrowserDialog::onDownloadClicked()
 		return;
 	}
 
-	/* Validate that the save path is absolute and normalized */
+	/* SECURITY: Normalize and validate user-selected save path */
 	QFileInfo saveFileInfo(saveFilePath);
-	QString canonicalSavePath = saveFileInfo.canonicalFilePath();
+	QString canonicalSavePath = saveFileInfo.absoluteFilePath();
 	if (canonicalSavePath.isEmpty()) {
-		/* File doesn't exist yet, so use absoluteFilePath instead */
-		canonicalSavePath = saveFileInfo.absoluteFilePath();
+		QMessageBox::warning(this, "Download File",
+				     "Invalid save location.");
+		return;
 	}
 
 	/* Download file */

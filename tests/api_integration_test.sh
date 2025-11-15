@@ -59,7 +59,7 @@ test_fail() {
 wait_for_restreamer() {
     log_info "Waiting for Restreamer at ${BASE_URL}..."
 
-    for i in {1..30}; do
+    for _ in {1..30}; do
         # Check if server responds (200 or 401 both mean server is ready)
         HTTP_CODE=$(curl -s -o /dev/null -w "%{http_code}" "${BASE_URL}/about" 2>/dev/null)
         if [ "$HTTP_CODE" = "200" ] || [ "$HTTP_CODE" = "401" ]; then
@@ -238,10 +238,10 @@ test_filesystem_browser() {
 
     echo "Test file content" > /tmp/test_upload.txt
 
-    UPLOAD_RESPONSE=$(curl -s -X PUT "${BASE_URL}/fs/disk/test_upload.txt" \
+    curl -s -X PUT "${BASE_URL}/fs/disk/test_upload.txt" \
         -H "Authorization: Bearer ${ACCESS_TOKEN}" \
         -H "Content-Type: application/octet-stream" \
-        --data-binary @/tmp/test_upload.txt)
+        --data-binary @/tmp/test_upload.txt > /dev/null
 
     if [ $? -eq 0 ]; then
         test_pass "Uploaded test file"
