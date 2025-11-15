@@ -3,6 +3,11 @@
 #include "obs-helpers.hpp"
 #include "obs-theme-utils.h"
 #include "restreamer-config.h"
+#include "restreamer-encoding-dialog.h"
+#include "restreamer-metadata-dialog.h"
+#include "restreamer-filebrowser-dialog.h"
+#include "restreamer-outputs-dialog.h"
+#include "restreamer-playout-dialog.h"
 #include <QApplication>
 #include <QClipboard>
 #include <QCloseEvent>
@@ -1007,20 +1012,56 @@ void RestreamerDock::setupUI() {
   QPushButton *reloadConfigButton = new QPushButton("Reload Config");
   reloadConfigButton->setMinimumWidth(150);
   reloadConfigButton->setToolTip("Reload configuration from server");
+  QPushButton *encodingSettingsButton = new QPushButton("Encoding Settings");
+  encodingSettingsButton->setMinimumWidth(150);
+  encodingSettingsButton->setToolTip("Configure video/audio encoding settings with platform presets");
+  QPushButton *metadataButton = new QPushButton("Manage Metadata");
+  metadataButton->setMinimumWidth(150);
+  metadataButton->setToolTip("Add custom notes, tags, and metadata to processes");
+  QPushButton *fileBrowserButton = new QPushButton("Browse Files");
+  fileBrowserButton->setMinimumWidth(150);
+  fileBrowserButton->setToolTip("Browse, download, upload, and manage recordings");
+  QPushButton *manageOutputsButton = new QPushButton("Manage Outputs");
+  manageOutputsButton->setMinimumWidth(150);
+  manageOutputsButton->setToolTip("Add/remove streaming destinations while live");
 
   connect(viewConfigButton, &QPushButton::clicked, this,
           &RestreamerDock::onViewConfigClicked);
   connect(reloadConfigButton, &QPushButton::clicked, this,
           &RestreamerDock::onReloadConfigClicked);
+  connect(encodingSettingsButton, &QPushButton::clicked, this,
+          &RestreamerDock::onConfigureEncodingClicked);
+  connect(metadataButton, &QPushButton::clicked, this,
+          &RestreamerDock::onManageMetadataClicked);
+  connect(fileBrowserButton, &QPushButton::clicked, this,
+          &RestreamerDock::onBrowseFilesClicked);
+  connect(manageOutputsButton, &QPushButton::clicked, this,
+          &RestreamerDock::onManageOutputsClicked);
 
-  /* Center the buttons */
-  QHBoxLayout *configButtonLayout = new QHBoxLayout();
-  configButtonLayout->addStretch();
-  configButtonLayout->addWidget(viewConfigButton);
-  configButtonLayout->addWidget(reloadConfigButton);
-  configButtonLayout->addStretch();
+  /* Add Manage Input button in monitoring section (will be added separately) */
 
-  configLayout->addLayout(configButtonLayout);
+  /* Center the buttons - split into two rows */
+  QHBoxLayout *configButtonLayout1 = new QHBoxLayout();
+  configButtonLayout1->addStretch();
+  configButtonLayout1->addWidget(viewConfigButton);
+  configButtonLayout1->addWidget(reloadConfigButton);
+  configButtonLayout1->addStretch();
+
+  QHBoxLayout *configButtonLayout2 = new QHBoxLayout();
+  configButtonLayout2->addStretch();
+  configButtonLayout2->addWidget(encodingSettingsButton);
+  configButtonLayout2->addWidget(metadataButton);
+  configButtonLayout2->addStretch();
+
+  QHBoxLayout *configButtonLayout3 = new QHBoxLayout();
+  configButtonLayout3->addStretch();
+  configButtonLayout3->addWidget(fileBrowserButton);
+  configButtonLayout3->addWidget(manageOutputsButton);
+  configButtonLayout3->addStretch();
+
+  configLayout->addLayout(configButtonLayout1);
+  configLayout->addLayout(configButtonLayout2);
+  configLayout->addLayout(configButtonLayout3);
   configGroup->setLayout(configLayout);
   systemTabLayout->addWidget(configGroup);
 
@@ -3651,6 +3692,118 @@ void RestreamerDock::onReloadConfigClicked() {
                           QString("Failed to reload configuration: %1")
                               .arg(restreamer_api_get_error(api)));
   }
+}
+
+void RestreamerDock::onConfigureEncodingClicked() {
+  if (!api) {
+    QMessageBox::warning(this, "Not Connected",
+                         "Please connect to a Restreamer instance first.");
+    return;
+  }
+
+  /* Get selected process */
+  const char *process_id = selectedProcessId;
+  if (!process_id) {
+    QMessageBox::information(
+        this, "Select Process",
+        "Please select a process from the Process List first.\n\n"
+        "The encoding settings will apply to the selected process.");
+    return;
+  }
+
+  /* For now, use a default output ID - in future this could be selected */
+  const char *output_id = "output_0";
+
+  /* Open encoding configuration dialog */
+  RestreamerEncodingDialog encodingDialog(this, api, process_id, output_id);
+  encodingDialog.exec();
+
+  /* Refresh process details after dialog closes */
+  updateProcessDetails();
+}
+
+void RestreamerDock::onManageMetadataClicked() {
+  if (!api) {
+    QMessageBox::warning(this, "Not Connected",
+                         "Please connect to a Restreamer instance first.");
+    return;
+  }
+
+  /* Get selected process */
+  const char *process_id = selectedProcessId;
+  if (!process_id) {
+    QMessageBox::information(
+        this, "Select Process",
+        "Please select a process from the Process List first.\n\n"
+        "You can add custom metadata to track and organize processes.");
+    return;
+  }
+
+  /* Open metadata management dialog */
+  RestreamerMetadataDialog metadataDialog(this, api, process_id);
+  metadataDialog.exec();
+
+  /* Refresh process details after dialog closes */
+  updateProcessDetails();
+}
+
+void RestreamerDock::onBrowseFilesClicked() {
+  if (!api) {
+    QMessageBox::warning(this, "Not Connected",
+                         "Please connect to a Restreamer instance first.");
+    return;
+  }
+
+  /* Open file browser dialog */
+  RestreamerFileBrowserDialog fileBrowserDialog(this, api);
+  fileBrowserDialog.exec();
+}
+
+void RestreamerDock::onManageOutputsClicked() {
+  if (!api) {
+    QMessageBox::warning(this, "Not Connected",
+                         "Please connect to a Restreamer instance first.");
+    return;
+  }
+
+  const char *process_id = selectedProcessId;
+  if (!process_id) {
+    QMessageBox::information(
+        this, "Select Process",
+        "Please select a running process to manage its outputs.");
+    return;
+  }
+
+  /* Open outputs management dialog */
+  RestreamerOutputsDialog outputsDialog(this, api, process_id);
+  outputsDialog.exec();
+
+  updateProcessDetails();
+}
+
+void RestreamerDock::onManageInputClicked() {
+  if (!api) {
+    QMessageBox::warning(this, "Not Connected",
+                         "Please connect to a Restreamer instance first.");
+    return;
+  }
+
+  const char *process_id = selectedProcessId;
+  if (!process_id) {
+    QMessageBox::information(
+        this, "Select Process",
+        "Please select a process to manage its input source.");
+    return;
+  }
+
+  /* Use default input ID - could be made configurable */
+  const char *input_id = "input_0";
+
+  /* Open playout management dialog */
+  RestreamerPlayoutDialog playoutDialog(this, api, process_id, input_id);
+  playoutDialog.exec();
+
+  updateProcessDetails();
 }
 
 /* Advanced Features */

@@ -96,3 +96,4 @@ Screenshot*.png
 *.pfx
 credentials.json
 auth.json
+.secrets
