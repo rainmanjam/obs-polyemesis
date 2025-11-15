@@ -1,15 +1,17 @@
-# act configuration for local GitHub Actions testing
-# Install act: brew install act
-# Run tests locally: act -j api-integration-tests
+# ACT Configuration for OBS Polyemesis
 
-# Use medium-sized Docker images for better compatibility
--P ubuntu-latest=catthehacker/ubuntu:act-24.04
+# Use more compatible container images
+-P ubuntu-latest=catthehacker/ubuntu:act-latest
+-P ubuntu-24.04=catthehacker/ubuntu:act-24.04
+-P macos-latest=sickcodes/docker-osx:latest
+-P macos-15=sickcodes/docker-osx:latest
+-P windows-latest=catthehacker/windows:2022
 
-# Don't pull images if they already exist locally
---pull=false
+# Artifact server configuration
+--artifact-server-path /tmp/artifacts
 
-# Set environment variables
---env RESTREAMER_HOST=localhost
---env RESTREAMER_PORT=8080
---env RESTREAMER_USER=admin
---env RESTREAMER_PASS=datarhei
+# Container architecture
+--container-architecture linux/amd64
+
+# Increase verbosity for debugging
+-v

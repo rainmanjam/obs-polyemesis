@@ -75,11 +75,6 @@ private slots:
   void onViewSkillsClicked();
   void onViewRtmpStreamsClicked();
   void onViewSrtStreamsClicked();
-  void onConfigureEncodingClicked();
-  void onManageMetadataClicked();
-  void onBrowseFilesClicked();
-  void onManageOutputsClicked();
-  void onManageInputClicked();
 
   /* Bridge settings slots */
   void onSaveBridgeSettingsClicked();
