@@ -198,7 +198,6 @@ detect_distro() {
     if [ -f /etc/os-release ]; then
         . /etc/os-release
         DISTRO=$ID
-        DISTRO_VERSION=$VERSION_ID
         print_success "Detected: $NAME $VERSION"
     else
         error_exit "Unable to detect Linux distribution"
