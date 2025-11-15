@@ -118,30 +118,8 @@ rm -f /usr/local/bin/restreamer-monitor && print_success "Removed restreamer-mon
 print_info "Removing cron jobs..."
 crontab -l 2>/dev/null | grep -v restreamer | crontab - 2>/dev/null && print_success "Removed cron jobs" || print_info "No cron jobs found"
 
-# Remove nginx configuration (if exists)
-if [ -f /etc/nginx/sites-available/restreamer ]; then
-    print_info "Removing nginx configuration..."
-    rm -f /etc/nginx/sites-available/restreamer
-    rm -f /etc/nginx/sites-enabled/restreamer
-    systemctl reload nginx 2>/dev/null || true
-    print_success "Removed nginx configuration"
-fi
-
-# Ask about SSL certificates
-if command -v certbot &> /dev/null; then
-    DOMAINS=$(certbot certificates 2>/dev/null | grep "Domains:" | awk '{print $2}')
-    if [ ! -z "$DOMAINS" ]; then
-        echo ""
-        print_warning "Found SSL certificate for domain: $DOMAINS"
-        read -p "Do you want to remove the SSL certificate? [y/N]: " REMOVE_CERT
-        if [[ $REMOVE_CERT =~ ^[Yy]$ ]]; then
-            certbot delete --cert-name $DOMAINS --non-interactive
-            print_success "Removed SSL certificate"
-        else
-            print_info "Keeping SSL certificate"
-        fi
-    fi
-fi
+# Note: SSL certificates are managed by Restreamer's built-in Let's Encrypt
+# They will be removed automatically when the container is removed
 
 # Remove firewall rules (optional)
 echo ""

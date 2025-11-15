@@ -229,7 +229,7 @@ If you installed in HTTP mode but want to switch to HTTPS:
 1. Get a domain name
 2. Point it to your server's IP
 3. Run the installer again and choose HTTPS mode
-4. Or manually set up nginx + Let's Encrypt (see README)
+4. Restreamer will automatically obtain and manage SSL certificates using built-in Let's Encrypt support
 
 ### Add More Streaming Destinations
 

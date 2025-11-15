@@ -26,14 +26,10 @@ WATCHTOWER_CONTAINER_NAME="watchtower"
 INSTALLATION_STARTED=false
 DOCKER_INSTALLED_BY_US=false
 RESTREAMER_CONTAINER_CREATED=false
-NGINX_INSTALLED_BY_US=false
-CERTBOT_INSTALLED_BY_US=false
 WATCHTOWER_INSTALLED_BY_US=false
 DIRECTORIES_CREATED=false
 SCRIPTS_CREATED=false
 FIREWALL_CONFIGURED=false
-NGINX_CONFIGURED=false
-SSL_OBTAINED=false
 CANCELLED_BY_USER=false
 INSTALLATION_COMPLETE=false
 
@@ -100,14 +96,10 @@ cleanup_installation() {
     echo "The following items were installed or configured:"
     [ "$DOCKER_INSTALLED_BY_US" = true ] && echo "  • Docker"
     [ "$RESTREAMER_CONTAINER_CREATED" = true ] && echo "  • Restreamer container"
-    [ "$NGINX_INSTALLED_BY_US" = true ] && echo "  • nginx"
-    [ "$CERTBOT_INSTALLED_BY_US" = true ] && echo "  • Certbot"
     [ "$WATCHTOWER_INSTALLED_BY_US" = true ] && echo "  • Watchtower"
     [ "$DIRECTORIES_CREATED" = true ] && echo "  • Data directories"
     [ "$SCRIPTS_CREATED" = true ] && echo "  • Management scripts"
     [ "$FIREWALL_CONFIGURED" = true ] && echo "  • Firewall rules"
-    [ "$NGINX_CONFIGURED" = true ] && echo "  • nginx configuration"
-    [ "$SSL_OBTAINED" = true ] && echo "  • SSL certificate"
 
     echo ""
     read -p "Would you like to remove what was installed and start fresh? [y/N]: " CLEANUP_CHOICE
@@ -142,22 +134,6 @@ cleanup_installation() {
         print_success "Watchtower removed"
     fi
 
-    # Remove SSL certificate
-    if [ "$SSL_OBTAINED" = true ] && [ ! -z "$DOMAIN_NAME" ]; then
-        print_info "Removing SSL certificate..."
-        certbot delete --cert-name "$DOMAIN_NAME" --non-interactive 2>/dev/null || true
-        print_success "SSL certificate removed"
-    fi
-
-    # Remove nginx configuration
-    if [ "$NGINX_CONFIGURED" = true ]; then
-        print_info "Removing nginx configuration..."
-        rm -f /etc/nginx/sites-available/restreamer 2>/dev/null || true
-        rm -f /etc/nginx/sites-enabled/restreamer 2>/dev/null || true
-        systemctl reload nginx 2>/dev/null || true
-        print_success "nginx configuration removed"
-    fi
-
     # Remove management scripts
     if [ "$SCRIPTS_CREATED" = true ]; then
         print_info "Removing management scripts..."
@@ -187,15 +163,13 @@ cleanup_installation() {
         fi
     fi
 
-    # Note about Docker, nginx, certbot (don't auto-remove as they might have been pre-existing)
-    if [ "$DOCKER_INSTALLED_BY_US" = true ] || [ "$NGINX_INSTALLED_BY_US" = true ] || [ "$CERTBOT_INSTALLED_BY_US" = true ]; then
+    # Note about Docker (don't auto-remove as it might have been pre-existing)
+    if [ "$DOCKER_INSTALLED_BY_US" = true ]; then
         echo ""
-        print_warning "Note: Docker, nginx, and certbot were not removed"
-        print_info "These tools may be useful for other purposes"
-        print_info "If you want to remove them, use your package manager:"
-        [ "$DOCKER_INSTALLED_BY_US" = true ] && print_info "  Docker: apt/dnf/pacman remove docker-ce docker-ce-cli containerd.io"
-        [ "$NGINX_INSTALLED_BY_US" = true ] && print_info "  nginx: apt/dnf/pacman remove nginx"
-        [ "$CERTBOT_INSTALLED_BY_US" = true ] && print_info "  Certbot: apt/dnf/pacman remove certbot"
+        print_warning "Note: Docker was not removed"
+        print_info "Docker may be useful for other purposes"
+        print_info "If you want to remove it, use your package manager:"
+        print_info "  Docker: apt/dnf/pacman remove docker-ce docker-ce-cli containerd.io"
     fi
 
     echo ""
@@ -570,101 +544,6 @@ install_restreamer_http() {
     fi
 }
 
-# Install nginx and configure reverse proxy for HTTPS
-install_nginx() {
-    print_step "Installing nginx"
-
-    case $PKG_MANAGER in
-        apt)
-            eval $PKG_INSTALL nginx
-            ;;
-        dnf|yum)
-            eval $PKG_INSTALL nginx
-            ;;
-        pacman)
-            eval $PKG_INSTALL nginx
-            ;;
-    esac
-
-    systemctl start nginx
-    systemctl enable nginx
-
-    NGINX_INSTALLED_BY_US=true
-    print_success "nginx installed"
-}
-
-# Install certbot
-install_certbot() {
-    print_step "Installing Certbot"
-
-    case $PKG_MANAGER in
-        apt)
-            eval $PKG_INSTALL certbot python3-certbot-nginx
-            ;;
-        dnf|yum)
-            eval $PKG_INSTALL certbot python3-certbot-nginx
-            ;;
-        pacman)
-            eval $PKG_INSTALL certbot certbot-nginx
-            ;;
-    esac
-
-    CERTBOT_INSTALLED_BY_US=true
-    print_success "Certbot installed"
-}
-
-# Configure nginx reverse proxy
-configure_nginx() {
-    print_step "Configuring nginx reverse proxy"
-
-    # Create nginx config for Restreamer
-    cat > /etc/nginx/sites-available/restreamer <<EOF
-server {
-    listen 80;
-    server_name $DOMAIN_NAME;
-
-    location / {
-        proxy_pass http://localhost:8080;
-        proxy_http_version 1.1;
-        proxy_set_header Upgrade \$http_upgrade;
-        proxy_set_header Connection "upgrade";
-        proxy_set_header Host \$host;
-        proxy_set_header X-Real-IP \$remote_addr;
-        proxy_set_header X-Forwarded-For \$proxy_add_x_forwarded_for;
-        proxy_set_header X-Forwarded-Proto \$scheme;
-
-        # WebSocket support
-        proxy_read_timeout 86400;
-        proxy_buffering off;
-    }
-
-    location /api {
-        proxy_pass http://localhost:8080/api;
-        proxy_http_version 1.1;
-        proxy_set_header Host \$host;
-        proxy_set_header X-Real-IP \$remote_addr;
-        proxy_set_header X-Forwarded-For \$proxy_add_x_forwarded_for;
-        proxy_set_header X-Forwarded-Proto \$scheme;
-    }
-}
-EOF
-
-    # Enable site
-    if [ -d /etc/nginx/sites-enabled ]; then
-        ln -sf /etc/nginx/sites-available/restreamer /etc/nginx/sites-enabled/
-    else
-        # For distros without sites-enabled (like CentOS)
-        echo "include /etc/nginx/sites-available/restreamer;" >> /etc/nginx/nginx.conf
-    fi
-
-    # Test nginx config
-    nginx -t
-    systemctl reload nginx
-
-    NGINX_CONFIGURED=true
-    print_success "nginx configured"
-}
-
 # Verify DNS configuration
 verify_dns() {
     print_step "Verifying DNS configuration for $DOMAIN_NAME"
@@ -756,94 +635,59 @@ verify_dns() {
     fi
 }
 
-# Obtain SSL certificate
-obtain_ssl_cert() {
-    print_step "Obtaining SSL certificate from Let's Encrypt"
+# Install Restreamer (HTTPS mode with built-in Let's Encrypt)
+install_restreamer_https() {
+    print_step "Installing Restreamer (HTTPS mode with automatic SSL)"
 
-    # Verify DNS before attempting certificate request
+    # Verify DNS before starting
     if ! verify_dns; then
         print_warning "DNS verification did not pass, but continuing as requested..."
+        print_warning "Let's Encrypt certificate generation may fail"
     fi
 
-    # Attempt to obtain certificate
-    print_info "Requesting SSL certificate from Let's Encrypt..."
-    echo ""
-
-    if certbot --nginx -d $DOMAIN_NAME --non-interactive --agree-tos --email $LETSENCRYPT_EMAIL --redirect; then
-        SSL_OBTAINED=true
-        print_success "SSL certificate obtained successfully!"
-
-        # Set up auto-renewal
-        systemctl enable certbot.timer 2>/dev/null || {
-            # Create cron job if systemd timer not available
-            (crontab -l 2>/dev/null; echo "0 3 * * * certbot renew --quiet") | crontab -
-        }
-
-        print_success "Auto-renewal configured"
-    else
-        print_error "Failed to obtain SSL certificate from Let's Encrypt"
-        echo ""
-        echo -e "${YELLOW}Common reasons for failure:${NC}"
-        echo "  1. DNS not pointing to this server (most common)"
-        echo "  2. Port 80 not accessible from the internet"
-        echo "  3. Firewall blocking HTTP traffic"
-        echo "  4. Rate limiting (too many attempts)"
-        echo "  5. Domain not yet registered or expired"
-        echo ""
-        echo -e "${BLUE}Next steps:${NC}"
-        echo "  1. Verify DNS: dig $DOMAIN_NAME"
-        echo "  2. Check port 80 is open: sudo ufw status"
-        echo "  3. Test from outside: curl http://$DOMAIN_NAME"
-        echo "  4. Check Let's Encrypt logs: sudo tail -f /var/log/letsencrypt/letsencrypt.log"
-        echo ""
-        echo "You can manually retry later with:"
-        echo "  sudo certbot --nginx -d $DOMAIN_NAME"
-        echo ""
-        read -p "Continue installation without SSL? [Y/n]: " CONTINUE_NO_SSL
-        CONTINUE_NO_SSL=${CONTINUE_NO_SSL:-Y}
-        if [[ ! $CONTINUE_NO_SSL =~ ^[Yy]$ ]]; then
-            error_exit "SSL certificate setup failed"
-        fi
-        print_warning "Continuing without SSL - site will be accessible via HTTP only"
-    fi
-}
-
-# Install Restreamer (HTTPS mode)
-install_restreamer_https() {
-    print_step "Installing Restreamer (HTTPS mode)"
-
-    # Install nginx and certbot
-    install_nginx
-    install_certbot
-
-    # Run Restreamer on localhost only (nginx will proxy)
+    # Stop and remove existing container if it exists
     docker stop $RESTREAMER_CONTAINER_NAME 2>/dev/null || true
     docker rm $RESTREAMER_CONTAINER_NAME 2>/dev/null || true
 
+    # Run Restreamer with built-in HTTPS support
+    # Restreamer will automatically obtain and renew Let's Encrypt certificates
+    print_info "Starting Restreamer with automatic HTTPS configuration..."
     docker run -d \
         --name $RESTREAMER_CONTAINER_NAME \
         --restart unless-stopped \
-        -p 127.0.0.1:8080:8080 \
-        -p 127.0.0.1:8181:8181 \
+        -p 80:8080 \
+        -p 443:8181 \
         -p $RTMP_PORT:1935 \
         -p $SRT_PORT:6000/udp \
         -v $DATA_DIR:/core/data \
         -e CORE_USERNAME="$RESTREAMER_USER" \
         -e CORE_PASSWORD="$RESTREAMER_PASS" \
+        -e CORE_TLS_ENABLE=true \
+        -e CORE_TLS_AUTO=true \
+        -e CORE_HOST_NAME="$DOMAIN_NAME" \
+        -e CORE_TLS_ADDRESS=:8181 \
+        -e CORE_ADDRESS=:8080 \
         datarhei/restreamer:$RESTREAMER_VERSION
 
     RESTREAMER_CONTAINER_CREATED=true
-    print_success "Restreamer container started"
+    print_success "Restreamer container started with HTTPS enabled"
 
-    # Wait for container
-    print_info "Waiting for Restreamer to start..."
-    sleep 10
+    # Wait for container to be ready
+    print_info "Waiting for Restreamer to start and obtain SSL certificate..."
+    print_info "This may take 30-60 seconds for Let's Encrypt validation..."
+    sleep 15
 
-    # Configure nginx
-    configure_nginx
+    # Test connection (HTTP should redirect to HTTPS)
+    if curl -s -f -L http://localhost/api > /dev/null 2>&1; then
+        print_success "Restreamer is running and accessible"
+    else
+        print_warning "Restreamer may still be starting up or obtaining SSL certificate"
+        print_info "Check logs with: docker logs $RESTREAMER_CONTAINER_NAME"
+    fi
 
-    # Obtain SSL certificate
-    obtain_ssl_cert
+    echo ""
+    print_info "Let's Encrypt certificate will be obtained automatically on first HTTPS access"
+    print_info "Certificate renewal is automatic - no manual intervention needed"
 
     print_success "HTTPS setup complete"
 }
