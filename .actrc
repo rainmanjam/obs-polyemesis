@@ -10,8 +10,11 @@
 # Artifact server configuration
 --artifact-server-path /tmp/artifacts
 
-# Container architecture
---container-architecture linux/amd64
+# Container architecture (use arm64 for Apple Silicon Macs)
+--container-architecture linux/arm64
+
+# Don't pull images (use locally cached)
+--pull=false
 
 # Increase verbosity for debugging
 -v
