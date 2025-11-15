@@ -1,0 +1,247 @@
+name: E2E Tests
+
+on:
+  push:
+    branches: [ main, develop, feature/** ]
+  pull_request:
+    branches: [ main, develop ]
+  workflow_dispatch:
+  schedule:
+    # Run E2E tests nightly at 2 AM UTC
+    - cron: '0 2 * * *'
+
+jobs:
+  # ============================================================================
+  # API Integration Tests (Linux, macOS, Windows)
+  # ============================================================================
+  api-integration-tests:
+    name: API Integration (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+        python-version: ['3.11']
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+
+      - name: Install Python dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r tests/requirements.txt
+
+      - name: Start Restreamer (Docker)
+        run: |
+          docker compose -f docker-compose.e2e.yml up -d
+          echo "Waiting for Restreamer to be ready..."
+          sleep 10
+
+      - name: Wait for Restreamer health check
+        run: |
+          python tests/setup/start_restreamer.py status
+        timeout-minutes: 2
+
+      - name: Run API Integration Tests
+        run: |
+          pytest tests/integration/test_api_integration.py -v -s --tb=short
+        timeout-minutes: 10
+
+      - name: Run API Error Handling Tests
+        run: |
+          pytest tests/integration/test_api_errors.py -v -s --tb=short
+        timeout-minutes: 10
+
+      - name: Run E2E Workflow Tests
+        run: |
+          pytest tests/integration/test_e2e_workflows.py -v -s --tb=short
+        timeout-minutes: 15
+
+      - name: Stop Restreamer
+        if: always()
+        run: |
+          docker compose -f docker-compose.e2e.yml down -v
+
+      - name: Upload test results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: api-test-results-${{ matrix.os }}
+          path: |
+            pytest_report.html
+            .pytest_cache/
+          retention-days: 7
+
+  # ============================================================================
+  # OBS Integration Tests (requires OBS installed)
+  # ============================================================================
+  obs-integration-tests:
+    name: OBS Integration (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          # Linux with OBS from PPA
+          - os: ubuntu-latest
+            obs-install: |
+              sudo add-apt-repository -y ppa:obsproject/obs-studio
+              sudo apt-get update
+              sudo apt-get install -y obs-studio
+
+          # macOS with OBS from Homebrew
+          - os: macos-latest
+            obs-install: |
+              brew install --cask obs
+
+          # Windows with OBS from Chocolatey
+          - os: windows-latest
+            obs-install: |
+              choco install obs-studio -y
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install OBS Studio
+        run: ${{ matrix.obs-install }}
+        continue-on-error: true  # OBS installation might fail in CI
+
+      - name: Install Python dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r tests/requirements.txt
+
+      - name: Build plugin
+        run: |
+          cmake -B build -S . -DCMAKE_BUILD_TYPE=Release
+          cmake --build build --config Release
+        shell: bash
+
+      - name: Install plugin
+        run: |
+          python tests/utils/obs_helpers.py install --build-dir build
+        continue-on-error: true
+
+      - name: Run OBS Integration Tests
+        run: |
+          pytest tests/integration/test_obs_integration.py -v -s --tb=short
+        timeout-minutes: 10
+
+      - name: Upload test results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: obs-test-results-${{ matrix.os }}
+          path: |
+            pytest_report.html
+            .pytest_cache/
+          retention-days: 7
+
+  # ============================================================================
+  # Full E2E Tests (OBS + Restreamer)
+  # ============================================================================
+  full-e2e-tests:
+    name: Full E2E (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+
+    # Only run full E2E on Linux for now (most stable)
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest]
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install OBS Studio
+        run: |
+          sudo add-apt-repository -y ppa:obsproject/obs-studio
+          sudo apt-get update
+          sudo apt-get install -y obs-studio
+        continue-on-error: true
+
+      - name: Install Python dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r tests/requirements.txt
+
+      - name: Build plugin
+        run: |
+          cmake -B build -S . -DCMAKE_BUILD_TYPE=Release
+          cmake --build build --config Release
+
+      - name: Install plugin
+        run: |
+          python tests/utils/obs_helpers.py install --build-dir build
+        continue-on-error: true
+
+      - name: Start Restreamer
+        run: |
+          docker compose -f docker-compose.e2e.yml up -d
+          python tests/setup/start_restreamer.py status
+        timeout-minutes: 2
+
+      - name: Run Full E2E Plugin Tests
+        run: |
+          pytest tests/integration/test_e2e_plugin.py -v -s --tb=short
+        timeout-minutes: 15
+        continue-on-error: true  # Plugin tests might fail if OBS can't run in CI
+
+      - name: Stop Restreamer
+        if: always()
+        run: |
+          docker compose -f docker-compose.e2e.yml down -v
+
+      - name: Upload test results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: full-e2e-results-${{ matrix.os }}
+          path: |
+            pytest_report.html
+            .pytest_cache/
+          retention-days: 7
+
+  # ============================================================================
+  # Test Summary
+  # ============================================================================
+  test-summary:
+    name: E2E Test Summary
+    runs-on: ubuntu-latest
+    needs: [api-integration-tests, obs-integration-tests, full-e2e-tests]
+    if: always()
+
+    steps:
+      - name: Check test results
+        run: |
+          echo "API Integration Tests: ${{ needs.api-integration-tests.result }}"
+          echo "OBS Integration Tests: ${{ needs.obs-integration-tests.result }}"
+          echo "Full E2E Tests: ${{ needs.full-e2e-tests.result }}"
+
+      - name: Set final status
+        run: |
+          if [[ "${{ needs.api-integration-tests.result }}" == "failure" ]]; then
+            echo "❌ API Integration tests failed"
+            exit 1
+          fi
+          echo "✅ E2E tests completed"

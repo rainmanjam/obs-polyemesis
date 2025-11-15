@@ -9,70 +9,57 @@ on:
 
 jobs:
   api-integration-tests:
-    name: API Integration Tests
-    runs-on: ubuntu-latest
+    name: API Integration (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+        python-version: ['3.11']
 
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v3
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
 
-      - name: Install dependencies
+      - name: Install Python dependencies
         run: |
-          sudo apt-get update
-          sudo apt-get install -y jq curl
+          python -m pip install --upgrade pip
+          pip install -r tests/requirements.txt
 
-      - name: Start Restreamer test environment
+      - name: Start Restreamer (Docker)
         run: |
-          docker compose -f docker-compose.test.yml up -d
-          echo "Waiting for services to be healthy..."
-          sleep 10
+          docker compose -f docker-compose.e2e.yml up -d
+          echo "Waiting for Restreamer..."
+        shell: bash
 
-      - name: Wait for Restreamer to be ready
-        run: |
-          timeout 120 bash -c 'until curl -sf http://localhost:8080/api/v3/about > /dev/null; do \
-            echo "Waiting for Restreamer..."; sleep 5; done'
-          echo "Restreamer is ready!"
+      - name: Wait for Restreamer
+        run: python tests/setup/start_restreamer.py status
+        timeout-minutes: 2
 
-      - name: Check Docker containers status
-        run: |
-          docker compose -f docker-compose.test.yml ps
-          docker compose -f docker-compose.test.yml logs --tail=50
+      - name: Run Python API Integration Tests
+        run: pytest tests/integration/test_api_integration.py -v -s --tb=short
+        timeout-minutes: 10
 
-      - name: Run API integration tests
-        run: |
-          chmod +x tests/api_integration_test.sh
-          ./tests/api_integration_test.sh
-        env:
-          RESTREAMER_HOST: localhost
-          RESTREAMER_PORT: 8080
-          RESTREAMER_USER: admin
-          RESTREAMER_PASS: datarhei
-
-      - name: Collect logs on failure
-        if: failure()
-        run: |
-          echo "=== Restreamer logs ==="
-          docker compose -f docker-compose.test.yml logs restreamer
-          echo "=== nginx-media logs ==="
-          docker compose -f docker-compose.test.yml logs nginx-media
+      - name: Stop Restreamer
+        if: always()
+        run: docker compose -f docker-compose.e2e.yml down -v
+        shell: bash
 
       - name: Upload test results
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: test-results
+          name: api-test-results-${{ matrix.os }}
           path: |
-            tests/*.log
-            tests/results/
+            pytest_report.html
+            .pytest_cache/
           retention-days: 7
-
-      - name: Cleanup
-        if: always()
-        run: |
-          docker compose -f docker-compose.test.yml down -v
 
   build-and-test:
     name: Build Plugin (${{ matrix.os }})
@@ -80,7 +67,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os: [ubuntu-latest, macos-latest]
+        os: [ubuntu-latest, macos-latest, windows-latest]
 
     steps:
       - name: Checkout repository
@@ -106,6 +93,12 @@ jobs:
         if: runner.os == 'macOS'
         run: |
           brew install cmake curl jansson qt@6
+
+      - name: Install dependencies (Windows)
+        if: runner.os == 'Windows'
+        run: |
+          choco install cmake -y
+          choco install curl -y
 
       - name: Configure CMake
         run: |
@@ -134,4 +127,6 @@ jobs:
           path: |
             build/*.so
             build/*.dylib
+            build/*.dll
+            build/Release/*.dll
           retention-days: 7
