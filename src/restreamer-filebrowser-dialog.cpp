@@ -309,12 +309,31 @@ void RestreamerFileBrowserDialog::onDownloadClicked()
 		return;
 	}
 
-	/* Ask user where to save */
+	/* Sanitize filename to prevent path traversal */
+	QString sanitizedFileName = QFileInfo(fileName).fileName();
+
+	/* Validate that path doesn't contain traversal sequences */
+	if (filePath.contains("..") || filePath.startsWith("/") ||
+	    filePath.contains("\\") || sanitizedFileName.isEmpty()) {
+		QMessageBox::warning(this, "Download File",
+				     "Invalid file path detected.");
+		return;
+	}
+
+	/* Ask user where to save - use sanitized filename */
 	QString saveFilePath = QFileDialog::getSaveFileName(
-		this, "Save File As", fileName, "All Files (*)");
+		this, "Save File As", sanitizedFileName, "All Files (*)");
 
 	if (saveFilePath.isEmpty()) {
 		return;
+	}
+
+	/* Validate that the save path is absolute and normalized */
+	QFileInfo saveFileInfo(saveFilePath);
+	QString canonicalSavePath = saveFileInfo.canonicalFilePath();
+	if (canonicalSavePath.isEmpty()) {
+		/* File doesn't exist yet, so use absoluteFilePath instead */
+		canonicalSavePath = saveFileInfo.absoluteFilePath();
 	}
 
 	/* Download file */
@@ -329,8 +348,8 @@ void RestreamerFileBrowserDialog::onDownloadClicked()
 					 currentStorage.toUtf8().constData(),
 					 filePath.toUtf8().constData(), &data,
 					 &size)) {
-		/* Save to disk */
-		QFile file(saveFilePath);
+		/* Save to disk using validated path */
+		QFile file(canonicalSavePath);
 		if (file.open(QIODevice::WriteOnly)) {
 			file.write(reinterpret_cast<const char *>(data),
 				   size);
