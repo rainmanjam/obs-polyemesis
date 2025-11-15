@@ -34,7 +34,14 @@ jobs:
             gcovr
 
       - name: Install SonarCloud Build Wrapper
-        uses: SonarSource/sonarcloud-github-action/install-build-wrapper@v3
+        env:
+          SONAR_SERVER_URL: "https://sonarcloud.io"
+        run: |
+          mkdir -p $HOME/.sonar
+          curl -sSLo $HOME/.sonar/build-wrapper-linux-x86.zip \
+            ${{ env.SONAR_SERVER_URL }}/static/cpp/build-wrapper-linux-x86.zip
+          unzip -o $HOME/.sonar/build-wrapper-linux-x86.zip -d $HOME/.sonar/
+          echo "$HOME/.sonar/build-wrapper-linux-x86" >> $GITHUB_PATH
 
       - name: Configure CMake
         run: |
