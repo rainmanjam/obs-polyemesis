@@ -213,6 +213,7 @@ cmake --install build
 - **[Plugin Documentation](docs/developer/PLUGIN_DOCUMENTATION.md)** - Feature descriptions and API reference
 - **[Code Style](docs/developer/CODE_STYLE.md)** - Coding standards and formatting
 - **[ACT Testing](docs/developer/ACT_TESTING.md)** - Local CI/CD testing with act
+- **[Windows Testing](docs/developer/WINDOWS_TESTING.md)** - Remote Windows testing with SSH
 - **[Quality Assurance](docs/developer/QUALITY_ASSURANCE.md)** - QA processes and checklists
 - **[Apple Code Signing](docs/developer/APPLE_CODE_SIGNING_SETUP.md)** - macOS signing and notarization
 

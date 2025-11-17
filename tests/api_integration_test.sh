@@ -111,39 +111,71 @@ test_process_list() {
     fi
 }
 
-# Create a test process
+# Create a test process with proper Restreamer v3 config
 create_test_process() {
     test_start "Process Management - Create Test Process"
 
+    # Create process with proper Restreamer v3 API format (capitalized fields)
     RESPONSE=$(curl -s -X POST "${BASE_URL}/process" \
         -H "Authorization: Bearer ${ACCESS_TOKEN}" \
         -H "Content-Type: application/json" \
         -d '{
             "id": "test_process_'"$$"'",
             "reference": "test_ref",
-            "input": [{
-                "id": "input_0",
-                "address": "testsrc=duration=3600:size=1280x720:rate=30",
-                "options": ["-f", "lavfi"]
-            }],
-            "output": [{
-                "id": "output_0",
-                "address": "http://localhost:8888/test.m3u8",
-                "options": [
-                    "-codec:v", "libx264",
-                    "-preset", "ultrafast",
-                    "-b:v", "1000k",
-                    "-codec:a", "aac",
-                    "-b:a", "128k",
-                    "-f", "hls"
-                ]
-            }]
+            "input": [
+                {
+                    "id": "input_0",
+                    "address": "testsrc=duration=3600:size=1280x720:rate=30",
+                    "options": ["-f", "lavfi", "-re"]
+                }
+            ],
+            "output": [
+                {
+                    "id": "output_0",
+                    "address": "http://localhost:8888/test.m3u8",
+                    "options": [
+                        "-codec:v", "libx264",
+                        "-preset", "ultrafast",
+                        "-b:v", "1000k",
+                        "-g", "60",
+                        "-sc_threshold", "0",
+                        "-codec:a", "aac",
+                        "-b:a", "128k",
+                        "-f", "hls",
+                        "-hls_time", "2",
+                        "-hls_list_size", "6",
+                        "-hls_flags", "delete_segments+append_list"
+                    ],
+                    "cleanup": []
+                }
+            ],
+            "reconnect": true,
+            "reconnect_delay_seconds": 15,
+            "autostart": false,
+            "stale_timeout_seconds": 30
         }')
 
     PROCESS_ID=$(echo "$RESPONSE" | jq -r '.id // empty')
 
     if [ -n "$PROCESS_ID" ]; then
         test_pass "Created test process: ${PROCESS_ID}"
+
+        # Wait a moment for process to initialize
+        sleep 2
+
+        # Verify process has input/output configured
+        VERIFY_RESPONSE=$(curl -s -X GET "${BASE_URL}/process/${PROCESS_ID}" \
+            -H "Authorization: Bearer ${ACCESS_TOKEN}")
+
+        INPUT_COUNT=$(echo "$VERIFY_RESPONSE" | jq '.input | length')
+        OUTPUT_COUNT=$(echo "$VERIFY_RESPONSE" | jq '.output | length')
+
+        if [ "$INPUT_COUNT" -gt 0 ] && [ "$OUTPUT_COUNT" -gt 0 ]; then
+            log_info "Process configured with ${INPUT_COUNT} input(s) and ${OUTPUT_COUNT} output(s)"
+        else
+            log_warn "Process created but input/output config may not be populated (input: ${INPUT_COUNT}, output: ${OUTPUT_COUNT})"
+        fi
+
         return 0
     else
         test_fail "Failed to create test process: $RESPONSE"

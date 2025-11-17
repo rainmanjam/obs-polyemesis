@@ -1,0 +1,25 @@
+# act configuration for Windows testing
+# This file should be copied to Windows machine: %USERPROFILE%\.actrc
+
+# Platform mappings - use Linux containers for Windows jobs
+-P windows-latest=catthehacker/ubuntu:act-latest
+-P windows-2022=catthehacker/ubuntu:act-latest
+-P windows-2019=catthehacker/ubuntu:act-latest
+
+# Container architecture
+--container-architecture linux/amd64
+
+# Artifact server path (cache directory on Windows)
+--artifact-server-path C:\act-cache
+
+# Default secrets file location (optional)
+# --secret-file C:\act-workspace\.secrets
+
+# Enable verbose output for debugging (comment out for normal operation)
+# -v
+
+# Reuse containers for faster subsequent runs
+--reuse
+
+# Bind workspace to allow file access
+--bind

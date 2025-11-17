@@ -146,6 +146,14 @@ cmake --build build
 
 # Run tests
 cd build && ctest --output-on-failure
+
+# Local CI/CD testing with act (Linux builds)
+act -j ubuntu-build
+
+# Remote Windows testing (requires setup - see docs/developer/WINDOWS_TESTING.md)
+./scripts/sync-and-build-windows.sh
+./scripts/windows-test.sh
+./scripts/windows-package.sh --fetch
 ```
 
 ## Getting Help

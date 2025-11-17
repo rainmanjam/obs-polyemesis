@@ -89,9 +89,23 @@ act -j ubuntu-build
 
 ### Windows Builds
 
-- ⚠️ Limited support (requires Windows containers)
-- Not recommended for local testing
-- Use GitHub Actions for Windows builds
+- ✅ **NEW**: Native Windows testing with remote execution
+- Use a Windows 11 machine with SSH for authentic Windows builds
+- Control from Mac using helper scripts
+- See [Windows Testing Guide](./WINDOWS_TESTING.md) for setup
+
+```bash
+# Quick Windows testing (after setup)
+./scripts/windows-act.sh -j build-windows
+./scripts/sync-and-build-windows.sh
+./scripts/windows-package.sh --fetch
+```
+
+**Why Remote Windows Testing?**
+- Native Visual Studio compilation
+- Real NSIS installer creation
+- Authentic Windows environment
+- No container limitations
 
 ### macOS Builds
 

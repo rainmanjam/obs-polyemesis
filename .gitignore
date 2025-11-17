@@ -6,6 +6,9 @@ build_*/
 *.build/
 cmake/.CMakeBuildNumber
 
+# Artifacts
+artifacts/
+
 # Dependencies
 .deps/
 deps/
