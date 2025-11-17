@@ -151,16 +151,6 @@ if(ENABLE_QT)
       src/restreamer-dock.cpp
       src/restreamer-dock.h
       src/restreamer-dock-bridge.cpp
-      src/restreamer-encoding-dialog.cpp
-      src/restreamer-encoding-dialog.h
-      src/restreamer-metadata-dialog.cpp
-      src/restreamer-metadata-dialog.h
-      src/restreamer-filebrowser-dialog.cpp
-      src/restreamer-filebrowser-dialog.h
-      src/restreamer-outputs-dialog.cpp
-      src/restreamer-outputs-dialog.h
-      src/restreamer-playout-dialog.cpp
-      src/restreamer-playout-dialog.h
       src/obs-service-loader.cpp
       src/obs-service-loader.h
       src/obs-theme-utils.cpp
