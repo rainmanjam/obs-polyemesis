@@ -70,7 +70,8 @@ stage_build_verification() {
     assert_file_exists "$BUILD_DIR/$PLUGIN_NAME" "Plugin binary created"
 
     # Check binary type
-    local binary_info=$(file "$BUILD_DIR/$PLUGIN_NAME")
+    local binary_info
+    binary_info=$(file "$BUILD_DIR/$PLUGIN_NAME")
 
     if echo "$binary_info" | grep -q "ELF.*shared object"; then
         log_success "✓ Binary is ELF shared object"
@@ -90,7 +91,8 @@ stage_build_verification() {
     fi
 
     # Check dependencies
-    local deps=$(ldd "$BUILD_DIR/$PLUGIN_NAME" 2>/dev/null || true)
+    local deps
+    deps=$(ldd "$BUILD_DIR/$PLUGIN_NAME" 2>/dev/null || true)
 
     if echo "$deps" | grep -q "libobs"; then
         log_success "✓ libobs linked"
@@ -150,7 +152,8 @@ stage_plugin_loading() {
     mkdir -p "$OBS_LOGS_PATH"
 
     # Check for recent OBS logs
-    local latest_log=$(ls -t "$OBS_LOGS_PATH"/*.txt 2>/dev/null | head -1)
+    local latest_log
+    latest_log=$(find "$OBS_LOGS_PATH" -name "*.txt" -type f -printf '%T@ %p\n' 2>/dev/null | sort -rn | head -1 | cut -d' ' -f2-)
 
     if [ -n "$latest_log" ]; then
         log_info "Checking OBS logs: $(basename "$latest_log")"
@@ -194,7 +197,8 @@ stage_binary_symbols() {
     local binary="$OBS_PLUGIN_PATH/$PLUGIN_NAME"
 
     # Check for required OBS symbols
-    local symbols=$(nm -D "$binary" 2>/dev/null || true)
+    local symbols
+    symbols=$(nm -D "$binary" 2>/dev/null || true)
 
     if echo "$symbols" | grep -q "obs_module_load"; then
         log_success "✓ obs_module_load symbol exported"
@@ -234,7 +238,8 @@ stage_library_dependencies() {
     local binary="$OBS_PLUGIN_PATH/$PLUGIN_NAME"
 
     # Check ldd output
-    local ldd_output=$(ldd "$binary" 2>/dev/null || true)
+    local ldd_output
+    ldd_output=$(ldd "$binary" 2>/dev/null || true)
 
     # Check for Qt libraries
     if echo "$ldd_output" | grep -q "libQt"; then
@@ -256,7 +261,8 @@ stage_library_dependencies() {
     fi
 
     # Check RPATH/RUNPATH
-    local rpath=$(readelf -d "$binary" 2>/dev/null | grep -E "RPATH|RUNPATH" || true)
+    local rpath
+    rpath=$(readelf -d "$binary" 2>/dev/null | grep -E "RPATH|RUNPATH" || true)
     if [ -n "$rpath" ]; then
         log_verbose "RPATH/RUNPATH: $rpath"
     fi
@@ -269,7 +275,8 @@ stage_security_verification() {
     local binary="$OBS_PLUGIN_PATH/$PLUGIN_NAME"
 
     # Check file permissions
-    local perms=$(stat -c "%a" "$binary" 2>/dev/null || stat -f "%Lp" "$binary")
+    local perms
+    perms=$(stat -c "%a" "$binary" 2>/dev/null || stat -f "%Lp" "$binary")
     if [ "$perms" = "755" ] || [ "$perms" = "775" ]; then
         log_success "✓ Correct file permissions: $perms"
         E2E_TESTS_RUN=$((E2E_TESTS_RUN + 1))

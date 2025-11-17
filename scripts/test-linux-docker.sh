@@ -146,14 +146,12 @@ log_success "OBS development environment ready (using PPA libraries)"
 
 # Build the plugin
 log_info "Building OBS Polyemesis plugin for Linux..."
-docker exec "$CONTAINER_NAME" bash -c "
+if docker exec "$CONTAINER_NAME" bash -c "
     mkdir -p build-linux
     cd build-linux
     cmake -S .. -B . -DCMAKE_BUILD_TYPE=Release -DENABLE_QT=OFF
     cmake --build . --config Release
-"
-
-if [ $? -eq 0 ]; then
+"; then
     log_success "Plugin built successfully"
 else
     log_error "Plugin build failed"
@@ -187,7 +185,7 @@ fi
 
 # Check if plugin binary was created
 log_info "Checking build artifacts..."
-docker exec "$CONTAINER_NAME" bash -c "
+if docker exec "$CONTAINER_NAME" bash -c "
     if [ -f build-linux/obs-polyemesis.so ]; then
         echo '✓ Plugin binary created: obs-polyemesis.so'
         ls -lh build-linux/obs-polyemesis.so
@@ -195,9 +193,7 @@ docker exec "$CONTAINER_NAME" bash -c "
         echo '✗ Plugin binary not found'
         exit 1
     fi
-"
-
-if [ $? -eq 0 ]; then
+"; then
     log_success "Build artifacts verified"
 else
     log_error "Build artifacts missing"

@@ -73,7 +73,8 @@ stage_build_verification() {
 
     # Check binary architecture
     local binary="$BUILD_DIR/Release/$PLUGIN_BUNDLE/Contents/MacOS/$PLUGIN_NAME"
-    local arch_info=$(file "$binary")
+    local arch_info
+    arch_info=$(file "$binary")
 
     if echo "$arch_info" | grep -q "arm64"; then
         log_success "✓ Binary contains arm64 architecture"
@@ -88,7 +89,8 @@ stage_build_verification() {
     fi
 
     # Check dependencies
-    local deps=$(otool -L "$binary")
+    local deps
+    deps=$(otool -L "$binary")
 
     if echo "$deps" | grep -q "obs"; then
         log_success "✓ OBS framework linked"
@@ -111,9 +113,9 @@ stage_installation() {
     assert_command_success "mkdir -p \"$OBS_PLUGIN_PATH\"" "Plugin directory created"
 
     # Remove old installation
-    if [ -d "$OBS_PLUGIN_PATH/$PLUGIN_BUNDLE" ]; then
+    if [ -d "${OBS_PLUGIN_PATH:?}/$PLUGIN_BUNDLE" ]; then
         log_info "Removing previous installation..."
-        rm -rf "$OBS_PLUGIN_PATH/$PLUGIN_BUNDLE"
+        rm -rf "${OBS_PLUGIN_PATH:?}/$PLUGIN_BUNDLE"
     fi
 
     # Install plugin
@@ -151,7 +153,8 @@ stage_plugin_loading() {
     mkdir -p "$OBS_LOGS_PATH"
 
     # Check for recent OBS logs
-    local latest_log=$(ls -t "$OBS_LOGS_PATH"/*.txt 2>/dev/null | head -1)
+    local latest_log
+    latest_log=$(find "$OBS_LOGS_PATH" -name "*.txt" -type f -print0 2>/dev/null | xargs -0 ls -t 2>/dev/null | head -1)
 
     if [ -n "$latest_log" ]; then
         log_info "Checking OBS logs: $(basename "$latest_log")"
@@ -196,7 +199,8 @@ stage_binary_symbols() {
     local binary="$OBS_PLUGIN_PATH/$PLUGIN_BUNDLE/Contents/MacOS/$PLUGIN_NAME"
 
     # Check for required OBS symbols
-    local symbols=$(nm "$binary" 2>/dev/null || true)
+    local symbols
+    symbols=$(nm "$binary" 2>/dev/null || true)
 
     if echo "$symbols" | grep -q "obs_module_load"; then
         log_success "✓ obs_module_load symbol exported"
@@ -239,21 +243,24 @@ stage_plist_verification() {
 
     # Check for required keys
     if /usr/libexec/PlistBuddy -c "Print :CFBundleIdentifier" "$plist" >/dev/null 2>&1; then
-        local bundle_id=$(/usr/libexec/PlistBuddy -c "Print :CFBundleIdentifier" "$plist")
+        local bundle_id
+        bundle_id=$(/usr/libexec/PlistBuddy -c "Print :CFBundleIdentifier" "$plist")
         log_success "✓ CFBundleIdentifier: $bundle_id"
         E2E_TESTS_RUN=$((E2E_TESTS_RUN + 1))
         E2E_TESTS_PASSED=$((E2E_TESTS_PASSED + 1))
     fi
 
     if /usr/libexec/PlistBuddy -c "Print :CFBundleVersion" "$plist" >/dev/null 2>&1; then
-        local version=$(/usr/libexec/PlistBuddy -c "Print :CFBundleVersion" "$plist")
+        local version
+        version=$(/usr/libexec/PlistBuddy -c "Print :CFBundleVersion" "$plist")
         log_success "✓ CFBundleVersion: $version"
         E2E_TESTS_RUN=$((E2E_TESTS_RUN + 1))
         E2E_TESTS_PASSED=$((E2E_TESTS_PASSED + 1))
     fi
 
     if /usr/libexec/PlistBuddy -c "Print :CFBundleName" "$plist" >/dev/null 2>&1; then
-        local name=$(/usr/libexec/PlistBuddy -c "Print :CFBundleName" "$plist")
+        local name
+        name=$(/usr/libexec/PlistBuddy -c "Print :CFBundleName" "$plist")
         log_success "✓ CFBundleName: $name"
         E2E_TESTS_RUN=$((E2E_TESTS_RUN + 1))
         E2E_TESTS_PASSED=$((E2E_TESTS_PASSED + 1))
@@ -276,7 +283,8 @@ stage_code_signing() {
     fi
 
     # Check ad-hoc signing
-    local sign_info=$(codesign -dv "$binary" 2>&1 || true)
+    local sign_info
+    sign_info=$(codesign -dv "$binary" 2>&1 || true)
     if echo "$sign_info" | grep -q "adhoc"; then
         log_success "✓ Ad-hoc code signature present"
         E2E_TESTS_RUN=$((E2E_TESTS_RUN + 1))
@@ -297,8 +305,8 @@ stage_cleanup() {
     # Optional: Remove plugin installation
     if [ "$TEST_MODE" = "ci" ] || [ "$1" = "--remove-plugin" ]; then
         log_info "Removing plugin installation..."
-        if [ -d "$OBS_PLUGIN_PATH/$PLUGIN_BUNDLE" ]; then
-            rm -rf "$OBS_PLUGIN_PATH/$PLUGIN_BUNDLE"
+        if [ -d "${OBS_PLUGIN_PATH:?}/$PLUGIN_BUNDLE" ]; then
+            rm -rf "${OBS_PLUGIN_PATH:?}/$PLUGIN_BUNDLE"
             log_success "✓ Plugin uninstalled"
             E2E_TESTS_RUN=$((E2E_TESTS_RUN + 1))
             E2E_TESTS_PASSED=$((E2E_TESTS_PASSED + 1))

@@ -78,10 +78,14 @@ run_macos_tests() {
 
     if "$SCRIPT_DIR/macos/e2e-test-macos.sh" "$TEST_MODE" > /tmp/macos-e2e-output.txt 2>&1; then
         # Parse results
-        local results=$(tail -20 /tmp/macos-e2e-output.txt)
-        local tests_run=$(echo "$results" | grep "Total Tests:" | awk '{print $3}')
-        local tests_passed=$(echo "$results" | grep "Passed:" | awk '{print $2}')
-        local tests_failed=$(echo "$results" | grep "Failed:" | awk '{print $2}')
+        local results
+        local tests_run
+        local tests_passed
+        local tests_failed
+        results=$(tail -20 /tmp/macos-e2e-output.txt)
+        tests_run=$(echo "$results" | grep "Total Tests:" | awk '{print $3}')
+        tests_passed=$(echo "$results" | grep "Passed:" | awk '{print $2}')
+        tests_failed=$(echo "$results" | grep "Failed:" | awk '{print $2}')
 
         TOTAL_TESTS=$((TOTAL_TESTS + tests_run))
         TOTAL_PASSED=$((TOTAL_PASSED + tests_passed))
@@ -120,10 +124,14 @@ run_linux_tests() {
 
         if "$SCRIPT_DIR/linux/e2e-test-linux.sh" "$TEST_MODE" > /tmp/linux-e2e-output.txt 2>&1; then
             # Parse results
-            local results=$(tail -20 /tmp/linux-e2e-output.txt)
-            local tests_run=$(echo "$results" | grep "Total Tests:" | awk '{print $3}')
-            local tests_passed=$(echo "$results" | grep "Passed:" | awk '{print $2}')
-            local tests_failed=$(echo "$results" | grep "Failed:" | awk '{print $2}')
+            local results
+            local tests_run
+            local tests_passed
+            local tests_failed
+            results=$(tail -20 /tmp/linux-e2e-output.txt)
+            tests_run=$(echo "$results" | grep "Total Tests:" | awk '{print $3}')
+            tests_passed=$(echo "$results" | grep "Passed:" | awk '{print $2}')
+            tests_failed=$(echo "$results" | grep "Failed:" | awk '{print $2}')
 
             TOTAL_TESTS=$((TOTAL_TESTS + tests_run))
             TOTAL_PASSED=$((TOTAL_PASSED + tests_passed))
@@ -170,10 +178,14 @@ run_windows_tests() {
 
         if powershell -ExecutionPolicy Bypass -File "$SCRIPT_DIR/windows/e2e-test-windows.ps1" -TestMode "$TEST_MODE" > /tmp/windows-e2e-output.txt 2>&1; then
             # Parse results
-            local results=$(tail -20 /tmp/windows-e2e-output.txt)
-            local tests_run=$(echo "$results" | grep "Total Tests:" | awk '{print $3}')
-            local tests_passed=$(echo "$results" | grep "Passed:" | awk '{print $2}')
-            local tests_failed=$(echo "$results" | grep "Failed:" | awk '{print $2}')
+            local results
+            local tests_run
+            local tests_passed
+            local tests_failed
+            results=$(tail -20 /tmp/windows-e2e-output.txt)
+            tests_run=$(echo "$results" | grep "Total Tests:" | awk '{print $3}')
+            tests_passed=$(echo "$results" | grep "Passed:" | awk '{print $2}')
+            tests_failed=$(echo "$results" | grep "Failed:" | awk '{print $2}')
 
             TOTAL_TESTS=$((TOTAL_TESTS + tests_run))
             TOTAL_PASSED=$((TOTAL_PASSED + tests_passed))
@@ -206,10 +218,14 @@ run_windows_tests() {
 
         if ssh "$REMOTE_WINDOWS" "cd $windows_test_dir/windows && powershell -ExecutionPolicy Bypass -File .\\e2e-test-windows.ps1 -TestMode $TEST_MODE" > /tmp/windows-e2e-output.txt 2>&1; then
             # Parse results
-            local results=$(tail -20 /tmp/windows-e2e-output.txt)
-            local tests_run=$(echo "$results" | grep "Total Tests:" | awk '{print $3}')
-            local tests_passed=$(echo "$results" | grep "Passed:" | awk '{print $2}')
-            local tests_failed=$(echo "$results" | grep "Failed:" | awk '{print $2}')
+            local results
+            local tests_run
+            local tests_passed
+            local tests_failed
+            results=$(tail -20 /tmp/windows-e2e-output.txt)
+            tests_run=$(echo "$results" | grep "Total Tests:" | awk '{print $3}')
+            tests_passed=$(echo "$results" | grep "Passed:" | awk '{print $2}')
+            tests_failed=$(echo "$results" | grep "Failed:" | awk '{print $2}')
 
             TOTAL_TESTS=$((TOTAL_TESTS + tests_run))
             TOTAL_PASSED=$((TOTAL_PASSED + tests_passed))
@@ -264,7 +280,8 @@ main() {
     print_header
 
     # Detect current platform
-    local current_platform=$(detect_platform)
+    local current_platform
+    current_platform=$(detect_platform)
     log_info "Current platform: $current_platform"
     echo ""
 

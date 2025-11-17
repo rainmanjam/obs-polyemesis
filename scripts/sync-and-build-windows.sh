@@ -181,6 +181,7 @@ if command -v rsync >/dev/null 2>&1 && ssh "$WINDOWS_HOST" "command -v rsync" >/
         RSYNC_OPTS="-az --delete --progress"
     fi
 
+    # shellcheck disable=SC2086
     rsync $RSYNC_OPTS \
         "${RSYNC_EXCLUDES[@]}" \
         ./ "$WINDOWS_HOST:$WORKSPACE_PATH/"
@@ -202,7 +203,7 @@ else
         .
 
     scp "$TEMP_TAR" "$WINDOWS_HOST:$REMOTE_TAR"
-    ssh "$WINDOWS_HOST" "powershell -Command \"New-Item -ItemType Directory -Force -Path '$WORKSPACE_PATH' | Out-Null; Set-Location '$WORKSPACE_PATH'; tar -xzf '$REMOTE_TAR'; Remove-Item '$REMOTE_TAR'\""
+    ssh "$WINDOWS_HOST" "powershell -Command \"New-Item -ItemType Directory -Force -Path '${WORKSPACE_PATH}' | Out-Null; Set-Location '${WORKSPACE_PATH}'; tar -xzf '${REMOTE_TAR}'; Remove-Item '${REMOTE_TAR}'\""
     rm "$TEMP_TAR"
 
     log_info "✓ Files synced successfully"
@@ -212,8 +213,8 @@ fi
 log_info "Updating Git metadata on Windows..."
 # Convert Windows path to WSL path (C:/Users/... -> /mnt/c/Users/...)
 WSL_PATH=$(echo "$WORKSPACE_PATH" | sed 's|C:/|/mnt/c/|' | sed 's|\\|/|g')
-ssh "$WINDOWS_HOST" bash << EOF
-cd "$WSL_PATH"
+ssh "$WINDOWS_HOST" bash << 'EOF_GIT'
+cd "${WSL_PATH}"
 
 # Initialize git if needed
 if [ ! -d .git ]; then
@@ -222,10 +223,10 @@ if [ ! -d .git ]; then
 fi
 
 # Checkout branch
-git checkout -B "$BRANCH" 2>/dev/null || true
+git checkout -B "${BRANCH}" 2>/dev/null || true
 
 echo "✓ Git metadata updated"
-EOF
+EOF_GIT
 log_info "✓ Git metadata updated"
 
 # If sync-only, exit here
@@ -240,11 +241,11 @@ log_debug "Workflow: $BUILD_WORKFLOW"
 log_debug "Job: $BUILD_JOB"
 
 echo ""
-ssh -t "$WINDOWS_HOST" bash << EOF
-cd "$WSL_PATH"
+ssh -t "$WINDOWS_HOST" bash << 'EOF_BUILD'
+cd "${WSL_PATH}"
 echo "=== Running act build ==="
-/mnt/c/Users/rainm/AppData/Local/Microsoft/WinGet/Links/act.exe -W "$BUILD_WORKFLOW" -j "$BUILD_JOB"
-EOF
+/mnt/c/Users/rainm/AppData/Local/Microsoft/WinGet/Links/act.exe -W "${BUILD_WORKFLOW}" -j "${BUILD_JOB}"
+EOF_BUILD
 
 EXIT_CODE=$?
 
