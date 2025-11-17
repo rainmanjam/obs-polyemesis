@@ -44,22 +44,22 @@ jobs:
           print '::endgroup::'
 
           print '::group::Setup OBS 32.0.2'
-          # Install OBS Studio 32.0.2 (Universal Binary: Intel + Apple Silicon)
+          # Install OBS Studio 32.0.2 (Apple Silicon)
           # This ensures we build against a specific, tested OBS version.
           # The plugin is compatible with OBS 28.x through 32.x+
 
           print 'Downloading OBS Studio 32.0.2...'
-          curl -L -o obs-studio-32.0.2-macos-universal.dmg \
-            https://github.com/obsproject/obs-studio/releases/download/32.0.2/obs-studio-32.0.2-macos-universal.dmg
+          curl -L -o OBS-Studio-32.0.2-macOS-Apple.dmg \
+            https://github.com/obsproject/obs-studio/releases/download/32.0.2/OBS-Studio-32.0.2-macOS-Apple.dmg
 
           print 'Mounting DMG...'
-          hdiutil attach obs-studio-32.0.2-macos-universal.dmg
+          hdiutil attach OBS-Studio-32.0.2-macOS-Apple.dmg
 
           print 'Installing OBS to /Applications...'
-          sudo cp -R /Volumes/OBS-Studio-*/OBS.app /Applications/
+          sudo cp -R /Volumes/OBS*/OBS.app /Applications/
 
           print 'Unmounting DMG...'
-          hdiutil detach /Volumes/OBS-Studio-*
+          hdiutil detach /Volumes/OBS*
 
           print 'Verifying OBS installation...'
           /Applications/OBS.app/Contents/MacOS/OBS --version || echo "OBS 32.0.2 installed successfully"

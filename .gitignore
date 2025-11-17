@@ -1,6 +1,7 @@
 # Build directories
 build/
 build_*/
+build-*/
 .build/
 .build-universal/
 *.build/

@@ -38,16 +38,30 @@ target_include_directories(
 )
 
 # Link libraries
-target_link_libraries(obs-polyemesis-tests PRIVATE ${JANSSON_LIBRARIES} CURL::libcurl OBS::libobs)
-
-# Add jansson library directories if available
-if(JANSSON_LIBRARY_DIRS)
-  target_link_directories(obs-polyemesis-tests PRIVATE ${JANSSON_LIBRARY_DIRS})
+# Use Jansson::Jansson target if available (universal binary), otherwise use ${JANSSON_LIBRARIES}
+if(TARGET Jansson::Jansson)
+  target_link_libraries(obs-polyemesis-tests PRIVATE Jansson::Jansson CURL::libcurl OBS::libobs)
+else()
+  target_link_libraries(obs-polyemesis-tests PRIVATE ${JANSSON_LIBRARIES} CURL::libcurl OBS::libobs)
+  # Add jansson library directories if available
+  if(JANSSON_LIBRARY_DIRS)
+    target_link_directories(obs-polyemesis-tests PRIVATE ${JANSSON_LIBRARY_DIRS})
+  endif()
 endif()
 
 # Platform-specific threading library
 if(UNIX)
   target_link_libraries(obs-polyemesis-tests PRIVATE pthread)
+endif()
+
+# Fix rpath for test executables to find OBS framework
+# Note: Standalone test executables disabled on macOS due to code signing requirements
+# Tests should be run within OBS Studio environment instead
+if(APPLE)
+  add_custom_command(TARGET obs-polyemesis-tests POST_BUILD
+    COMMAND install_name_tool -add_rpath "${CMAKE_SOURCE_DIR}/.deps/Frameworks" "$<TARGET_FILE:obs-polyemesis-tests>"
+    COMMENT "Adding rpath to test executable"
+  )
 endif()
 
 # Add tests with proper executable path handling
@@ -99,10 +113,14 @@ target_include_directories(
   PRIVATE ${CMAKE_SOURCE_DIR}/src ${JANSSON_INCLUDE_DIRS} ${CURL_INCLUDE_DIRS}
 )
 
-target_link_libraries(obs-polyemesis-benchmarks PRIVATE ${JANSSON_LIBRARIES} CURL::libcurl OBS::libobs)
-
-if(JANSSON_LIBRARY_DIRS)
-  target_link_directories(obs-polyemesis-benchmarks PRIVATE ${JANSSON_LIBRARY_DIRS})
+# Use Jansson::Jansson target if available (universal binary), otherwise use ${JANSSON_LIBRARIES}
+if(TARGET Jansson::Jansson)
+  target_link_libraries(obs-polyemesis-benchmarks PRIVATE Jansson::Jansson CURL::libcurl OBS::libobs)
+else()
+  target_link_libraries(obs-polyemesis-benchmarks PRIVATE ${JANSSON_LIBRARIES} CURL::libcurl OBS::libobs)
+  if(JANSSON_LIBRARY_DIRS)
+    target_link_directories(obs-polyemesis-benchmarks PRIVATE ${JANSSON_LIBRARY_DIRS})
+  endif()
 endif()
 
 if(UNIX)
@@ -111,6 +129,14 @@ endif()
 
 if(WIN32)
   target_link_libraries(obs-polyemesis-benchmarks PRIVATE psapi)
+endif()
+
+# Fix rpath for benchmarks executable to find OBS framework
+if(APPLE)
+  add_custom_command(TARGET obs-polyemesis-benchmarks POST_BUILD
+    COMMAND install_name_tool -add_rpath "${CMAKE_SOURCE_DIR}/.deps/Frameworks" "$<TARGET_FILE:obs-polyemesis-benchmarks>"
+    COMMENT "Adding rpath to benchmarks executable"
+  )
 endif()
 
 # UI tests (requires Qt, separate executable)
@@ -320,6 +346,12 @@ add_test(NAME e2e_workflows
     COMMAND $<TARGET_FILE:test_e2e_workflows_standalone>)
 endif() # End of e2e workflow tests
 
+# Google Test unit tests (isolated function-level testing)
+# NOTE: Unit tests disabled due to OBS memory management coupling
+# Unit tests require full OBS application context (bzalloc, bfree, dstr_*)
+# See docs/testing-strategy.md for alternative testing approaches
+# add_subdirectory(unit)
+
 # Print test configuration
 message(STATUS "Test suite configuration:")
 message(STATUS "  - Core tests: ENABLED")
@@ -329,6 +361,7 @@ message(STATUS "  - Edge case tests: ENABLED (12 tests)")
 message(STATUS "  - Platform compat tests: ENABLED (15 tests)")
 message(STATUS "  - Integration tests: ENABLED (5 tests)")
 message(STATUS "  - E2E workflow tests: ENABLED (5 tests)")
+message(STATUS "  - Google Test unit tests: DISABLED (OBS coupling)")
 message(STATUS "  - UI tests: ${Qt6Test_FOUND}")
 message(STATUS "  - Coverage: ${ENABLE_COVERAGE}")
 message(STATUS "  - AddressSanitizer: ${ENABLE_ASAN}")

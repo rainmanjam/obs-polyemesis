@@ -49,8 +49,26 @@ include(CPack)
 find_package(libobs QUIET)
 
 if(NOT TARGET OBS::libobs)
-  find_package(LibObs REQUIRED)
-  add_library(OBS::libobs ALIAS libobs)
+  # Try using pkg-config for Ubuntu PPA packages
+  find_package(PkgConfig QUIET)
+  if(PKG_CONFIG_FOUND)
+    pkg_check_modules(LIBOBS QUIET libobs)
+  endif()
+
+  if(LIBOBS_FOUND)
+    # Create imported target from pkg-config info
+    add_library(libobs INTERFACE IMPORTED)
+    set_target_properties(libobs PROPERTIES
+      INTERFACE_INCLUDE_DIRECTORIES "${LIBOBS_INCLUDE_DIRS}"
+      INTERFACE_LINK_LIBRARIES "${LIBOBS_LIBRARIES}"
+      INTERFACE_LINK_DIRECTORIES "${LIBOBS_LIBRARY_DIRS}"
+    )
+    add_library(OBS::libobs ALIAS libobs)
+  else()
+    # Fall back to FindLibObs
+    find_package(LibObs REQUIRED)
+    add_library(OBS::libobs ALIAS libobs)
+  endif()
 
   if(ENABLE_FRONTEND_API)
     find_path(

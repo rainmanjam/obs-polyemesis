@@ -9,8 +9,8 @@ WINDOWS_HOST="${WINDOWS_ACT_HOST:-windows-act}"
 WORKSPACE_PATH="${WINDOWS_WORKSPACE:-C:/Users/rainm/Documents/GitHub/obs-polyemesis}"
 VERBOSE="${VERBOSE:-0}"
 SYNC_ONLY=0
-BUILD_WORKFLOW=".github/workflows/release.yaml"
-BUILD_JOB="build-windows"
+BUILD_WORKFLOW=".github/workflows/create-packages.yaml"
+BUILD_JOB="windows-package"
 
 # Colors
 RED='\033[0;31m'
@@ -172,8 +172,8 @@ RSYNC_EXCLUDES=(
     --exclude='.idea/'
 )
 
-# Use rsync for efficient sync
-if command -v rsync >/dev/null 2>&1; then
+# Check if rsync is available on both local and remote
+if command -v rsync >/dev/null 2>&1 && ssh "$WINDOWS_HOST" "command -v rsync" >/dev/null 2>&1; then
     log_debug "Using rsync for sync"
 
     RSYNC_OPTS="-avz --delete"
@@ -191,6 +191,7 @@ else
 
     # Create tarball and transfer
     TEMP_TAR="/tmp/obs-polyemesis-sync-$$.tar.gz"
+    REMOTE_TAR="C:/Users/rainm/obs-polyemesis-sync.tar.gz"
     log_debug "Creating tarball: $TEMP_TAR"
 
     tar czf "$TEMP_TAR" \
@@ -200,8 +201,8 @@ else
         --exclude='.DS_Store' \
         .
 
-    scp "$TEMP_TAR" "$WINDOWS_HOST:/tmp/"
-    ssh "$WINDOWS_HOST" "cd \"$WORKSPACE_PATH\" && tar xzf /tmp/$(basename $TEMP_TAR) && rm /tmp/$(basename $TEMP_TAR)"
+    scp "$TEMP_TAR" "$WINDOWS_HOST:$REMOTE_TAR"
+    ssh "$WINDOWS_HOST" "powershell -Command \"New-Item -ItemType Directory -Force -Path '$WORKSPACE_PATH' | Out-Null; Set-Location '$WORKSPACE_PATH'; tar -xzf '$REMOTE_TAR'; Remove-Item '$REMOTE_TAR'\""
     rm "$TEMP_TAR"
 
     log_info "✓ Files synced successfully"
@@ -209,8 +210,10 @@ fi
 
 # Update .git metadata if needed
 log_info "Updating Git metadata on Windows..."
+# Convert Windows path to WSL path (C:/Users/... -> /mnt/c/Users/...)
+WSL_PATH=$(echo "$WORKSPACE_PATH" | sed 's|C:/|/mnt/c/|' | sed 's|\\|/|g')
 ssh "$WINDOWS_HOST" bash << EOF
-cd "$WORKSPACE_PATH"
+cd "$WSL_PATH"
 
 # Initialize git if needed
 if [ ! -d .git ]; then
@@ -221,8 +224,9 @@ fi
 # Checkout branch
 git checkout -B "$BRANCH" 2>/dev/null || true
 
-log_info "✓ Git metadata updated"
+echo "✓ Git metadata updated"
 EOF
+log_info "✓ Git metadata updated"
 
 # If sync-only, exit here
 if [ $SYNC_ONLY -eq 1 ]; then
@@ -237,9 +241,9 @@ log_debug "Job: $BUILD_JOB"
 
 echo ""
 ssh -t "$WINDOWS_HOST" bash << EOF
-cd "$WORKSPACE_PATH"
+cd "$WSL_PATH"
 echo "=== Running act build ==="
-act -W "$BUILD_WORKFLOW" -j "$BUILD_JOB"
+/mnt/c/Users/rainm/AppData/Local/Microsoft/WinGet/Links/act.exe -W "$BUILD_WORKFLOW" -j "$BUILD_JOB"
 EOF
 
 EXIT_CODE=$?
