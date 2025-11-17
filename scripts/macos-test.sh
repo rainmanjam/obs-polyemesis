@@ -114,6 +114,31 @@ main() {
     log_debug "Build directory: $BUILD_DIR"
     log_debug "Build type: $BUILD_TYPE"
 
+    # Check OBS Studio installation and version
+    log_info "Checking OBS Studio installation..."
+    OBS_APP="/Applications/OBS.app"
+    if [ -d "$OBS_APP" ]; then
+        log_info "✓ OBS Studio found at: $OBS_APP"
+
+        # Get OBS version from Info.plist
+        OBS_VERSION=$(/usr/libexec/PlistBuddy -c "Print :CFBundleShortVersionString" \
+            "$OBS_APP/Contents/Info.plist" 2>/dev/null || echo "unknown")
+
+        log_info "OBS Studio version: $OBS_VERSION"
+
+        # Verify it's version 32.0.2
+        if [[ "$OBS_VERSION" == "32.0.2" ]]; then
+            log_info "✓ OBS version 32.0.2 confirmed"
+        else
+            log_warn "Expected OBS 32.0.2 but found $OBS_VERSION"
+            log_info "Plugin is compatible with OBS 28.x through 32.x+"
+        fi
+    else
+        log_warn "OBS Studio not found at $OBS_APP"
+        log_info "Tests will run but plugin loading cannot be verified"
+    fi
+    echo ""
+
     # Build with tests if requested
     if [ $BUILD_FIRST -eq 1 ]; then
         log_info "Building with tests enabled..."

@@ -86,7 +86,7 @@ After building the installer:
 
 **Plugin not appearing in OBS**
 - Verify installation directory: `%APPDATA%\obs-studio\plugins\`
-- Check OBS Studio is version 28.0 or later
+- Check OBS Studio is version 28.0 or later (Tested with 32.0.2)
 - Restart OBS Studio after installation
 
 ## Customization

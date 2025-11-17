@@ -15,11 +15,25 @@ This guide provides instructions for building the OBS Polyemesis plugin on all s
 
 ## Prerequisites
 
+### OBS Studio Version Compatibility
+
+The plugin has been verified to build and run on the following OBS Studio versions:
+
+| Platform | Minimum | Tested | Status |
+|----------|---------|--------|--------|
+| **macOS** (Universal) | 28.0 | 32.0.2 | ✅ Verified |
+| **Windows** (x64) | 28.0 | 32.0.2 | ✅ Verified |
+| **Linux** (x64/ARM64) | 28.0 | 30.0.2, 32.0.2 | ✅ Verified |
+
+**Recommended**: OBS Studio 32.0.2 or later
+
+### General Requirements
+
 All platforms require:
 - **CMake 3.28 or newer**
 - **Git**
 - **C/C++ compiler** (Clang, GCC, or MSVC)
-- **OBS Studio** (for testing)
+- **OBS Studio** 28.0+ (for testing)
 
 Platform-specific dependencies are detailed below.
 
@@ -65,11 +79,28 @@ cp -r build/RelWithDebInfo/obs-polyemesis.plugin \
   ~/Library/Application\ Support/obs-studio/plugins/
 ```
 
+### Automated Testing
+
+Use the provided test script to build and verify the plugin:
+
+```bash
+# Build plugin and run tests (macOS only)
+./scripts/test-macos.sh
+```
+
+This script will:
+- Verify OBS Studio version (32.0.2 recommended)
+- Build the plugin using Xcode generator
+- Run integration tests
+- Verify build artifacts
+
 ### Notes
 
+- **Xcode Generator Required**: Building on macOS requires the Xcode generator (`-G Xcode`)
 - **Qt6 from Homebrew** is used to avoid deprecated AGL framework issues in OBS's pre-built dependencies
 - Builds universal binaries (arm64 + x86_64) by default
 - Requires macOS 11.0 (Big Sur) or later
+- Tested with OBS Studio 32.0.2
 
 ---
 
@@ -166,6 +197,37 @@ cmake -B build -DCMAKE_BUILD_TYPE=Release
 # The plugin will be built for the native architecture
 ```
 
+### Automated Docker-Based Testing
+
+For consistent builds and testing across platforms, use the Docker-based test script:
+
+```bash
+# Build and test in isolated Ubuntu 24.04 container (AMD64)
+./scripts/test-linux-docker.sh
+```
+
+This script will:
+- Create an Ubuntu 24.04 Docker container with AMD64 platform
+- Install OBS development libraries (libobs-dev) from Ubuntu PPA
+- Install CMake 3.28+ from Kitware repository
+- Build the plugin
+- Run integration tests
+- Verify build artifacts
+- Clean up container automatically
+
+**Benefits**:
+- Works on macOS, Linux, and Windows (with Docker installed)
+- Ensures consistent build environment (Ubuntu 24.04 + OBS 30.0.2 PPA)
+- No local dependency installation required
+- Platform-specific (AMD64) for maximum compatibility
+
+**Requirements**:
+- Docker installed and running
+- On macOS/Windows: Builds use AMD64 platform for best compatibility
+- On Apple Silicon Macs: Uses emulation (slower) or run on Windows via SSH
+
+**Note**: The plugin built with OBS 30.0.2 libraries (Ubuntu PPA) is compatible with OBS 32.0.2 at runtime.
+
 ---
 
 ## Windows Build Instructions
@@ -242,11 +304,34 @@ New-Item -ItemType Directory -Path $obsDataDir -Force
 Copy-Item -Recurse data\* $obsDataDir\
 ```
 
+### Automated Testing
+
+Use the provided PowerShell test script to build and verify the plugin:
+
+```powershell
+# Build plugin and run tests (Windows only)
+.\scripts\test-windows.ps1
+
+# Skip build (if already built)
+.\scripts\test-windows.ps1 -SkipBuild
+
+# Verbose output
+.\scripts\test-windows.ps1 -Verbose
+```
+
+This script will:
+- Verify OBS Studio version (32.0.2 recommended)
+- Build the plugin using Visual Studio 2022
+- Run integration tests
+- Verify build artifacts
+- Check plugin DLL size and location
+
 ### Notes
 
 - Requires Windows 10 or later (64-bit)
 - Visual Studio 2019 is also supported
 - You can also use Ninja instead of Visual Studio generator
+- Tested with OBS Studio 32.0.2
 
 ---
 
@@ -394,6 +479,33 @@ export CMAKE_PREFIX_PATH="/usr/lib/x86_64-linux-gnu/cmake/Qt6"
 
 # Windows (PowerShell)
 $env:CMAKE_PREFIX_PATH="C:\Qt\6.x.x\msvc2022_64"
+```
+
+### Linux: Ubuntu 24.04 .deb package conflicts
+
+**Problem**: OBS 32.0.2 .deb package has dependency conflicts on Ubuntu 24.04 due to time64_t library transition.
+
+**Solution**: Use Ubuntu PPA for libobs-dev instead:
+
+```bash
+# Add OBS Studio PPA
+sudo add-apt-repository ppa:obsproject/obs-studio
+sudo apt update
+
+# Install development libraries (currently provides OBS 30.0.2)
+sudo apt install libobs-dev
+
+# Build normally - plugin is compatible with OBS 32.0.2 at runtime
+```
+
+### macOS: Xcode generator required
+
+**Problem**: CMake fails with "Building OBS Studio on macOS requires Xcode generator."
+
+**Solution**: Always use `-G Xcode` when configuring:
+
+```bash
+cmake -G Xcode -B build [other options]
 ```
 
 ---

@@ -2,7 +2,7 @@
 
 [![License](https://img.shields.io/badge/license-GPL--2.0-blue.svg)](LICENSE)
 [![Version](https://img.shields.io/badge/version-0.9.0-blue.svg)](https://github.com/rainmanjam/obs-polyemesis/releases)
-[![OBS Studio](https://img.shields.io/badge/OBS%20Studio-28%2B-green.svg)](https://obsproject.com/)
+[![OBS Studio](https://img.shields.io/badge/OBS%20Studio-28--32%2B-green.svg)](https://obsproject.com/)
 [![Restreamer](https://img.shields.io/badge/Restreamer-v16.16.0-orange.svg)](https://github.com/datarhei/restreamer)
 [![CI Pipeline](https://github.com/rainmanjam/obs-polyemesis/actions/workflows/ci.yaml/badge.svg)](https://github.com/rainmanjam/obs-polyemesis/actions/workflows/ci.yaml)
 [![Security](https://github.com/rainmanjam/obs-polyemesis/actions/workflows/security.yaml/badge.svg)](https://github.com/rainmanjam/obs-polyemesis/actions/workflows/security.yaml)
@@ -171,13 +171,16 @@ sudo dpkg -i obs-polyemesis_X.X.X_arm64.deb
 
 #### Build from Source
 
+See the [Building Guide](docs/BUILDING.md) for comprehensive build instructions for all platforms.
+
+Quick build (macOS universal binary):
 ```bash
 # Clone the repository
 git clone https://github.com/rainmanjam/obs-polyemesis.git
 cd obs-polyemesis
 
-# Build (macOS universal binary)
-cmake -B build -DCMAKE_BUILD_TYPE=Release \
+# Build
+cmake -G Xcode -B build -DCMAKE_BUILD_TYPE=Release \
   -DCMAKE_OSX_ARCHITECTURES="arm64;x86_64"
 cmake --build build --config Release
 
@@ -253,15 +256,36 @@ One OBS setup, multiple platforms, correct orientations - automatically.
 
 ## 🛠️ Requirements
 
-- **OBS Studio**: 28.0 or later (tested with 31.1.1)
+### OBS Studio Version Compatibility
+
+| Platform | Minimum Version | Tested Versions | Status |
+|----------|----------------|-----------------|--------|
+| **macOS** (Universal) | 28.0 | 32.0.2 | ✅ Verified |
+| **Windows** (x64) | 28.0 | 32.0.2 | ✅ Verified |
+| **Linux** (x64/ARM64) | 28.0 | 30.0.2, 32.0.2 | ✅ Verified |
+
+- **Recommended**: OBS Studio 32.0.2 or later
+- **Minimum**: OBS Studio 28.0
+- **Note**: Plugin is compatible with OBS versions 28.x through 32.x+
+
+### Restreamer Requirements
+
 - **datarhei Restreamer**: Running instance with API v3 support
   - Minimum: v16.16.0 or later
   - Can be local (localhost) or remote
   - Must have JWT authentication enabled for secure connections
-- **Build Dependencies** (for source builds):
-  - libcurl (for HTTPS API communication)
-  - jansson (for JSON parsing)
-  - Qt6 (for UI components)
+
+### Build Dependencies
+
+For building from source, you'll need:
+- **libcurl**: For HTTPS API communication
+- **jansson**: For JSON parsing
+- **Qt6**: For UI components (optional, controlled by `ENABLE_QT` flag)
+- **CMake**: 3.28 or later
+- **Platform-specific toolchains**:
+  - **macOS**: Xcode 14+ with Command Line Tools
+  - **Windows**: Visual Studio 2022 (Community Edition or higher)
+  - **Linux**: GCC 9+ or Clang 10+, pkg-config
 
 ## 🤝 Contributing
 

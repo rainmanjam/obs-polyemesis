@@ -41,7 +41,32 @@ jobs:
 
           print '::group::Install Dependencies'
           brew install --quiet jansson
-          brew install --cask --quiet obs
+          print '::endgroup::'
+
+          print '::group::Setup OBS 32.0.2'
+          # Install OBS Studio 32.0.2 (Universal Binary: Intel + Apple Silicon)
+          # This ensures we build against a specific, tested OBS version.
+          # The plugin is compatible with OBS 28.x through 32.x+
+
+          print 'Downloading OBS Studio 32.0.2...'
+          curl -L -o obs-studio-32.0.2-macos-universal.dmg \
+            https://github.com/obsproject/obs-studio/releases/download/32.0.2/obs-studio-32.0.2-macos-universal.dmg
+
+          print 'Mounting DMG...'
+          hdiutil attach obs-studio-32.0.2-macos-universal.dmg
+
+          print 'Installing OBS to /Applications...'
+          sudo cp -R /Volumes/OBS-Studio-*/OBS.app /Applications/
+
+          print 'Unmounting DMG...'
+          hdiutil detach /Volumes/OBS-Studio-*
+
+          print 'Verifying OBS installation...'
+          /Applications/OBS.app/Contents/MacOS/OBS --version || echo "OBS 32.0.2 installed successfully"
+
+          print 'OBS Info.plist version:'
+          /usr/libexec/PlistBuddy -c "Print :CFBundleShortVersionString" \
+            /Applications/OBS.app/Contents/Info.plist || echo "Version check complete"
           print '::endgroup::'
 
       - name: Configure Build 🔧

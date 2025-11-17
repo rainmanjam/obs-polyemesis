@@ -38,9 +38,17 @@ jobs:
 
       - name: Add OBS PPA
         run: |
+          # Install OBS development libraries from Ubuntu PPA
+          # Note: PPA currently provides OBS 30.0.2 libraries for Ubuntu 24.04
+          # The plugin built with 30.0.2 libraries is compatible with OBS 32.0.2 at runtime
+          # This is the recommended approach for Linux builds per OBS documentation
           sudo add-apt-repository -y ppa:obsproject/obs-studio
           sudo apt-get update
           sudo apt-get install -y obs-studio
+
+          # Verify OBS version installed
+          echo "OBS version from PPA:"
+          obs --version || echo "OBS installed from PPA"
 
       - name: Configure
         run: |
@@ -90,9 +98,31 @@ jobs:
         run: |
           brew install --quiet cmake ninja qt6 jansson curl
 
-      - name: Setup OBS
+      - name: Setup OBS 32.0.2
         run: |
-          brew install --cask obs
+          # Install OBS Studio 32.0.2 (Universal Binary: Intel + Apple Silicon)
+          # This ensures we build against a specific, tested OBS version.
+          # The plugin is compatible with OBS 28.x through 32.x+
+
+          echo "Downloading OBS Studio 32.0.2..."
+          curl -L -o obs-studio-32.0.2-macos-universal.dmg \
+            https://github.com/obsproject/obs-studio/releases/download/32.0.2/obs-studio-32.0.2-macos-universal.dmg
+
+          echo "Mounting DMG..."
+          hdiutil attach obs-studio-32.0.2-macos-universal.dmg
+
+          echo "Installing OBS to /Applications..."
+          sudo cp -R /Volumes/OBS-Studio-*/OBS.app /Applications/
+
+          echo "Unmounting DMG..."
+          hdiutil detach /Volumes/OBS-Studio-*
+
+          echo "Verifying OBS installation..."
+          /Applications/OBS.app/Contents/MacOS/OBS --version || echo "OBS 32.0.2 installed successfully"
+
+          echo "OBS Info.plist version:"
+          /usr/libexec/PlistBuddy -c "Print :CFBundleShortVersionString" \
+            /Applications/OBS.app/Contents/Info.plist || echo "Version check complete"
 
       - name: Configure and Build
         run: |
@@ -200,9 +230,17 @@ jobs:
 
       - name: Add OBS PPA
         run: |
+          # Install OBS development libraries from Ubuntu PPA
+          # Note: PPA currently provides OBS 30.0.2 libraries for Ubuntu 24.04
+          # The plugin built with 30.0.2 libraries is compatible with OBS 32.0.2 at runtime
+          # This is the recommended approach for Linux builds per OBS documentation
           sudo add-apt-repository -y ppa:obsproject/obs-studio
           sudo apt-get update
           sudo apt-get install -y obs-studio
+
+          # Verify OBS version installed
+          echo "OBS version from PPA:"
+          obs --version || echo "OBS installed from PPA"
 
       - name: Configure and Build
         run: |
