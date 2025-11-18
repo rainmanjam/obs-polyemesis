@@ -566,7 +566,7 @@ EOF
       - CORE_TLS_ADDRESS=:8181
       - CORE_TLS_ENABLE=true
       - CORE_TLS_AUTO=true
-      - CORE_TLS_MAIL=${LETSENCRYPT_EMAIL}
+      - CORE_TLS_EMAIL=${LETSENCRYPT_EMAIL}
 EOF
     else
         cat >> "$INSTALL_DIR/docker-compose.yml" << EOF
