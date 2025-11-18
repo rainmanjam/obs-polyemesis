@@ -517,7 +517,7 @@ static void *server_thread(void *arg) {
             int body_received = 0;
             if (body_start) {
               body_start += 4;
-              body_received = bytes_read - (body_start - buffer);
+              body_received = (int)(bytes_read - (body_start - buffer));
             }
 
             /* Read remaining body data if needed */
@@ -575,12 +575,22 @@ static void kill_port_process(uint16_t port) {
   snprintf(cmd, sizeof(cmd),
            "for /f \"tokens=5\" %%a in ('netstat -aon ^| findstr \":%d\" ^| findstr \"LISTENING\"') do taskkill /F /PID %%a >nul 2>&1",
            port);
-  (void)system(cmd); /* Intentionally ignore return value - best effort cleanup */
+  /* Best effort cleanup - ignore return value */
+  int ret = system(cmd);
+  (void)ret;
 #else
   /* macOS/Linux: Use lsof and kill */
   char cmd[256];
   snprintf(cmd, sizeof(cmd), "lsof -ti:%d 2>/dev/null | xargs kill -9 2>/dev/null", port);
-  (void)system(cmd); /* Intentionally ignore return value - best effort cleanup */
+  /* Best effort cleanup - ignore return value */
+#if defined(__GNUC__) && !defined(__clang__)
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wunused-result"
+#endif
+  system(cmd);
+#if defined(__GNUC__) && !defined(__clang__)
+#pragma GCC diagnostic pop
+#endif
 #endif
   /* Give the OS time to release the port - retry up to 10 times */
   for (int i = 0; i < 10; i++) {
