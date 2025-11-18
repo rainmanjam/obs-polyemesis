@@ -24,8 +24,8 @@ services:
       test: ["CMD", "curl", "-f", "http://localhost:8080/api/v3/ping"]
       interval: 5s
       timeout: 3s
-      retries: 15
-      start_period: 40s
+      retries: 20
+      start_period: 60s
 
   # RTMP server for receiving streams
   rtmp-server:
