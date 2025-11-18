@@ -428,7 +428,8 @@ jobs:
 
           print '::group::Run Qt Test Suite with CTest'
           cd .build/macos-qt
-          ctest -R "profile_validation|url_validation|collapsible_section|process_id_generation|destination_management|ui_integration" \
+          ctest \
+            -R "profile_validation|url_validation|collapsible_section|process_id_generation|destination_management|ui_integration" \
             --output-on-failure \
             --verbose \
             -C Debug

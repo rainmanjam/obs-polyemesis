@@ -303,6 +303,7 @@ stage_security_verification() {
 }
 
 # Stage 7: Cleanup
+# shellcheck disable=SC2120
 stage_cleanup() {
     log_stage "Cleanup" "7/7"
 
