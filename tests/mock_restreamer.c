@@ -575,12 +575,12 @@ static void kill_port_process(uint16_t port) {
   snprintf(cmd, sizeof(cmd),
            "for /f \"tokens=5\" %%a in ('netstat -aon ^| findstr \":%d\" ^| findstr \"LISTENING\"') do taskkill /F /PID %%a >nul 2>&1",
            port);
-  system(cmd);
+  (void)system(cmd); /* Intentionally ignore return value - best effort cleanup */
 #else
   /* macOS/Linux: Use lsof and kill */
   char cmd[256];
   snprintf(cmd, sizeof(cmd), "lsof -ti:%d 2>/dev/null | xargs kill -9 2>/dev/null", port);
-  system(cmd);
+  (void)system(cmd); /* Intentionally ignore return value - best effort cleanup */
 #endif
   /* Give the OS time to release the port - retry up to 10 times */
   for (int i = 0; i < 10; i++) {
