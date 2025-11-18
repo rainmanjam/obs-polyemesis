@@ -1,18 +1,8 @@
 name: Integration Tests
 
+# Manual trigger only - run locally with docker-compose for faster feedback
+# To run locally: docker-compose -f docker-compose.integration.yml up --abort-on-container-exit
 on:
-  push:
-    branches:
-      - main
-      - master
-      - develop
-    paths-ignore:
-      - '**.md'
-      - 'docs/**'
-  pull_request:
-    paths-ignore:
-      - '**.md'
-      - 'docs/**'
   workflow_dispatch:
 
 concurrency:

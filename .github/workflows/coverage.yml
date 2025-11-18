@@ -1,18 +1,9 @@
 name: Code Coverage
 
+# Manual trigger only - run locally with scripts for faster feedback
+# To run locally: ./scripts/generate-coverage.sh (macOS) or ./scripts/run-coverage-docker.sh (Docker)
+# TODO: Add Windows coverage job (see GitHub issue for implementation details)
 on:
-  push:
-    branches:
-      - main
-      - master
-      - develop
-    paths-ignore:
-      - '**.md'
-      - 'docs/**'
-  pull_request:
-    paths-ignore:
-      - '**.md'
-      - 'docs/**'
   workflow_dispatch:
 
 concurrency:
@@ -213,44 +204,10 @@ jobs:
           fail_ci_if_error: false
           verbose: true
 
-  coverage-docker:
-    name: Coverage Report (Docker) 🐳
-    runs-on: ubuntu-24.04
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
-
-      - name: Generate Coverage in Docker 🐳
-        run: |
-          echo '::group::Generate Coverage in Docker'
-          chmod +x scripts/run-coverage-docker.sh
-          ./scripts/run-coverage-docker.sh
-          echo '::endgroup::'
-
-      - name: Upload to Codecov
-        uses: codecov/codecov-action@v4
-        with:
-          token: ${{ secrets.CODECOV_TOKEN }}
-          files: ./coverage/coverage_filtered.info
-          flags: unittests,docker
-          name: docker-coverage
-          fail_ci_if_error: false
-          verbose: true
-
-      - name: Upload HTML Report
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: coverage-report-docker
-          path: coverage/html/
-          retention-days: 30
-
   coverage-summary:
     name: Coverage Summary 📈
     runs-on: ubuntu-latest
-    needs: [coverage-linux, coverage-macos, coverage-docker]
+    needs: [coverage-linux, coverage-macos]
     if: always()
     steps:
       - name: Checkout

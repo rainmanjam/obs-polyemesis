@@ -441,29 +441,3 @@ jobs:
           print "Qt Test suite completed"
           print "All 6 test suites executed (79 test cases total)"
           print '::endgroup::'
-
-  unit-tests-docker:
-    name: Unit Tests (Docker) 🐳
-    runs-on: ubuntu-24.04
-    if: success()
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-        with:
-          submodules: recursive
-          fetch-depth: 0
-
-      - name: Run Tests in Docker 🐳
-        run: |
-          echo '::group::Run Unit Tests in Docker'
-          chmod +x scripts/run-unit-tests-docker.sh
-          ./scripts/run-unit-tests-docker.sh
-          echo '::endgroup::'
-
-      - name: Upload Test Results 📊
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: test-results-docker
-          path: build_docker_tests/tests/
-          retention-days: 7

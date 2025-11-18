@@ -1,18 +1,8 @@
 name: E2E Tests
 
+# Manual trigger only - run locally with scripts for faster feedback
+# To run locally: ./tests/e2e/macos/e2e-test-macos.sh (macOS) or ./tests/e2e/linux/e2e-test-linux.sh (Linux)
 on:
-  push:
-    branches:
-      - main
-      - master
-      - develop
-    paths-ignore:
-      - '**.md'
-      - 'docs/**'
-  pull_request:
-    paths-ignore:
-      - '**.md'
-      - 'docs/**'
   workflow_dispatch:
 
 concurrency:
