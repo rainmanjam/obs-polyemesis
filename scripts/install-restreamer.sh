@@ -55,6 +55,25 @@ print_header() {
     echo -e "${MAGENTA}${1}${NC}"
 }
 
+# Safe input function that works in all environments
+# Tries /dev/tty first (for piped execution), falls back to stdin
+safe_read() {
+    local options="$1"
+    local varname="$2"
+
+    if [ -r /dev/tty ]; then
+        # Use /dev/tty if available (works when piped from curl)
+        eval "read $options $varname < /dev/tty"
+    elif [ -t 0 ]; then
+        # stdin is a terminal, use it directly
+        eval "read $options $varname"
+    else
+        # No interactive terminal available
+        print_error "No interactive terminal available. Please run this script directly, not in a pipe."
+        exit 1
+    fi
+}
+
 # Cleanup function for rollback
 cleanup_on_exit() {
     local exit_code=$?
@@ -103,7 +122,7 @@ cleanup_on_exit() {
     if [ "$DOCKER_INSTALLED_BY_US" = true ]; then
         echo
         echo -e "${CYAN}Remove Docker (we just installed it)? [y/N]:${NC}"
-        read -n 1 -r
+        safe_read "-n 1 -r" "REPLY"
         echo
         if [[ $REPLY =~ ^[Yy]$ ]]; then
             print_info "Removing Docker..."
@@ -187,7 +206,8 @@ install_docker() {
         print_info "Docker is already installed ($(docker --version))"
         DOCKER_WAS_INSTALLED=true
 
-        read -p "$(echo -e ${CYAN}Do you want to reinstall Docker? [y/N]:${NC} )" -n 1 -r
+        echo -e "${CYAN}Do you want to reinstall Docker? [y/N]:${NC}"
+        safe_read "-n 1 -r" "REPLY"
         echo
         if [[ ! $REPLY =~ ^[Yy]$ ]]; then
             return 0
@@ -315,7 +335,8 @@ check_dns_resolution() {
         echo -e "  3. Have ports 80 and 443 accessible"
         echo
 
-        read -p "$(echo -e ${CYAN}Continue anyway? [y/N]:${NC} )" -n 1 -r
+        echo -e "${CYAN}Continue anyway? [y/N]:${NC}"
+        safe_read "-n 1 -r" "REPLY"
         echo
         if [[ ! $REPLY =~ ^[Yy]$ ]]; then
             return 1
@@ -328,7 +349,8 @@ check_dns_resolution() {
         echo -e "${YELLOW}Let's Encrypt SSL will fail unless DNS points to this server.${NC}"
         echo
 
-        read -p "$(echo -e ${CYAN}Continue with this domain anyway? [y/N]:${NC} )" -n 1 -r
+        echo -e "${CYAN}Continue with this domain anyway? [y/N]:${NC}"
+        safe_read "-n 1 -r" "REPLY"
         echo
         if [[ ! $REPLY =~ ^[Yy]$ ]]; then
             return 1
@@ -351,7 +373,7 @@ gather_configuration() {
 
     while true; do
         echo -e "${CYAN}Enter domain name (leave empty to use IP address):${NC}"
-        read DOMAIN_NAME
+        safe_read "" "DOMAIN_NAME"
 
         # If no domain provided, break out of loop
         if [ -z "$DOMAIN_NAME" ]; then
@@ -372,13 +394,15 @@ gather_configuration() {
     if [ -n "$DOMAIN_NAME" ]; then
         echo
         echo -e "${CYAN}Domain verified: ${GREEN}${DOMAIN_NAME}${NC}"
-        read -p "$(echo -e ${CYAN}Enable SSL/TLS with Let\'s Encrypt? [Y/n]:${NC} )" -n 1 -r ENABLE_SSL
+        echo -e "${CYAN}Enable SSL/TLS with Let's Encrypt? [Y/n]:${NC}"
+        safe_read "-n 1 -r" "ENABLE_SSL"
         echo
 
         # Default to yes if they have a domain
         if [[ ! $ENABLE_SSL =~ ^[Nn]$ ]]; then
             ENABLE_SSL="y"
-            read -p "$(echo -e ${CYAN}Enter your email for Let\'s Encrypt notifications:${NC} )" LETSENCRYPT_EMAIL
+            echo -e "${CYAN}Enter your email for Let's Encrypt notifications:${NC}"
+            safe_read "" "LETSENCRYPT_EMAIL"
 
             if [ -z "$LETSENCRYPT_EMAIL" ]; then
                 print_warning "Email is recommended for SSL certificate expiration notices"
@@ -405,37 +429,44 @@ gather_configuration() {
     print_header "\n=== Port Configuration ==="
 
     # HTTP Port
-    read -p "$(echo -e ${CYAN}Enter HTTP port [${DEFAULT_HTTP_PORT}]:${NC} )" HTTP_PORT
+    echo -e "${CYAN}Enter HTTP port [${DEFAULT_HTTP_PORT}]:${NC}"
+    safe_read "" "HTTP_PORT"
     HTTP_PORT=${HTTP_PORT:-$DEFAULT_HTTP_PORT}
 
     # HTTPS Port
-    read -p "$(echo -e ${CYAN}Enter HTTPS port [${DEFAULT_HTTPS_PORT}]:${NC} )" HTTPS_PORT
+    echo -e "${CYAN}Enter HTTPS port [${DEFAULT_HTTPS_PORT}]:${NC}"
+    safe_read "" "HTTPS_PORT"
     HTTPS_PORT=${HTTPS_PORT:-$DEFAULT_HTTPS_PORT}
 
     # RTMP Port
-    read -p "$(echo -e ${CYAN}Enter RTMP port [1935]:${NC} )" RTMP_PORT
+    echo -e "${CYAN}Enter RTMP port [1935]:${NC}"
+    safe_read "" "RTMP_PORT"
     RTMP_PORT=${RTMP_PORT:-1935}
 
     # SRT Port
-    read -p "$(echo -e ${CYAN}Enter SRT port [6000]:${NC} )" SRT_PORT
+    echo -e "${CYAN}Enter SRT port [6000]:${NC}"
+    safe_read "" "SRT_PORT"
     SRT_PORT=${SRT_PORT:-6000}
 
     print_header "\n=== Authentication Configuration ==="
 
     # Admin username
-    read -p "$(echo -e ${CYAN}Enter admin username [admin]:${NC} )" ADMIN_USER
+    echo -e "${CYAN}Enter admin username [admin]:${NC}"
+    safe_read "" "ADMIN_USER"
     ADMIN_USER=${ADMIN_USER:-admin}
 
     # Admin password
     while true; do
-        read -s -p "$(echo -e ${CYAN}Enter admin password:${NC} )" ADMIN_PASS
+        echo -e "${CYAN}Enter admin password:${NC}"
+        safe_read "-s" "ADMIN_PASS"
         echo
         if [ -z "$ADMIN_PASS" ]; then
             print_error "Password cannot be empty"
             continue
         fi
 
-        read -s -p "$(echo -e ${CYAN}Confirm admin password:${NC} )" ADMIN_PASS_CONFIRM
+        echo -e "${CYAN}Confirm admin password:${NC}"
+        safe_read "-s" "ADMIN_PASS_CONFIRM"
         echo
 
         if [ "$ADMIN_PASS" = "$ADMIN_PASS_CONFIRM" ]; then
@@ -448,7 +479,8 @@ gather_configuration() {
     print_header "\n=== Storage Configuration ==="
 
     # Storage path
-    read -p "$(echo -e ${CYAN}Enter data storage path [${DATA_DIR}]:${NC} )" USER_DATA_DIR
+    echo -e "${CYAN}Enter data storage path [${DATA_DIR}]:${NC}"
+    safe_read "" "USER_DATA_DIR"
     DATA_DIR=${USER_DATA_DIR:-$DATA_DIR}
 
     # Summary
@@ -468,7 +500,8 @@ gather_configuration() {
     fi
     echo
 
-    read -p "$(echo -e ${CYAN}Proceed with installation? [Y/n]:${NC} )" -n 1 -r CONFIRM
+    echo -e "${CYAN}Proceed with installation? [Y/n]:${NC}"
+    safe_read "-n 1 -r" "CONFIRM"
     echo
     if [[ $CONFIRM =~ ^[Nn]$ ]]; then
         print_info "Installation cancelled"
@@ -777,7 +810,8 @@ show_introduction() {
     echo "  • Stream via RTMP or SRT protocols"
     echo "  • Easily update or uninstall Restreamer"
     echo
-    read -p "$(echo -e ${GREEN}Ready to begin installation? [Y/n]:${NC} )" -n 1 -r
+    echo -e "${GREEN}Ready to begin installation? [Y/n]:${NC}"
+    safe_read "-n 1 -r" "REPLY"
     echo
     if [[ $REPLY =~ ^[Nn]$ ]]; then
         print_info "Installation cancelled by user"
