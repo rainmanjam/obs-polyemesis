@@ -2245,6 +2245,10 @@ bool restreamer_api_download_file(restreamer_api_t *api, const char *storage,
 
   curl_easy_setopt(api->curl, CURLOPT_URL, url.array);
   curl_easy_setopt(api->curl, CURLOPT_HTTPGET, 1L);
+  /* Clear any POST/PUT fields from previous requests */
+  curl_easy_setopt(api->curl, CURLOPT_POSTFIELDS, NULL);
+  curl_easy_setopt(api->curl, CURLOPT_POSTFIELDSIZE, 0L);
+  curl_easy_setopt(api->curl, CURLOPT_CUSTOMREQUEST, NULL);
   curl_easy_setopt(api->curl, CURLOPT_WRITEDATA, (void *)&response);
 
   CURLcode res = curl_easy_perform(api->curl);
@@ -2281,12 +2285,21 @@ bool restreamer_api_upload_file(restreamer_api_t *api, const char *storage,
   dstr_printf(&url, "%s://%s:%d%s", protocol, api->connection.host,
               api->connection.port, endpoint.array);
 
+  /* Setup response buffer for upload response */
+  struct memory_struct response;
+  response.memory = NULL;
+  response.size = 0;
+
   curl_easy_setopt(api->curl, CURLOPT_URL, url.array);
   curl_easy_setopt(api->curl, CURLOPT_CUSTOMREQUEST, "PUT");
   curl_easy_setopt(api->curl, CURLOPT_POSTFIELDS, data);
   curl_easy_setopt(api->curl, CURLOPT_POSTFIELDSIZE, (long)size);
+  curl_easy_setopt(api->curl, CURLOPT_WRITEDATA, (void *)&response);
 
   CURLcode res = curl_easy_perform(api->curl);
+
+  /* Free response buffer */
+  free(response.memory);
 
   dstr_free(&url);
   dstr_free(&endpoint);
@@ -2315,10 +2328,19 @@ bool restreamer_api_delete_file(restreamer_api_t *api, const char *storage,
   dstr_printf(&url, "%s://%s:%d%s", protocol, api->connection.host,
               api->connection.port, endpoint.array);
 
+  /* Setup response buffer for delete response */
+  struct memory_struct response;
+  response.memory = NULL;
+  response.size = 0;
+
   curl_easy_setopt(api->curl, CURLOPT_URL, url.array);
   curl_easy_setopt(api->curl, CURLOPT_CUSTOMREQUEST, "DELETE");
+  curl_easy_setopt(api->curl, CURLOPT_WRITEDATA, (void *)&response);
 
   CURLcode res = curl_easy_perform(api->curl);
+
+  /* Free response buffer */
+  free(response.memory);
 
   dstr_free(&url);
   dstr_free(&endpoint);

@@ -1,0 +1,59 @@
+# Codecov configuration for OBS Polyemesis
+# See: https://docs.codecov.com/docs/codecovyml-reference
+
+codecov:
+  require_ci_to_pass: yes
+  notify:
+    wait_for_ci: yes
+
+coverage:
+  precision: 2
+  round: down
+  range: "50...90"
+
+  status:
+    project:
+      default:
+        target: 50%
+        threshold: 5%
+        base: auto
+        if_ci_failed: error
+
+    patch:
+      default:
+        target: 60%
+        threshold: 10%
+        if_ci_failed: error
+
+  ignore:
+    - "tests/**/*"
+    - "**/*test*.c"
+    - "**/*test*.cpp"
+    - "**/mock_*.c"
+    - "**/obs_stubs.c"
+
+comment:
+  layout: "reach,diff,flags,tree,footer"
+  behavior: default
+  require_changes: false
+  require_base: false
+  require_head: true
+
+ignore:
+  - ".github"
+  - "docs"
+  - "scripts"
+  - "tests"
+  - "*.md"
+  - "CMakeLists.txt"
+
+flags:
+  unit:
+    paths:
+      - src/
+    carryforward: true
+
+  integration:
+    paths:
+      - src/
+    carryforward: true

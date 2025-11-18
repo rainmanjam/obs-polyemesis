@@ -5,6 +5,8 @@
 [![OBS Studio](https://img.shields.io/badge/OBS%20Studio-28--32%2B-green.svg)](https://obsproject.com/)
 [![Restreamer](https://img.shields.io/badge/Restreamer-v16.16.0-orange.svg)](https://github.com/datarhei/restreamer)
 [![CI Pipeline](https://github.com/rainmanjam/obs-polyemesis/actions/workflows/ci.yaml/badge.svg)](https://github.com/rainmanjam/obs-polyemesis/actions/workflows/ci.yaml)
+[![Tests](https://github.com/rainmanjam/obs-polyemesis/actions/workflows/run-tests.yaml/badge.svg)](https://github.com/rainmanjam/obs-polyemesis/actions/workflows/run-tests.yaml)
+[![codecov](https://codecov.io/gh/rainmanjam/obs-polyemesis/branch/main/graph/badge.svg)](https://codecov.io/gh/rainmanjam/obs-polyemesis)
 [![Security](https://github.com/rainmanjam/obs-polyemesis/actions/workflows/security.yaml/badge.svg)](https://github.com/rainmanjam/obs-polyemesis/actions/workflows/security.yaml)
 [![CodeQL](https://github.com/rainmanjam/obs-polyemesis/actions/workflows/security.yaml/badge.svg?event=schedule)](https://github.com/rainmanjam/obs-polyemesis/security/code-scanning)
 
@@ -123,8 +125,8 @@ sequenceDiagram
 - ✅ **Universal macOS Binary** - Single installer for both Intel and Apple Silicon
 
 ### Technical Improvements
-- ✅ **Comprehensive Test Suite** - 56+ unit tests with 43% code coverage
-- ✅ **Automated CI/CD** - Full build, test, and security scan pipeline
+- ✅ **Comprehensive Test Suite** - 79 unit tests (56 C + 23 Qt) with automated coverage reporting
+- ✅ **Automated CI/CD** - Full build, test, and security scan pipeline with multi-platform support
 - ✅ **Code Quality** - clang-format, cppcheck, CodeQL, SonarCloud integration
 - ✅ **Memory Safety** - Valgrind testing and RAII wrappers for OBS objects
 - ✅ **Documentation** - Extensive developer and user documentation

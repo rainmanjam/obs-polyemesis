@@ -12,7 +12,8 @@
         artifacts artifacts-clean \
         docker-build docker-clean \
         windows-sync windows-build windows-test windows-package \
-        pre-commit pre-commit-install
+        pre-commit pre-commit-install \
+        test-docker coverage coverage-docker coverage-view integration-docker
 
 # Configuration
 BUILD_TYPE ?= Release
@@ -78,6 +79,31 @@ windows-test: ## Run tests on Windows (remote)
 test-all: ## Run tests on all platforms
 	@echo "$(BLUE)Running tests on all platforms...$(NC)"
 	@VERBOSE=$(VERBOSE) ./scripts/test-all-platforms.sh
+
+##@ Docker Testing
+
+test-docker: ## Run unit tests in Docker (isolated environment)
+	@echo "$(BLUE)Running unit tests in Docker...$(NC)"
+	@./scripts/run-unit-tests-docker.sh
+
+coverage: coverage-docker ## Generate code coverage in Docker (alias)
+
+coverage-docker: ## Generate code coverage in Docker
+	@echo "$(BLUE)Generating coverage in Docker...$(NC)"
+	@./scripts/run-coverage-docker.sh
+
+coverage-view: ## Open coverage report in browser
+	@echo "$(BLUE)Opening coverage report...$(NC)"
+	@if [ -f coverage/html/index.html ]; then \
+		open coverage/html/index.html || xdg-open coverage/html/index.html 2>/dev/null || echo "$(YELLOW)Open coverage/html/index.html manually$(NC)"; \
+	else \
+		echo "$(YELLOW)Coverage report not found. Run 'make coverage' first.$(NC)"; \
+		exit 1; \
+	fi
+
+integration-docker: ## Run integration tests with Docker Compose
+	@echo "$(BLUE)Running integration tests in Docker Compose...$(NC)"
+	@./scripts/run-integration-docker-compose.sh
 
 ##@ Packaging
 

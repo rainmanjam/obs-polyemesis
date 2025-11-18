@@ -1,0 +1,269 @@
+name: E2E Tests
+
+on:
+  push:
+    branches:
+      - main
+      - master
+      - develop
+    paths-ignore:
+      - '**.md'
+      - 'docs/**'
+  pull_request:
+    paths-ignore:
+      - '**.md'
+      - 'docs/**'
+  workflow_dispatch:
+
+concurrency:
+  group: '${{ github.workflow }} @ ${{ github.event.pull_request.head.label || github.head_ref || github.ref }}'
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+jobs:
+  e2e-macos:
+    name: E2E Tests (macOS) 🍏
+    runs-on: macos-15
+    defaults:
+      run:
+        shell: zsh --no-rcs --errexit --pipefail {0}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+          fetch-depth: 0
+
+      - name: Set Up Environment 🔧
+        run: |
+          : Set Up Environment
+          if (( ${+RUNNER_DEBUG} )) setopt XTRACE
+
+          print '::group::Enable Xcode 16.1'
+          sudo xcode-select --switch /Applications/Xcode_16.1.0.app/Contents/Developer
+          print '::endgroup::'
+
+          print '::group::Install Dependencies'
+          brew install --quiet jansson
+          print '::endgroup::'
+
+          print '::group::Setup OBS 32.0.2'
+          print 'Downloading OBS Studio 32.0.2...'
+          curl -L -o OBS-Studio-32.0.2-macOS-Apple.dmg \
+            https://github.com/obsproject/obs-studio/releases/download/32.0.2/OBS-Studio-32.0.2-macOS-Apple.dmg
+
+          print 'Mounting DMG...'
+          hdiutil attach OBS-Studio-32.0.2-macOS-Apple.dmg
+
+          print 'Installing OBS to /Applications...'
+          sudo cp -R /Volumes/OBS*/OBS.app /Applications/
+
+          print 'Unmounting DMG...'
+          hdiutil detach /Volumes/OBS*
+
+          print 'Verifying OBS installation...'
+          /Applications/OBS.app/Contents/MacOS/OBS --version || echo "OBS 32.0.2 installed successfully"
+          print '::endgroup::'
+
+      - name: Run E2E Tests 🧪
+        run: |
+          : Run E2E Tests
+          if (( ${+RUNNER_DEBUG} )) setopt XTRACE
+
+          print '::group::Run E2E Test Suite'
+          # Run in install-only mode for CI (doesn't require OBS to be running)
+          chmod +x tests/e2e/macos/e2e-test-macos.sh
+          ./tests/e2e/macos/e2e-test-macos.sh install-only
+          print '::endgroup::'
+
+      - name: Upload E2E Test Results 📊
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: e2e-test-results-macos
+          path: |
+            /tmp/e2e-*.log
+            /tmp/e2e-test-*/
+          retention-days: 7
+
+  e2e-ubuntu:
+    name: E2E Tests (Ubuntu) 🐧
+    runs-on: ubuntu-24.04
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+          fetch-depth: 0
+
+      - name: Set Up Environment 🔧
+        run: |
+          : Set Up Environment
+          if [[ "${RUNNER_DEBUG}" ]]; then set -x; fi
+
+          echo '::group::Install Build Dependencies'
+          sudo apt-get update
+          sudo apt-get install -y \
+            build-essential \
+            cmake \
+            git \
+            libcurl4-openssl-dev \
+            libjansson-dev \
+            libobs-dev \
+            ninja-build
+          echo '::endgroup::'
+
+      - name: Run E2E Tests 🧪
+        run: |
+          : Run E2E Tests
+          if [[ "${RUNNER_DEBUG}" ]]; then set -x; fi
+
+          echo '::group::Run E2E Test Suite'
+          chmod +x tests/e2e/linux/e2e-test-linux.sh
+          ./tests/e2e/linux/e2e-test-linux.sh ci
+          echo '::endgroup::'
+
+      - name: Upload E2E Test Results 📊
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: e2e-test-results-ubuntu
+          path: |
+            /tmp/e2e-*.log
+            /tmp/e2e-test-*/
+          retention-days: 7
+
+  integration-tests:
+    name: Integration Tests (Docker) 🐳
+    runs-on: ubuntu-24.04
+    defaults:
+      run:
+        shell: bash
+    services:
+      restreamer:
+        image: datarhei/restreamer:latest
+        ports:
+          - 8080:8080
+          - 1935:1935
+        options: >-
+          --health-cmd "curl -f http://localhost:8080/api/v3/about || exit 1"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+          fetch-depth: 0
+
+      - name: Set Up Environment 🔧
+        run: |
+          : Set Up Environment
+          if [[ "${RUNNER_DEBUG}" ]]; then set -x; fi
+
+          echo '::group::Install Build Dependencies'
+          sudo apt-get update
+          sudo apt-get install -y \
+            build-essential \
+            cmake \
+            git \
+            libcurl4-openssl-dev \
+            libjansson-dev \
+            libobs-dev \
+            ninja-build \
+            python3 \
+            python3-pip
+          echo '::endgroup::'
+
+          echo '::group::Install Python Dependencies'
+          pip3 install requests
+          echo '::endgroup::'
+
+      - name: Wait for Restreamer 🔄
+        run: |
+          echo "Waiting for Restreamer to be ready..."
+          for i in {1..30}; do
+            if curl -f http://localhost:8080/api/v3/about >/dev/null 2>&1; then
+              echo "Restreamer is ready!"
+              break
+            fi
+            echo "Attempt $i/30: Restreamer not ready yet..."
+            sleep 2
+          done
+          curl -v http://localhost:8080/api/v3/about
+
+      - name: Build Plugin 🔨
+        run: |
+          : Build Plugin
+          if [[ "${RUNNER_DEBUG}" ]]; then set -x; fi
+
+          echo '::group::Configure Build'
+          cmake -B build -G Ninja \
+            -DCMAKE_BUILD_TYPE=Release \
+            -DENABLE_FRONTEND_API=OFF \
+            -DENABLE_QT=OFF
+          echo '::endgroup::'
+
+          echo '::group::Build Plugin'
+          cmake --build build --config Release
+          echo '::endgroup::'
+
+      - name: Run Integration Tests 🧪
+        env:
+          RESTREAMER_URL: http://localhost:8080
+          RESTREAMER_USER: admin
+          RESTREAMER_PASS: admin
+        run: |
+          : Run Integration Tests
+          if [[ "${RUNNER_DEBUG}" ]]; then set -x; fi
+
+          echo '::group::Run Python Integration Tests'
+          python3 tests/test-restreamer-integration.py
+          echo '::endgroup::'
+
+      - name: Upload Integration Test Results 📊
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: integration-test-results
+          path: |
+            /tmp/integration-*.log
+            /tmp/integration-test-*/
+          retention-days: 7
+
+  e2e-summary:
+    name: E2E Test Summary 📋
+    runs-on: ubuntu-latest
+    needs: [e2e-macos, e2e-ubuntu, integration-tests]
+    if: always()
+    steps:
+      - name: Check E2E Test Results
+        run: |
+          echo "## E2E Test Results 🧪" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+
+          if [ "${{ needs.e2e-macos.result }}" == "success" ]; then
+            echo "✅ macOS E2E Tests: PASSED" >> $GITHUB_STEP_SUMMARY
+          else
+            echo "❌ macOS E2E Tests: FAILED" >> $GITHUB_STEP_SUMMARY
+          fi
+
+          if [ "${{ needs.e2e-ubuntu.result }}" == "success" ]; then
+            echo "✅ Ubuntu E2E Tests: PASSED" >> $GITHUB_STEP_SUMMARY
+          else
+            echo "❌ Ubuntu E2E Tests: FAILED" >> $GITHUB_STEP_SUMMARY
+          fi
+
+          if [ "${{ needs.integration-tests.result }}" == "success" ]; then
+            echo "✅ Integration Tests: PASSED" >> $GITHUB_STEP_SUMMARY
+          else
+            echo "❌ Integration Tests: FAILED" >> $GITHUB_STEP_SUMMARY
+          fi
+
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### Test Artifacts" >> $GITHUB_STEP_SUMMARY
+          echo "Test logs and results are available in the artifacts section." >> $GITHUB_STEP_SUMMARY

@@ -14,7 +14,7 @@ if [ "${BASH_VERSINFO[0]}" -lt 4 ]; then
     echo "  brew install bash"
     echo ""
     echo "Current bash locations:"
-    echo "  System: /bin/bash ($((/bin/bash --version 2>&1 || echo "version unknown") | head -1))"
+    echo "  System: /bin/bash ($( (/bin/bash --version 2>&1 || echo "version unknown") | head -1 ))"
     echo "  Active: $(which bash) ($(bash --version | head -1))"
     exit 1
 fi

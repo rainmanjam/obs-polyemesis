@@ -51,11 +51,11 @@ function Assert-FileExists {
     $script:TestsRun++
 
     if (Test-Path -Path $Path -PathType Leaf) {
-        Write-Success "✓ $Description"
+        Write-Success "[PASS] $Description"
         $script:TestsPassed++
         return $true
     } else {
-        Write-Error "✗ $Description"
+        Write-Error "[FAIL] $Description"
         Write-Error "  File not found: $Path"
         $script:TestsFailed++
         return $false
@@ -68,11 +68,11 @@ function Assert-DirExists {
     $script:TestsRun++
 
     if (Test-Path -Path $Path -PathType Container) {
-        Write-Success "✓ $Description"
+        Write-Success "[PASS] $Description"
         $script:TestsPassed++
         return $true
     } else {
-        Write-Error "✗ $Description"
+        Write-Error "[FAIL] $Description"
         Write-Error "  Directory not found: $Path"
         $script:TestsFailed++
         return $false
@@ -87,16 +87,16 @@ function Assert-CommandSuccess {
     try {
         & $Command | Out-Null
         if ($LASTEXITCODE -eq 0 -or $null -eq $LASTEXITCODE) {
-            Write-Success "✓ $Description"
+            Write-Success "[PASS] $Description"
             $script:TestsPassed++
             return $true
         } else {
-            Write-Error "✗ $Description"
+            Write-Error "[FAIL] $Description"
             $script:TestsFailed++
             return $false
         }
     } catch {
-        Write-Error "✗ $Description"
+        Write-Error "[FAIL] $Description"
         Write-Error "  Error: $_"
         $script:TestsFailed++
         return $false
@@ -169,7 +169,7 @@ function Stage-BuildVerification {
     $fileInfo = (Get-Item $binary).VersionInfo
 
     if ($fileInfo) {
-        Write-Success "✓ Binary is valid PE file"
+        Write-Success "[PASS] Binary is valid PE file"
         $script:TestsRun++
         $script:TestsPassed++
     }
@@ -177,7 +177,7 @@ function Stage-BuildVerification {
     # Check architecture
     $peInfo = dumpbin /headers $binary 2>&1 | Select-String "machine"
     if ($peInfo -match "x64") {
-        Write-Success "✓ Binary is x64"
+        Write-Success "[PASS] Binary is x64"
         $script:TestsRun++
         $script:TestsPassed++
     }
@@ -186,13 +186,13 @@ function Stage-BuildVerification {
     $deps = dumpbin /dependents $binary 2>&1
 
     if ($deps -match "obs\.dll|libobs") {
-        Write-Success "✓ OBS library dependency found"
+        Write-Success "[PASS] OBS library dependency found"
         $script:TestsRun++
         $script:TestsPassed++
     }
 
     if ($deps -match "libcurl") {
-        Write-Success "✓ libcurl dependency found"
+        Write-Success "[PASS] libcurl dependency found"
         $script:TestsRun++
         $script:TestsPassed++
     }
@@ -223,7 +223,7 @@ function Stage-Installation {
     # Check file size
     $fileSize = (Get-Item $installedPlugin).Length
     if ($fileSize -gt 0) {
-        Write-Success "✓ Plugin file size: $([math]::Round($fileSize / 1KB, 2)) KB"
+        Write-Success "[PASS] Plugin file size: $([math]::Round($fileSize / 1KB, 2)) KB"
         $script:TestsRun++
         $script:TestsPassed++
     }
@@ -251,33 +251,33 @@ function Stage-PluginLoading {
 
         # Check if plugin is mentioned in logs
         if ($logContent -match "obs-polyemesis|polyemesis") {
-            Write-Success "✓ Plugin mentioned in OBS logs"
+            Write-Success "[PASS] Plugin mentioned in OBS logs"
             $script:TestsRun++
             $script:TestsPassed++
 
             # Check for load errors
             $errors = Select-String -Path $latestLog.FullName -Pattern "obs-polyemesis.*error" -CaseSensitive:$false
             if ($errors -and ($errors | Where-Object { $_ -notmatch "0=INACTIVE.*ERROR" })) {
-                Write-Warning "⚠ Potential errors found in logs"
+                Write-Warning "[WARN] Potential errors found in logs"
                 $errors | Select-Object -First 5 | ForEach-Object { Write-Warning "  $_" }
             } else {
-                Write-Success "✓ No plugin errors in logs"
+                Write-Success "[PASS] No plugin errors in logs"
                 $script:TestsRun++
                 $script:TestsPassed++
             }
 
             # Check for module load
             if ($logContent -match "obs_module_load.*polyemesis|Loaded module.*polyemesis") {
-                Write-Success "✓ Plugin module loaded"
+                Write-Success "[PASS] Plugin module loaded"
                 $script:TestsRun++
                 $script:TestsPassed++
             }
         } else {
-            Write-Warning "⚠ Plugin not found in logs (OBS may not have been run yet)"
+            Write-Warning "[WARN] Plugin not found in logs (OBS may not have been run yet)"
             Write-Info "  Run OBS Studio manually to generate logs, then re-run tests"
         }
     } else {
-        Write-Warning "⚠ No OBS logs found"
+        Write-Warning "[WARN] No OBS logs found"
         Write-Info "  Run OBS Studio at least once to generate logs"
     }
 }
@@ -292,31 +292,31 @@ function Stage-BinarySymbols {
     $exports = dumpbin /exports $binary 2>&1
 
     if ($exports -match "obs_module_load") {
-        Write-Success "✓ obs_module_load symbol exported"
+        Write-Success "[PASS] obs_module_load symbol exported"
         $script:TestsRun++
         $script:TestsPassed++
     } else {
-        Write-Error "✗ obs_module_load symbol missing"
+        Write-Error "[FAIL] obs_module_load symbol missing"
         $script:TestsRun++
         $script:TestsFailed++
     }
 
     if ($exports -match "obs_module_unload") {
-        Write-Success "✓ obs_module_unload symbol exported"
+        Write-Success "[PASS] obs_module_unload symbol exported"
         $script:TestsRun++
         $script:TestsPassed++
     }
 
     # Check for jansson symbols
     if ($exports -match "json_") {
-        Write-Success "✓ JSON symbols present (jansson linked)"
+        Write-Success "[PASS] JSON symbols present (jansson linked)"
         $script:TestsRun++
         $script:TestsPassed++
     }
 
     # Check for curl symbols
     if ($exports -match "curl_") {
-        Write-Success "✓ curl symbols present"
+        Write-Success "[PASS] curl symbols present"
         $script:TestsRun++
         $script:TestsPassed++
     }
@@ -350,14 +350,14 @@ function Stage-Dependencies {
     }
 
     if ($foundCount -ge 2) {
-        Write-Success "✓ Core dependencies found ($foundCount/$($requiredDeps.Count))"
+        Write-Success "[PASS] Core dependencies found ($foundCount/$($requiredDeps.Count))"
         $script:TestsRun++
         $script:TestsPassed++
     }
 
     # Check for Qt dependencies
     if ($deps -match "Qt\d+") {
-        Write-Success "✓ Qt libraries linked"
+        Write-Success "[PASS] Qt libraries linked"
         $script:TestsRun++
         $script:TestsPassed++
     }
@@ -373,19 +373,19 @@ function Stage-FileProperties {
     $fileInfo = (Get-Item $binary).VersionInfo
 
     if ($fileInfo.FileVersion) {
-        Write-Success "✓ File version: $($fileInfo.FileVersion)"
+        Write-Success "[PASS] File version: $($fileInfo.FileVersion)"
         $script:TestsRun++
         $script:TestsPassed++
     }
 
     if ($fileInfo.ProductName) {
-        Write-Success "✓ Product name: $($fileInfo.ProductName)"
+        Write-Success "[PASS] Product name: $($fileInfo.ProductName)"
         $script:TestsRun++
         $script:TestsPassed++
     }
 
     if ($fileInfo.LegalCopyright) {
-        Write-Success "✓ Copyright: $($fileInfo.LegalCopyright)"
+        Write-Success "[PASS] Copyright: $($fileInfo.LegalCopyright)"
         $script:TestsRun++
         $script:TestsPassed++
     }
@@ -393,11 +393,11 @@ function Stage-FileProperties {
     # Check digital signature (if present)
     $signature = Get-AuthenticodeSignature $binary
     if ($signature.Status -eq "Valid") {
-        Write-Success "✓ Binary is digitally signed"
+        Write-Success "[PASS] Binary is digitally signed"
         $script:TestsRun++
         $script:TestsPassed++
     } elseif ($signature.Status -eq "NotSigned") {
-        Write-Warning "⚠ Binary not digitally signed (expected for local builds)"
+        Write-Warning "[WARN] Binary not digitally signed (expected for local builds)"
     }
 }
 
@@ -415,7 +415,7 @@ function Stage-Cleanup {
         }
 
         if (-not (Get-Process obs -ErrorAction SilentlyContinue)) {
-            Write-Success "✓ OBS process stopped"
+            Write-Success "[PASS] OBS process stopped"
             $script:TestsRun++
             $script:TestsPassed++
         }
@@ -427,7 +427,7 @@ function Stage-Cleanup {
         $installedPlugin = Join-Path $OBS_PLUGIN_PATH $PLUGIN_NAME
         if (Test-Path $installedPlugin) {
             Remove-Item -Force $installedPlugin
-            Write-Success "✓ Plugin uninstalled"
+            Write-Success "[PASS] Plugin uninstalled"
             $script:TestsRun++
             $script:TestsPassed++
         }
@@ -464,10 +464,10 @@ function Print-TestSummary {
     Write-Host ""
 
     if ($script:TestsFailed -eq 0) {
-        Write-Success "✅ All end-to-end tests passed!"
+        Write-Success "[SUCCESS] All end-to-end tests passed!"
         return 0
     } else {
-        Write-Error "❌ Some end-to-end tests failed"
+        Write-Error "[FAILED] Some end-to-end tests failed"
         return 1
     }
 }

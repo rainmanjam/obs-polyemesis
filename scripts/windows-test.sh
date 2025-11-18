@@ -167,7 +167,7 @@ if [ $EXIT_CODE -eq 0 ]; then
 
     # Fetch test results if available
     log_info "Checking for test results..."
-    ssh "$WINDOWS_HOST" bash << EOF
+    ssh "$WINDOWS_HOST" bash << 'EOF_RESULTS'
 if [ -f "$WORKSPACE_PATH/test-results.xml" ]; then
     echo "Test results available at: $WORKSPACE_PATH/test-results.xml"
 elif [ -f "$WORKSPACE_PATH/build/test-results.xml" ]; then
@@ -177,7 +177,7 @@ fi
 if [ -f "$WORKSPACE_PATH/coverage/coverage.html" ]; then
     echo "Coverage report available at: $WORKSPACE_PATH/coverage/coverage.html"
 fi
-EOF
+EOF_RESULTS
 
     log_info ""
     log_info "To copy test results to Mac:"
@@ -189,7 +189,7 @@ else
     # Try to display recent test logs
     log_info ""
     log_info "Recent test output:"
-    ssh "$WINDOWS_HOST" bash << EOF
+    ssh "$WINDOWS_HOST" bash << 'EOF_LOGS'
 if [ -f "$WORKSPACE_PATH/test.log" ]; then
     tail -50 "$WORKSPACE_PATH/test.log"
 elif [ -f "$WORKSPACE_PATH/build/test.log" ]; then
@@ -197,7 +197,7 @@ elif [ -f "$WORKSPACE_PATH/build/test.log" ]; then
 else
     echo "No test log file found"
 fi
-EOF
+EOF_LOGS
 fi
 
 exit $EXIT_CODE

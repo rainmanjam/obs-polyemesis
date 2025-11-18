@@ -1,0 +1,84 @@
+version: '3.8'
+
+services:
+  # Real datarhei Restreamer instance
+  restreamer:
+    image: datarhei/restreamer:latest
+    container_name: obs-integration-restreamer
+    ports:
+      - "8080:8080"  # HTTP API
+      - "1935:1935"  # RTMP input
+      - "8181:8181"  # HLS/DASH output
+    environment:
+      - CORE_API_AUTH_ENABLE=true
+      - CORE_API_AUTH_USERNAME=admin
+      - CORE_API_AUTH_PASSWORD=testpass
+      - CORE_LOG_LEVEL=debug
+      - CORE_LOG_TOPICS=all
+    volumes:
+      - restreamer-config:/core/config
+      - restreamer-data:/core/data
+    networks:
+      - integration-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080/api/v3/ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+      start_period: 20s
+
+  # RTMP server for receiving streams
+  rtmp-server:
+    image: tiangolo/nginx-rtmp:latest
+    container_name: obs-integration-rtmp
+    ports:
+      - "1936:1935"  # RTMP port (different from Restreamer)
+      - "8088:8088"  # HTTP stats
+    volumes:
+      - ./tests/integration/nginx-rtmp.conf:/etc/nginx/nginx.conf:ro
+      - rtmp-recordings:/tmp/recordings
+    networks:
+      - integration-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8088/stat"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+
+  # Test runner container
+  test-runner:
+    build:
+      context: .
+      dockerfile: Dockerfile.integration-test
+    container_name: obs-integration-tests
+    depends_on:
+      restreamer:
+        condition: service_healthy
+      rtmp-server:
+        condition: service_healthy
+    environment:
+      - RESTREAMER_HOST=restreamer
+      - RESTREAMER_PORT=8080
+      - RESTREAMER_USERNAME=admin
+      - RESTREAMER_PASSWORD=testpass
+      - RTMP_HOST=rtmp-server
+      - RTMP_PORT=1935
+    volumes:
+      - .:/workspace:ro
+      - integration-results:/results
+    networks:
+      - integration-network
+    command: /workspace/scripts/run-integration-tests.sh
+
+networks:
+  integration-network:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 172.25.0.0/16
+
+volumes:
+  restreamer-config:
+  restreamer-data:
+  rtmp-recordings:
+  integration-results:

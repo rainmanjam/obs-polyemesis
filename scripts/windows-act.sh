@@ -92,7 +92,6 @@ EOF
 }
 
 # Parse script options (before act arguments)
-SCRIPT_ARGS=()
 ACT_ARGS=()
 PARSE_SCRIPT_ARGS=1
 

@@ -188,11 +188,11 @@ main() {
     echo ""
     log_info "Package details:"
 
-    PKG_FILES=($(find "$OUTPUT_DIR" -name "*.pkg" -type f 2>/dev/null || true))
+    mapfile -t PKG_FILES < <(find "$OUTPUT_DIR" -name "*.pkg" -type f 2>/dev/null || true)
 
     if [ ${#PKG_FILES[@]} -eq 0 ]; then
         # Try alternative location
-        PKG_FILES=($(find "$BUILD_DIR" -name "*.pkg" -type f 2>/dev/null || true))
+        mapfile -t PKG_FILES < <(find "$BUILD_DIR" -name "*.pkg" -type f 2>/dev/null || true)
     fi
 
     if [ ${#PKG_FILES[@]} -gt 0 ]; then

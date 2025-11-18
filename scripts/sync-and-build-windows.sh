@@ -212,6 +212,7 @@ fi
 # Update .git metadata if needed
 log_info "Updating Git metadata on Windows..."
 # Convert Windows path to WSL path (C:/Users/... -> /mnt/c/Users/...)
+export WSL_PATH
 WSL_PATH=$(echo "$WORKSPACE_PATH" | sed 's|C:/|/mnt/c/|' | sed 's|\\|/|g')
 ssh "$WINDOWS_HOST" bash << 'EOF_GIT'
 cd "${WSL_PATH}"

@@ -158,7 +158,7 @@ log_debug "Job: $PACKAGE_JOB"
 log_debug "Version: $VERSION"
 
 echo ""
-ssh -t "$WINDOWS_HOST" bash << EOF
+ssh -t "$WINDOWS_HOST" bash << 'EOF_PACKAGE'
 cd "$WORKSPACE_PATH"
 echo "=== Running packaging workflow ==="
 
@@ -168,7 +168,7 @@ export PACKAGE_VERSION="$VERSION"
 # Run act packaging workflow
 act -W "$PACKAGE_WORKFLOW" -j "$PACKAGE_JOB" \
     -s PACKAGE_VERSION="$VERSION"
-EOF
+EOF_PACKAGE
 
 EXIT_CODE=$?
 
@@ -210,14 +210,14 @@ if [ -z "$INSTALLER_PATH" ]; then
     log_error "Could not locate installer file on Windows"
     log_info "Checking common locations..."
 
-    ssh "$WINDOWS_HOST" bash << EOF
+    ssh "$WINDOWS_HOST" bash << 'EOF_CHECK'
 cd "$WORKSPACE_PATH"
 echo "Contents of build directory:"
 ls -lh build/ 2>/dev/null || echo "build/ directory not found"
 echo ""
 echo "Searching for .exe files:"
 find . -name "*.exe" -type f 2>/dev/null | head -10
-EOF
+EOF_CHECK
 
     exit 1
 fi
@@ -231,7 +231,7 @@ log_info "✓ Found installer: $INSTALLER_FILENAME"
 # Display installer info
 log_info ""
 log_info "Installer Information:"
-ssh "$WINDOWS_HOST" bash << EOF
+ssh "$WINDOWS_HOST" bash << 'EOF_INFO'
 cd "$WORKSPACE_PATH"
 INSTALLER="$INSTALLER_PATH"
 
@@ -244,7 +244,7 @@ else
     echo "  Error: File not found at \$INSTALLER"
     exit 1
 fi
-EOF
+EOF_INFO
 
 # Fetch package if requested
 if [ $FETCH_PACKAGE -eq 1 ]; then

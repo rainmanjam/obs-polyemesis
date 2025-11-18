@@ -114,6 +114,24 @@ act -W .github/workflows/test.yaml  # Run tests
 - Tests both ARM64 and AMD64
 - No Linux VM needed
 
+### Unit Tests (Docker - Recommended)
+```bash
+./scripts/run-unit-tests-docker.sh   # Run C++ unit tests in isolated Docker container
+```
+
+**Why:**
+- **Isolated network namespace** - Eliminates port conflicts between tests
+- **Clean environment** - Each run starts fresh, no leftover processes
+- **Reproducible** - Consistent Ubuntu 24.04 environment
+- **Automatic cleanup** - Container and resources cleaned up after tests
+- **Cross-platform** - Works on macOS, Linux, and Windows with Docker Desktop
+
+**Benefits over native testing:**
+- No zombie processes holding ports
+- No manual port cleanup needed
+- Tests run independently without interference
+- Better isolation for concurrent test execution
+
 ### Windows (Remote SSH)
 ```bash
 ./scripts/sync-and-build-windows.sh  # Sync and build
@@ -134,6 +152,7 @@ act -W .github/workflows/test.yaml  # Run tests
 | **Test Everything** | `make test-all` | All |
 | **Quick macOS Build** | `make build` | macOS |
 | **Quick macOS Test** | `make test` | macOS |
+| **Docker Unit Tests** | `./scripts/run-unit-tests-docker.sh` | Docker (Recommended) |
 | **Linux Build** | `make build-linux` | Linux (Docker) |
 | **Windows Build** | `make build-windows` | Windows (SSH) |
 | **Create All Packages** | `make package-all` | All |
@@ -196,10 +215,12 @@ make release
 - `scripts/macos-package.sh` (~200 lines)
 - `scripts/build-all-platforms.sh` (~350 lines)
 - `scripts/test-all-platforms.sh` (~350 lines)
+- `scripts/run-unit-tests-docker.sh` (~140 lines) - Docker-based unit test runner
 - `scripts/pre-commit` (~200 lines)
 
 ### New Configuration
 - `Makefile` (~400 lines)
+- `Dockerfile.test-runner` - Ubuntu 24.04 container for isolated unit testing
 - `.gitattributes` (comprehensive line ending rules)
 - `artifacts/README.md`
 

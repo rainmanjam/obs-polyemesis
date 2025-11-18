@@ -1,0 +1,66 @@
+name: Integration Tests
+
+on:
+  push:
+    branches:
+      - main
+      - master
+      - develop
+    paths-ignore:
+      - '**.md'
+      - 'docs/**'
+  pull_request:
+    paths-ignore:
+      - '**.md'
+      - 'docs/**'
+  workflow_dispatch:
+
+concurrency:
+  group: '${{ github.workflow }} @ ${{ github.event.pull_request.head.label || github.head_ref || github.ref }}'
+  cancel-in-progress: true
+
+jobs:
+  integration-docker-compose:
+    name: Integration Tests (Docker Compose) 🧪
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Run Integration Tests 🐳
+        run: |
+          echo '::group::Run Integration Tests with Docker Compose'
+          chmod +x scripts/run-integration-docker-compose.sh
+          ./scripts/run-integration-docker-compose.sh
+          echo '::endgroup::'
+
+      - name: Upload Test Results 📊
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: integration-test-results
+          path: integration-results/
+          retention-days: 30
+
+      - name: Display Logs on Failure 📝
+        if: failure()
+        run: |
+          echo '::group::Restreamer Logs'
+          docker-compose -f docker-compose.integration.yml logs restreamer || true
+          echo '::endgroup::'
+
+          echo '::group::RTMP Server Logs'
+          docker-compose -f docker-compose.integration.yml logs rtmp-server || true
+          echo '::endgroup::'
+
+          echo '::group::Test Runner Logs'
+          docker-compose -f docker-compose.integration.yml logs test-runner || true
+          echo '::endgroup::'
+
+      - name: Cleanup 🧹
+        if: always()
+        run: |
+          docker-compose -f docker-compose.integration.yml down -v || true
