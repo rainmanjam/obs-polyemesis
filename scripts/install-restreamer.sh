@@ -206,6 +206,17 @@ install_docker() {
         print_info "Docker is already installed ($(docker --version))"
         DOCKER_WAS_INSTALLED=true
 
+        # Determine Docker Compose command for existing Docker installation
+        if docker compose version &> /dev/null; then
+            DOCKER_COMPOSE_CMD="docker compose"
+        elif command -v docker-compose &> /dev/null; then
+            DOCKER_COMPOSE_CMD="docker-compose"
+        else
+            print_error "Docker Compose not found. Please install it manually."
+            exit 1
+        fi
+        print_info "Using Docker Compose command: $DOCKER_COMPOSE_CMD"
+
         echo -e "${CYAN}Do you want to reinstall Docker? [y/N]:${NC}"
         safe_read "-n 1 -r" "REPLY"
         echo
