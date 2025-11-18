@@ -85,7 +85,6 @@ lcov --remove "${COVERAGE_DIR}/total.info" \
     '/Applications/*' \
     '*/tests/*' \
     '*/test_*' \
-    '*/.deps/*' \
     '*/jansson/*' \
     '*/curl/*' \
     '*/Qt/*' \
