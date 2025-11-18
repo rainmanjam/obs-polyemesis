@@ -61,15 +61,18 @@ safe_read() {
     local options="$1"
     local varname="$2"
 
-    if [ -r /dev/tty ]; then
-        # Use /dev/tty if available (works when piped from curl)
-        eval "read $options $varname < /dev/tty"
+    # Try /dev/tty first if it exists and is usable
+    if [ -c /dev/tty ] && eval "read $options $varname < /dev/tty" 2>/dev/null; then
+        return 0
+    # Fall back to stdin if it's a terminal
     elif [ -t 0 ]; then
-        # stdin is a terminal, use it directly
         eval "read $options $varname"
+    # Last resort: try stdin anyway (for scripted input)
+    elif eval "read $options $varname" 2>/dev/null; then
+        return 0
     else
-        # No interactive terminal available
-        print_error "No interactive terminal available. Please run this script directly, not in a pipe."
+        # No way to read input
+        print_error "No interactive terminal available. Please run this script directly with a terminal."
         exit 1
     fi
 }
