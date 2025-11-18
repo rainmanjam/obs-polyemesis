@@ -645,7 +645,18 @@ start_restreamer() {
     print_info "Starting Restreamer..."
 
     cd "$INSTALL_DIR"
-    $DOCKER_COMPOSE_CMD up -d
+    if ! $DOCKER_COMPOSE_CMD up -d 2>&1 | tee /tmp/docker_compose_output.log; then
+        print_error "Failed to start Docker Compose"
+        exit 1
+    fi
+
+    # Check if the output contains error messages
+    if grep -qi "error\|invalid\|failed" /tmp/docker_compose_output.log; then
+        print_error "Docker Compose reported errors. Check the output above."
+        rm -f /tmp/docker_compose_output.log
+        exit 1
+    fi
+    rm -f /tmp/docker_compose_output.log
 
     CONTAINER_STARTED=true
 
