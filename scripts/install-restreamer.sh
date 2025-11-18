@@ -645,18 +645,27 @@ start_restreamer() {
     print_info "Starting Restreamer..."
 
     cd "$INSTALL_DIR"
-    if ! $DOCKER_COMPOSE_CMD up -d 2>&1 | tee /tmp/docker_compose_output.log; then
-        print_error "Failed to start Docker Compose"
+
+    # Capture both stdout and stderr
+    if ! $DOCKER_COMPOSE_CMD up -d > /tmp/docker_compose_stdout.log 2> /tmp/docker_compose_stderr.log; then
+        cat /tmp/docker_compose_stderr.log
+        print_error "Failed to start Docker Compose (non-zero exit code)"
+        rm -f /tmp/docker_compose_stdout.log /tmp/docker_compose_stderr.log
         exit 1
     fi
 
-    # Check if the output contains error messages
-    if grep -qi "error\|invalid\|failed" /tmp/docker_compose_output.log; then
-        print_error "Docker Compose reported errors. Check the output above."
-        rm -f /tmp/docker_compose_output.log
+    # Show output
+    cat /tmp/docker_compose_stdout.log
+    cat /tmp/docker_compose_stderr.log
+
+    # Check if stderr contains error messages (docker compose often succeeds but reports errors in stderr)
+    if [ -s /tmp/docker_compose_stderr.log ] && grep -qi "error\|invalid\|failed" /tmp/docker_compose_stderr.log; then
+        print_error "Docker Compose reported errors. Installation cannot continue."
+        rm -f /tmp/docker_compose_stdout.log /tmp/docker_compose_stderr.log
         exit 1
     fi
-    rm -f /tmp/docker_compose_output.log
+
+    rm -f /tmp/docker_compose_stdout.log /tmp/docker_compose_stderr.log
 
     CONTAINER_STARTED=true
 
@@ -667,7 +676,7 @@ start_restreamer() {
     if docker ps | grep -q restreamer; then
         print_success "Restreamer started successfully"
     else
-        print_error "Failed to start Restreamer. Check logs with: docker compose logs"
+        print_error "Failed to start Restreamer. Container is not running."
         exit 1
     fi
 }
