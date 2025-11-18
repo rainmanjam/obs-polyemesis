@@ -15,7 +15,7 @@ PROJECT_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cleanup() {
     log_info "Cleaning up Docker Compose services..."
     cd "$PROJECT_ROOT"
-    docker-compose -f docker-compose.integration.yml down -v
+    docker compose -f docker-compose.integration.yml down -v
 }
 trap cleanup EXIT
 
@@ -23,7 +23,7 @@ log_info "Starting integration test environment..."
 
 # Start services
 cd "$PROJECT_ROOT"
-docker-compose -f docker-compose.integration.yml up --build --abort-on-container-exit
+docker compose -f docker-compose.integration.yml up --build --abort-on-container-exit
 
 # Check exit code
 EXIT_CODE=$?

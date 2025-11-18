@@ -49,18 +49,18 @@ jobs:
         if: failure()
         run: |
           echo '::group::Restreamer Logs'
-          docker-compose -f docker-compose.integration.yml logs restreamer || true
+          docker compose -f docker-compose.integration.yml logs restreamer || true
           echo '::endgroup::'
 
           echo '::group::RTMP Server Logs'
-          docker-compose -f docker-compose.integration.yml logs rtmp-server || true
+          docker compose -f docker-compose.integration.yml logs rtmp-server || true
           echo '::endgroup::'
 
           echo '::group::Test Runner Logs'
-          docker-compose -f docker-compose.integration.yml logs test-runner || true
+          docker compose -f docker-compose.integration.yml logs test-runner || true
           echo '::endgroup::'
 
       - name: Cleanup 🧹
         if: always()
         run: |
-          docker-compose -f docker-compose.integration.yml down -v || true
+          docker compose -f docker-compose.integration.yml down -v || true
