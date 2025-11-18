@@ -576,9 +576,9 @@ EOF
 
     # Add authentication
     cat >> "$INSTALL_DIR/docker-compose.yml" << EOF
-      - CORE_AUTH_ENABLE=true
-      - CORE_AUTH_USERNAME=${ADMIN_USER}
-      - CORE_AUTH_PASSWORD=${ADMIN_PASS}
+      - CORE_API_AUTH_ENABLE=true
+      - CORE_API_AUTH_USERNAME=${ADMIN_USER}
+      - CORE_API_AUTH_PASSWORD=${ADMIN_PASS}
       - CORE_STORAGE_DISK_DIR=/core/data
       - CORE_RTMP_ENABLE=true
       - CORE_RTMP_ADDRESS=:1935
