@@ -651,6 +651,7 @@ start_restreamer() {
         cat /tmp/docker_compose_stderr.log
         print_error "Failed to start Docker Compose (non-zero exit code)"
         rm -f /tmp/docker_compose_stdout.log /tmp/docker_compose_stderr.log
+        cleanup_on_exit
         exit 1
     fi
 
@@ -662,6 +663,7 @@ start_restreamer() {
     if [ -s /tmp/docker_compose_stderr.log ] && grep -qi "error\|invalid\|failed" /tmp/docker_compose_stderr.log; then
         print_error "Docker Compose reported errors. Installation cannot continue."
         rm -f /tmp/docker_compose_stdout.log /tmp/docker_compose_stderr.log
+        cleanup_on_exit
         exit 1
     fi
 
