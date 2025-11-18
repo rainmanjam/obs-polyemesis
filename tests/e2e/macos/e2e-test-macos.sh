@@ -55,7 +55,8 @@ stage_build_verification() {
 
     if ! cmake -S . -B build -G Xcode \
         -DCMAKE_BUILD_TYPE=Release \
-        -DENABLE_SCRIPTING=OFF > "$E2E_WORKSPACE/cmake-config.log" 2>&1; then
+        -DENABLE_SCRIPTING=OFF \
+        -DENABLE_QT=OFF > "$E2E_WORKSPACE/cmake-config.log" 2>&1; then
         log_error "CMake configuration failed"
         cat "$E2E_WORKSPACE/cmake-config.log"
         return 1

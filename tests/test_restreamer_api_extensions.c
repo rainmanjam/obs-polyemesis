@@ -333,7 +333,7 @@ static bool test_probe_input_basic(void) {
 
   /* Verify probe results */
   TEST_ASSERT_NOT_NULL(info.format_name, "Format name should be present");
-  TEST_ASSERT(info.stream_count >= 0, "Stream count should be valid");
+  /* stream_count is size_t (unsigned), always >= 0 */
 
   printf("    Format: %s\n", info.format_name ? info.format_name : "unknown");
   printf("    Streams: %zu\n", info.stream_count);

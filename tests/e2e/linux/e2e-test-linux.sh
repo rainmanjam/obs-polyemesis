@@ -54,7 +54,8 @@ stage_build_verification() {
     cd "$PROJECT_ROOT"
 
     if ! cmake -S . -B build -G Ninja \
-        -DCMAKE_BUILD_TYPE=Release > "$E2E_WORKSPACE/cmake-config.log" 2>&1; then
+        -DCMAKE_BUILD_TYPE=Release \
+        -DENABLE_QT=OFF > "$E2E_WORKSPACE/cmake-config.log" 2>&1; then
         log_error "CMake configuration failed"
         cat "$E2E_WORKSPACE/cmake-config.log"
         return 1
