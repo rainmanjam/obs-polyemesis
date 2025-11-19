@@ -24,6 +24,9 @@ struct memory_struct {
   size_t size;
 };
 
+/* Forward declaration for JSON parsing helper */
+static json_t *parse_json_response(restreamer_api_t *api, struct memory_struct *response);
+
 // cppcheck-suppress constParameterCallback
 static size_t write_callback(void *contents, size_t size, size_t nmemb,
                              void *userp) {
@@ -174,12 +177,8 @@ static bool restreamer_api_login(restreamer_api_t *api) {
   }
 
   /* Parse response to get tokens */
-  json_error_t error;
-  json_t *root = json_loads(response.memory, 0, &error);
-  free(response.memory);
-
+  json_t *root = parse_json_response(api, &response);
   if (!root) {
-    dstr_printf(&api->last_error, "JSON parse error: %s", error.text);
     return false;
   }
 
@@ -356,12 +355,8 @@ bool restreamer_api_get_processes(restreamer_api_t *api,
     return false;
   }
 
-  json_error_t error;
-  json_t *root = json_loads(response.memory, 0, &error);
-  free(response.memory);
-
+  json_t *root = parse_json_response(api, &response);
   if (!root) {
-    dstr_printf(&api->last_error, "JSON parse error: %s", error.text);
     return false;
   }
 
@@ -402,6 +397,26 @@ bool restreamer_api_get_processes(restreamer_api_t *api,
 /* ========================================================================
  * Helper Functions
  * ======================================================================== */
+
+/* Helper function to parse JSON response and handle errors */
+static json_t *parse_json_response(restreamer_api_t *api, struct memory_struct *response) {
+  if (!api || !response || !response->memory) {
+    return NULL;
+  }
+
+  json_error_t error;
+  json_t *root = json_loads(response->memory, 0, &error);
+  free(response->memory);
+  response->memory = NULL;
+  response->size = 0;
+
+  if (!root) {
+    dstr_printf(&api->last_error, "JSON parse error: %s", error.text);
+    return NULL;
+  }
+
+  return root;
+}
 
 /* Helper function to parse JSON object into restreamer_process_t */
 static void parse_process_fields(json_t *json_obj, restreamer_process_t *process) {
@@ -600,12 +615,8 @@ bool restreamer_api_get_process(restreamer_api_t *api, const char *process_id,
     return false;
   }
 
-  json_error_t error;
-  json_t *root = json_loads(response.memory, 0, &error);
-  free(response.memory);
-
+  json_t *root = parse_json_response(api, &response);
   if (!root) {
-    dstr_printf(&api->last_error, "JSON parse error: %s", error.text);
     return false;
   }
 
@@ -635,10 +646,7 @@ bool restreamer_api_get_process_logs(restreamer_api_t *api,
     return false;
   }
 
-  json_error_t error;
-  json_t *root = json_loads(response.memory, 0, &error);
-  free(response.memory);
-
+  json_t *root = parse_json_response(api, &response);
   if (!root || !json_is_array(root)) {
     if (root)
       json_decref(root);
@@ -670,10 +678,7 @@ bool restreamer_api_get_sessions(restreamer_api_t *api,
     return false;
   }
 
-  json_error_t error;
-  json_t *root = json_loads(response.memory, 0, &error);
-  free(response.memory);
-
+  json_t *root = parse_json_response(api, &response);
   if (!root || !json_is_object(root)) {
     if (root)
       json_decref(root);
@@ -925,11 +930,10 @@ bool restreamer_api_get_process_outputs(restreamer_api_t *api,
   }
 
   /* Parse JSON response */
-  json_error_t error;
-  json_t *root = json_loads(response.memory, 0, &error);
-  free(response.memory);
-
+  json_t *root = parse_json_response(api, &response);
   if (!root || !json_is_object(root)) {
+    if (root)
+      json_decref(root);
     return false;
   }
 
@@ -1075,11 +1079,10 @@ bool restreamer_api_get_output_encoding(restreamer_api_t *api,
   }
 
   /* Parse JSON response */
-  json_error_t error;
-  json_t *root = json_loads(response.memory, 0, &error);
-  free(response.memory);
-
+  json_t *root = parse_json_response(api, &response);
   if (!root || !json_is_object(root)) {
+    if (root)
+      json_decref(root);
     return false;
   }
 
@@ -1291,16 +1294,14 @@ static bool api_request_json(restreamer_api_t *api, const char *endpoint,
 
   /* Parse JSON response */
   if (response_json) {
-    json_error_t error;
-    *response_json = json_loads(response.memory, 0, &error);
+    *response_json = parse_json_response(api, &response);
     if (!*response_json) {
-      dstr_printf(&api->last_error, "JSON parse error: %s", error.text);
-      free(response.memory);
       return false;
     }
+  } else {
+    free(response.memory);
   }
 
-  free(response.memory);
   return true;
 }
 
@@ -1395,16 +1396,14 @@ static bool api_request_put_json(restreamer_api_t *api, const char *endpoint,
 
   /* Parse JSON response */
   if (response_json && response.size > 0) {
-    json_error_t error;
-    *response_json = json_loads(response.memory, 0, &error);
+    *response_json = parse_json_response(api, &response);
     if (!*response_json) {
-      dstr_printf(&api->last_error, "JSON parse error: %s", error.text);
-      free(response.memory);
       return false;
     }
+  } else {
+    free(response.memory);
   }
 
-  free(response.memory);
   return true;
 }
 
@@ -2078,12 +2077,8 @@ bool restreamer_api_refresh_token(restreamer_api_t *api) {
   }
 
   /* Parse response to get new access token */
-  json_error_t error;
-  json_t *root = json_loads(response.memory, 0, &error);
-  free(response.memory);
-
+  json_t *root = parse_json_response(api, &response);
   if (!root) {
-    dstr_printf(&api->last_error, "JSON parse error: %s", error.text);
     return false;
   }
 
