@@ -325,6 +325,9 @@ bool restreamer_api_is_connected(restreamer_api_t *api) {
 
 /* Forward declarations for helper functions */
 static void parse_process_fields(json_t *json_obj, restreamer_process_t *process);
+static void parse_log_entry_fields(json_t *json_obj, restreamer_log_entry_t *entry);
+static void parse_session_fields(json_t *json_obj, restreamer_session_t *session);
+static void parse_fs_entry_fields(json_t *json_obj, restreamer_fs_entry_t *entry);
 static bool process_command_helper(restreamer_api_t *api,
                                     const char *process_id,
                                     const char *command);
@@ -439,6 +442,92 @@ static void parse_process_fields(json_t *json_obj, restreamer_process_t *process
   json_t *command = json_object_get(json_obj, "command");
   if (json_is_string(command)) {
     process->command = bstrdup(json_string_value(command));
+  }
+}
+
+/* Helper function to parse JSON object into restreamer_log_entry_t */
+static void parse_log_entry_fields(json_t *json_obj, restreamer_log_entry_t *entry) {
+  if (!json_obj || !entry) {
+    return;
+  }
+
+  json_t *timestamp = json_object_get(json_obj, "timestamp");
+  if (json_is_string(timestamp)) {
+    entry->timestamp = bstrdup(json_string_value(timestamp));
+  }
+
+  json_t *message = json_object_get(json_obj, "message");
+  if (json_is_string(message)) {
+    entry->message = bstrdup(json_string_value(message));
+  }
+
+  json_t *level = json_object_get(json_obj, "level");
+  if (json_is_string(level)) {
+    entry->level = bstrdup(json_string_value(level));
+  }
+}
+
+/* Helper function to parse JSON object into restreamer_session_t */
+static void parse_session_fields(json_t *json_obj, restreamer_session_t *session) {
+  if (!json_obj || !session) {
+    return;
+  }
+
+  json_t *session_id = json_object_get(json_obj, "id");
+  if (json_is_string(session_id)) {
+    session->session_id = bstrdup(json_string_value(session_id));
+  }
+
+  json_t *reference = json_object_get(json_obj, "reference");
+  if (json_is_string(reference)) {
+    session->reference = bstrdup(json_string_value(reference));
+  }
+
+  json_t *bytes_sent = json_object_get(json_obj, "bytes_sent");
+  if (json_is_integer(bytes_sent)) {
+    session->bytes_sent = json_integer_value(bytes_sent);
+  }
+
+  json_t *bytes_received = json_object_get(json_obj, "bytes_received");
+  if (json_is_integer(bytes_received)) {
+    session->bytes_received = json_integer_value(bytes_received);
+  }
+
+  json_t *remote_addr = json_object_get(json_obj, "remote_addr");
+  if (json_is_string(remote_addr)) {
+    session->remote_addr = bstrdup(json_string_value(remote_addr));
+  }
+}
+
+/* Helper function to parse JSON object into restreamer_fs_entry_t */
+static void parse_fs_entry_fields(json_t *json_obj, restreamer_fs_entry_t *entry) {
+  if (!json_obj || !entry) {
+    return;
+  }
+
+  json_t *name = json_object_get(json_obj, "name");
+  if (name && json_is_string(name)) {
+    entry->name = bstrdup(json_string_value(name));
+  }
+
+  json_t *path = json_object_get(json_obj, "path");
+  if (path && json_is_string(path)) {
+    entry->path = bstrdup(json_string_value(path));
+  }
+
+  json_t *size = json_object_get(json_obj, "size");
+  if (size && json_is_integer(size)) {
+    entry->size = (uint64_t)json_integer_value(size);
+  }
+
+  json_t *modified = json_object_get(json_obj, "modified");
+  if (modified && json_is_integer(modified)) {
+    entry->modified = json_integer_value(modified);
+  }
+
+  json_t *is_dir = json_object_get(json_obj, "is_directory");
+  if (is_dir && json_is_boolean(is_dir)) {
+    entry->is_directory = json_boolean_value(is_dir);
   }
 }
 
@@ -563,21 +652,7 @@ bool restreamer_api_get_process_logs(restreamer_api_t *api,
   for (size_t i = 0; i < count; i++) {
     json_t *entry_obj = json_array_get(root, i);
     restreamer_log_entry_t *entry = &logs->entries[i];
-
-    json_t *timestamp = json_object_get(entry_obj, "timestamp");
-    if (json_is_string(timestamp)) {
-      entry->timestamp = bstrdup(json_string_value(timestamp));
-    }
-
-    json_t *message = json_object_get(entry_obj, "message");
-    if (json_is_string(message)) {
-      entry->message = bstrdup(json_string_value(message));
-    }
-
-    json_t *level = json_object_get(entry_obj, "level");
-    if (json_is_string(level)) {
-      entry->level = bstrdup(json_string_value(level));
-    }
+    parse_log_entry_fields(entry_obj, entry);
   }
 
   json_decref(root);
@@ -618,31 +693,7 @@ bool restreamer_api_get_sessions(restreamer_api_t *api,
   for (size_t i = 0; i < count; i++) {
     json_t *session_obj = json_array_get(sessions_array, i);
     restreamer_session_t *session = &sessions->sessions[i];
-
-    json_t *session_id = json_object_get(session_obj, "id");
-    if (json_is_string(session_id)) {
-      session->session_id = bstrdup(json_string_value(session_id));
-    }
-
-    json_t *reference = json_object_get(session_obj, "reference");
-    if (json_is_string(reference)) {
-      session->reference = bstrdup(json_string_value(reference));
-    }
-
-    json_t *bytes_sent = json_object_get(session_obj, "bytes_sent");
-    if (json_is_integer(bytes_sent)) {
-      session->bytes_sent = json_integer_value(bytes_sent);
-    }
-
-    json_t *bytes_received = json_object_get(session_obj, "bytes_received");
-    if (json_is_integer(bytes_received)) {
-      session->bytes_received = json_integer_value(bytes_received);
-    }
-
-    json_t *remote_addr = json_object_get(session_obj, "remote_addr");
-    if (json_is_string(remote_addr)) {
-      session->remote_addr = bstrdup(json_string_value(remote_addr));
-    }
+    parse_session_fields(session_obj, session);
   }
 
   json_decref(root);
@@ -2138,31 +2189,7 @@ bool restreamer_api_list_files(restreamer_api_t *api, const char *storage,
     for (size_t i = 0; i < count; i++) {
       json_t *entry = json_array_get(response, i);
       restreamer_fs_entry_t *f = &files->entries[i];
-
-      json_t *name = json_object_get(entry, "name");
-      if (name && json_is_string(name)) {
-        f->name = bstrdup(json_string_value(name));
-      }
-
-      json_t *path = json_object_get(entry, "path");
-      if (path && json_is_string(path)) {
-        f->path = bstrdup(json_string_value(path));
-      }
-
-      json_t *size = json_object_get(entry, "size");
-      if (size && json_is_integer(size)) {
-        f->size = (uint64_t)json_integer_value(size);
-      }
-
-      json_t *modified = json_object_get(entry, "modified");
-      if (modified && json_is_integer(modified)) {
-        f->modified = json_integer_value(modified);
-      }
-
-      json_t *is_dir = json_object_get(entry, "is_directory");
-      if (is_dir && json_is_boolean(is_dir)) {
-        f->is_directory = json_boolean_value(is_dir);
-      }
+      parse_fs_entry_fields(entry, f);
     }
   }
 
