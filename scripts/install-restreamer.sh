@@ -67,13 +67,17 @@ safe_read() {
     # Fall back to stdin if it's a terminal
     elif [ -t 0 ]; then
         eval "read $options $varname"
-    # Last resort: try stdin anyway (for scripted input)
-    elif eval "read $options $varname" 2>/dev/null; then
-        return 0
     else
-        # No way to read input
-        print_error "No interactive terminal available. Please run this script directly with a terminal."
-        exit 1
+        # For non-interactive mode (like automated testing), remove the -s flag
+        # as it requires a terminal. This allows piped input to work.
+        local non_interactive_options=$(echo "$options" | sed 's/-s//g')
+        if eval "read $non_interactive_options $varname" 2>/dev/null; then
+            return 0
+        else
+            # No way to read input
+            print_error "No interactive terminal available. Please run this script directly with a terminal."
+            exit 1
+        fi
     fi
 }
 
