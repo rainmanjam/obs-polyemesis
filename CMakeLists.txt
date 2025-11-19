@@ -134,6 +134,8 @@ target_sources(
     src/plugin-main.c
     src/restreamer-api.c
     src/restreamer-api.h
+    src/restreamer-api-utils.c
+    src/restreamer-api-utils.h
     src/restreamer-config.c
     src/restreamer-config.h
     src/restreamer-source.c

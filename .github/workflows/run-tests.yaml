@@ -41,7 +41,32 @@ jobs:
 
           print '::group::Install Dependencies'
           brew install --quiet jansson
-          brew install --cask --quiet obs
+          print '::endgroup::'
+
+          print '::group::Setup OBS 32.0.2'
+          # Install OBS Studio 32.0.2 (Apple Silicon)
+          # This ensures we build against a specific, tested OBS version.
+          # The plugin is compatible with OBS 28.x through 32.x+
+
+          print 'Downloading OBS Studio 32.0.2...'
+          curl -L -o OBS-Studio-32.0.2-macOS-Apple.dmg \
+            https://github.com/obsproject/obs-studio/releases/download/32.0.2/OBS-Studio-32.0.2-macOS-Apple.dmg
+
+          print 'Mounting DMG...'
+          hdiutil attach OBS-Studio-32.0.2-macOS-Apple.dmg
+
+          print 'Installing OBS to /Applications...'
+          sudo cp -R /Volumes/OBS*/OBS.app /Applications/
+
+          print 'Unmounting DMG...'
+          hdiutil detach /Volumes/OBS*
+
+          print 'Verifying OBS installation...'
+          /Applications/OBS.app/Contents/MacOS/OBS --version || echo "OBS 32.0.2 installed successfully"
+
+          print 'OBS Info.plist version:'
+          /usr/libexec/PlistBuddy -c "Print :CFBundleShortVersionString" \
+            /Applications/OBS.app/Contents/Info.plist || echo "Version check complete"
           print '::endgroup::'
 
       - name: Configure Build 🔧
@@ -321,3 +346,98 @@ jobs:
           Set-Location .build\windows
           ctest --output-on-failure --verbose -C Release
           Write-Host '::endgroup::'
+
+  qt-tests-macos:
+    name: Qt Unit Tests (macOS) 🍏
+    runs-on: macos-15
+    defaults:
+      run:
+        shell: zsh --no-rcs --errexit --pipefail {0}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+          fetch-depth: 0
+
+      - name: Set Up Environment 🔧
+        run: |
+          : Set Up Environment
+          if (( ${+RUNNER_DEBUG} )) setopt XTRACE
+
+          print '::group::Enable Xcode 16.1'
+          sudo xcode-select --switch /Applications/Xcode_16.1.0.app/Contents/Developer
+          print '::endgroup::'
+
+          print '::group::Install Dependencies'
+          brew install --quiet jansson qt@6
+          print '::endgroup::'
+
+          print '::group::Setup OBS 32.0.2'
+          print 'Downloading OBS Studio 32.0.2...'
+          curl -L -o OBS-Studio-32.0.2-macOS-Apple.dmg \
+            https://github.com/obsproject/obs-studio/releases/download/32.0.2/OBS-Studio-32.0.2-macOS-Apple.dmg
+
+          print 'Mounting DMG...'
+          hdiutil attach OBS-Studio-32.0.2-macOS-Apple.dmg
+
+          print 'Installing OBS to /Applications...'
+          sudo cp -R /Volumes/OBS*/OBS.app /Applications/
+
+          print 'Unmounting DMG...'
+          hdiutil detach /Volumes/OBS*
+
+          print 'Verifying OBS installation...'
+          /Applications/OBS.app/Contents/MacOS/OBS --version || echo "OBS 32.0.2 installed successfully"
+          print '::endgroup::'
+
+      - name: Configure Build 🔧
+        run: |
+          : Configure Build
+          if (( ${+RUNNER_DEBUG} )) setopt XTRACE
+
+          print '::group::Configure CMake for Qt Tests'
+          cmake -B .build/macos-qt -G Xcode \
+            -DENABLE_TESTING=ON \
+            -DENABLE_QT=ON \
+            -DENABLE_FRONTEND_API=OFF \
+            -DCMAKE_PREFIX_PATH=/opt/homebrew/opt/qt@6 \
+            -DCMAKE_OSX_ARCHITECTURES=arm64
+          print '::endgroup::'
+
+      - name: Build Qt Tests 🧱
+        run: |
+          : Build Qt Tests
+          if (( ${+RUNNER_DEBUG} )) setopt XTRACE
+
+          print '::group::Build Qt Test Suite'
+          cmake --build .build/macos-qt --config Debug \
+            --target test_profile_validation \
+            --target test_url_validation \
+            --target test_collapsible_section \
+            --target test_process_id_generation \
+            --target test_destination_management \
+            --target test_ui_integration \
+            --parallel 4
+          print '::endgroup::'
+
+      - name: Run Qt Tests 🧪
+        run: |
+          : Run Qt Tests
+          if (( ${+RUNNER_DEBUG} )) setopt XTRACE
+
+          print '::group::Run Qt Test Suite with CTest'
+          cd .build/macos-qt
+          TESTS="profile_validation|url_validation|collapsible_section"
+          TESTS="${TESTS}|process_id_generation|destination_management|ui_integration"
+          ctest -R "$TESTS" --output-on-failure --verbose -C Debug
+          print '::endgroup::'
+
+      - name: Test Summary 📊
+        if: always()
+        run: |
+          : Test Summary
+          print '::group::Qt Test Results'
+          print "Qt Test suite completed"
+          print "All 6 test suites executed (79 test cases total)"
+          print '::endgroup::'

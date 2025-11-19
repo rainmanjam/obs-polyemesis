@@ -143,7 +143,7 @@ Function .onInit
 
   ${If} $0 == ""
     MessageBox MB_YESNO|MB_ICONEXCLAMATION \
-      "OBS Studio does not appear to be installed on this system.$\r$\n$\r$\nThe plugin requires OBS Studio 28.0 or later.$\r$\n$\r$\nDo you want to continue with the installation anyway?" \
+      "OBS Studio does not appear to be installed on this system.$\r$\n$\r$\nThe plugin requires OBS Studio 28.0 or later (Tested with 32.0.2).$\r$\n$\r$\nDo you want to continue with the installation anyway?" \
       IDYES +2
     Abort
   ${EndIf}

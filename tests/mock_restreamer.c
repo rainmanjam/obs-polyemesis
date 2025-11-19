@@ -194,14 +194,14 @@ static void handle_request(socket_t client_fd, const char *request) {
     /* Get metadata */
     response = "HTTP/1.1 200 OK\r\n"
                "Content-Type: application/json\r\n"
-               "Content-Length: 30\r\n"
+               "Content-Length: 26\r\n"
                "\r\n"
                "{\"data\": \"metadata_value\"}";
   } else if (strstr(request, "PUT /api/v3/metadata/") != NULL) {
     /* Set metadata */
     response = "HTTP/1.1 200 OK\r\n"
                "Content-Type: application/json\r\n"
-               "Content-Length: 20\r\n"
+               "Content-Length: 16\r\n"
                "\r\n"
                "{\"status\": \"ok\"}";
   } else if (strstr(request, "DELETE /api/v3/process/") != NULL) {
@@ -215,7 +215,7 @@ static void handle_request(socket_t client_fd, const char *request) {
     /* Create process */
     response = "HTTP/1.1 200 OK\r\n"
                "Content-Type: application/json\r\n"
-               "Content-Length: 100\r\n"
+               "Content-Length: 82\r\n"
                "\r\n"
                "{\"id\": \"new-process\", \"reference\": \"new-stream\", \"state\": \"idle\", \"created\": true}";
   } else if (strstr(request, "GET /api/v3/process/") != NULL && strstr(request, "/state") != NULL) {
@@ -229,37 +229,51 @@ static void handle_request(socket_t client_fd, const char *request) {
     /* Get process logs */
     response = "HTTP/1.1 200 OK\r\n"
                "Content-Type: application/json\r\n"
-               "Content-Length: 80\r\n"
+               "Content-Length: 68\r\n"
                "\r\n"
                "{\"logs\": [{\"time\": 1234567890, \"level\": \"info\", \"message\": \"test\"}]}";
-  } else if (strstr(request, "GET /api/v3/process/") != NULL && strstr(request, "/playout") != NULL) {
+  } else if (strstr(request, "GET /api/v3/process/") != NULL && strstr(request, "/playout/") != NULL && strstr(request, "/status") != NULL) {
     /* Get playout status */
     response = "HTTP/1.1 200 OK\r\n"
                "Content-Type: application/json\r\n"
-               "Content-Length: 52\r\n"
+               "Content-Length: 119\r\n"
                "\r\n"
-               "{\"playing\": true, \"position\": 100, \"duration\": 3600}";
+               "{\"url\": \"rtmp://localhost:1935/live/test\", \"state\": \"running\", \"connected\": true, \"bytes\": 1024000, \"bitrate\": 5000000}";
+  } else if (strstr(request, "GET /api/v3/process/") != NULL && strstr(request, "/playout/") != NULL && strstr(request, "/reopen") != NULL) {
+    /* Reopen input */
+    response = "HTTP/1.1 200 OK\r\n"
+               "Content-Type: application/json\r\n"
+               "Content-Length: 16\r\n"
+               "\r\n"
+               "{\"status\": \"ok\"}";
+  } else if (strstr(request, "PUT /api/v3/process/") != NULL && strstr(request, "/playout/") != NULL && strstr(request, "/stream") != NULL) {
+    /* Switch input stream */
+    response = "HTTP/1.1 200 OK\r\n"
+               "Content-Type: application/json\r\n"
+               "Content-Length: 16\r\n"
+               "\r\n"
+               "{\"status\": \"ok\"}";
   } else if (strstr(request, "GET /api/v3/process/") != NULL && strstr(request, "/metadata/") != NULL) {
     /* Get process metadata */
     response = "HTTP/1.1 200 OK\r\n"
                "Content-Type: application/json\r\n"
-               "Content-Length: 35\r\n"
+               "Content-Length: 30\r\n"
                "\r\n"
                "{\"proc_data\": \"process_value\"}";
   } else if (strstr(request, "PUT /api/v3/process/") != NULL && strstr(request, "/metadata/") != NULL) {
     /* Set process metadata */
     response = "HTTP/1.1 200 OK\r\n"
                "Content-Type: application/json\r\n"
-               "Content-Length: 20\r\n"
+               "Content-Length: 16\r\n"
                "\r\n"
                "{\"status\": \"ok\"}";
-  } else if (strstr(request, "POST /api/v3/process/") != NULL && strstr(request, "/probe") != NULL) {
+  } else if (strstr(request, "GET /api/v3/process/") != NULL && strstr(request, "/probe") != NULL) {
     /* Probe input */
     response = "HTTP/1.1 200 OK\r\n"
                "Content-Type: application/json\r\n"
-               "Content-Length: 100\r\n"
+               "Content-Length: 336\r\n"
                "\r\n"
-               "{\"format\": \"rtmp\", \"duration\": 0, \"bitrate\": 5000000, \"streams\": [{\"type\": \"video\"}]}";
+               "{\"format\":{\"format_name\":\"rtmp\",\"format_long_name\":\"RTMP\",\"duration\":\"0\",\"size\":\"0\",\"bit_rate\":\"5000000\"},\"streams\":[{\"codec_name\":\"h264\",\"codec_long_name\":\"H.264\",\"codec_type\":\"video\",\"width\":1920,\"height\":1080,\"bit_rate\":\"5000000\"},{\"codec_name\":\"aac\",\"codec_long_name\":\"AAC\",\"codec_type\":\"audio\",\"sample_rate\":\"48000\",\"channels\":2}]}";
   } else if (strstr(request, "GET /api/v3/process/") != NULL && strstr(request, "/snapshot") != NULL) {
     /* Get keyframe */
     response = "HTTP/1.1 200 OK\r\n"
@@ -281,6 +295,20 @@ static void handle_request(socket_t client_fd, const char *request) {
                "Content-Length: 28\r\n"
                "\r\n"
                "{\"status\": \"reopened\"}";
+  } else if (strstr(request, "PUT /api/v3/process/") != NULL && strstr(request, "/outputs/") != NULL && strstr(request, "/encoding") != NULL) {
+    /* Update output encoding */
+    response = "HTTP/1.1 200 OK\r\n"
+               "Content-Type: application/json\r\n"
+               "Content-Length: 16\r\n"
+               "\r\n"
+               "{\"status\": \"ok\"}";
+  } else if (strstr(request, "GET /api/v3/process/") != NULL && strstr(request, "/outputs/") != NULL && strstr(request, "/encoding") != NULL) {
+    /* Get output encoding */
+    response = "HTTP/1.1 200 OK\r\n"
+               "Content-Type: application/json\r\n"
+               "Content-Length: 111\r\n"
+               "\r\n"
+               "{\"video_bitrate\": 4500000, \"audio_bitrate\": 192000, \"width\": 1920, \"height\": 1080, \"fps_num\": 30, \"fps_den\": 1}";
   } else if (strstr(request, "GET /api/v3/process") != NULL) {
     /* Check for auth header */
     if (strstr(request, "Authorization:") == NULL) {
@@ -321,18 +349,91 @@ static void handle_request(socket_t client_fd, const char *request) {
     } else {
       response = RESPONSE_NOT_FOUND;
     }
+  } else if (strstr(request, "PUT /api/v3/fs/") != NULL) {
+    /* Upload file */
+    response = "HTTP/1.1 200 OK\r\n"
+               "Content-Type: application/json\r\n"
+               "Content-Length: 16\r\n"
+               "\r\n"
+               "{\"status\": \"ok\"}";
+  } else if (strstr(request, "DELETE /api/v3/fs/") != NULL) {
+    /* Delete file */
+    response = "HTTP/1.1 200 OK\r\n"
+               "Content-Type: application/json\r\n"
+               "Content-Length: 21\r\n"
+               "\r\n"
+               "{\"status\": \"deleted\"}";
+  } else if (strstr(request, "GET /api/v3/fs ") != NULL || strstr(request, "GET /api/v3/fs\r\n") != NULL) {
+    /* List filesystems */
+    response = "HTTP/1.1 200 OK\r\n"
+               "Content-Type: application/json\r\n"
+               "Content-Length: 49\r\n"
+               "\r\n"
+               "{\"filesystems\": [{\"path\": \"/\", \"type\": \"local\"}]}";
+  } else if (strstr(request, "GET /api/v3/fs/") != NULL) {
+    /* Get file or list files - need to differentiate by counting slashes */
+    const char *fs_path = strstr(request, "/api/v3/fs/");
+    if (fs_path) {
+      const char *after_fs = fs_path + 11; /* Skip "/api/v3/fs/" */
+      const char *second_slash = strchr(after_fs, '/');
+      if (second_slash && second_slash < strstr(after_fs, " HTTP")) {
+        /* Download file - has storage/filepath */
+        response = "HTTP/1.1 200 OK\r\n"
+                   "Content-Type: application/octet-stream\r\n"
+                   "Content-Length: 17\r\n"
+                   "\r\n"
+                   "Test file content";
+      } else {
+        /* List files in storage */
+        response = "HTTP/1.1 200 OK\r\n"
+                   "Content-Type: application/json\r\n"
+                   "Content-Length: 50\r\n"
+                   "\r\n"
+                   "{\"files\": [{\"name\": \"test.mp4\", \"size\": 1024000}]}";
+      }
+    }
+  } else if (strstr(request, "GET /api/v3/rtmp") != NULL) {
+    /* Get RTMP streams */
+    response = "HTTP/1.1 200 OK\r\n"
+               "Content-Type: application/json\r\n"
+               "Content-Length: 49\r\n"
+               "\r\n"
+               "{\"streams\": [{\"app\": \"live\", \"name\": \"stream1\"}]}";
+  } else if (strstr(request, "GET /api/v3/srt") != NULL) {
+    /* Get SRT streams */
+    response = "HTTP/1.1 200 OK\r\n"
+               "Content-Type: application/json\r\n"
+               "Content-Length: 43\r\n"
+               "\r\n"
+               "{\"streams\": [{\"port\": 9000, \"id\": \"srt1\"}]}";
+  } else if (strstr(request, "GET /api/v3/skills/reload") != NULL) {
+    /* Reload skills */
+    response = "HTTP/1.1 200 OK\r\n"
+               "Content-Type: application/json\r\n"
+               "Content-Length: 22\r\n"
+               "\r\n"
+               "{\"status\": \"reloaded\"}";
+  } else if (strstr(request, "GET /api/v3/skills") != NULL) {
+    /* Get skills */
+    response = "HTTP/1.1 200 OK\r\n"
+               "Content-Type: application/json\r\n"
+               "Content-Length: 78\r\n"
+               "\r\n"
+               "{\"skills\": {\"encoders\": [\"libx264\", \"libx265\"], \"decoders\": [\"h264\", \"hevc\"]}}";
   }
 
   /* Send response - loop to ensure all bytes are sent */
   size_t total_len = strlen(response);
   size_t sent = 0;
   printf("[MOCK] Sending response: %zu bytes total\n", total_len);
+  fflush(stdout);
   while (sent < total_len) {
     ssize_t n = send(client_fd, response + sent, (int)(total_len - sent), 0);
     if (n < 0) {
       /* Send error */
 #ifdef _WIN32
       fprintf(stderr, "[MOCK] send() error: %d\n", WSAGetLastError());
+      fflush(stderr);
 #else
       perror("[MOCK] send() error");
 #endif
@@ -340,16 +441,20 @@ static void handle_request(socket_t client_fd, const char *request) {
     } else if (n == 0) {
       /* Connection closed */
       fprintf(stderr, "[MOCK] send() returned 0, connection closed\n");
+      fflush(stderr);
       break;
     }
     sent += (size_t)n;
     printf("[MOCK] Sent %d bytes, total so far: %zu/%zu\n", (int)n, sent, total_len);
+    fflush(stdout);
   }
 
   if (sent < total_len) {
     fprintf(stderr, "[MOCK] WARNING: Only sent %zu of %zu bytes\n", sent, total_len);
+    fflush(stderr);
   } else {
     printf("[MOCK] Successfully sent all %zu bytes\n", sent);
+    fflush(stdout);
   }
 }
 
@@ -361,6 +466,10 @@ static DWORD WINAPI server_thread(LPVOID arg) {
 static void *server_thread(void *arg) {
   (void)arg;
 #endif
+  /* Set stdout to unbuffered for immediate output */
+  setbuf(stdout, NULL);
+  setbuf(stderr, NULL);
+
   printf("[MOCK] Server thread started, entering accept loop\n");
 
   while (g_server.running) {
@@ -368,6 +477,7 @@ static void *server_thread(void *arg) {
     socklen_t client_len = sizeof(client_addr);
 
     printf("[MOCK] Waiting for client connection...\n");
+    fflush(stdout);
     socket_t client_fd = accept(g_server.socket_fd,
                                 (struct sockaddr *)&client_addr, &client_len);
 
@@ -376,6 +486,7 @@ static void *server_thread(void *arg) {
 #ifdef _WIN32
         fprintf(stderr, "[MOCK] ERROR: accept() failed with error %d\n",
                 WSAGetLastError());
+        fflush(stderr);
 #else
         perror("[MOCK] ERROR: accept() failed");
 #endif
@@ -384,6 +495,7 @@ static void *server_thread(void *arg) {
     }
 
     printf("[MOCK] Client connected, reading request...\n");
+    fflush(stdout);
 
     /* Read request */
     char buffer[4096] = {0};
@@ -392,21 +504,61 @@ static void *server_thread(void *arg) {
     if (bytes_read > 0) {
       buffer[bytes_read] = '\0';
       printf("[MOCK] Received %d bytes, handling request\n", (int)bytes_read);
+      fflush(stdout);
+
+      /* For PUT/POST requests, consume the request body if present */
+      if (strstr(buffer, "PUT ") != NULL || strstr(buffer, "POST ") != NULL) {
+        char *content_length_str = strstr(buffer, "Content-Length:");
+        if (content_length_str) {
+          int content_length = atoi(content_length_str + 15);
+          if (content_length > 0) {
+            /* Check if body is already in buffer */
+            char *body_start = strstr(buffer, "\r\n\r\n");
+            int body_received = 0;
+            if (body_start) {
+              body_start += 4;
+              body_received = (int)(bytes_read - (body_start - buffer));
+            }
+
+            /* Read remaining body data if needed */
+            int remaining = content_length - body_received;
+            if (remaining > 0) {
+              char body_buffer[8192];
+              while (remaining > 0) {
+                ssize_t n = recv(client_fd, body_buffer,
+                    remaining < (int)sizeof(body_buffer) ? remaining : (int)sizeof(body_buffer), 0);
+                if (n <= 0) break;
+                remaining -= n;
+              }
+            }
+            printf("[MOCK] Consumed request body (%d bytes)\n", content_length);
+            fflush(stdout);
+          }
+        }
+      }
+
       handle_request(client_fd, buffer);
       printf("[MOCK] Response sent\n");
+      fflush(stdout);
     } else {
       printf("[MOCK] No data received (bytes_read=%d)\n", (int)bytes_read);
+      fflush(stdout);
     }
 
+    /* Give client time to process response before closing socket */
 #ifdef _WIN32
+    Sleep(100); /* 100ms delay */
     closesocket(client_fd);
 #else
+    usleep(100000); /* 100ms delay */
     close(client_fd);
 #endif
     printf("[MOCK] Client connection closed\n");
+    fflush(stdout); /* Ensure output is written before thread may be terminated */
   }
 
   printf("[MOCK] Server thread exiting\n");
+  fflush(stdout); /* Ensure output is written before thread exits */
 
 #ifdef _WIN32
   return 0;
@@ -415,9 +567,73 @@ static void *server_thread(void *arg) {
 #endif
 }
 
+/* Kill any process using the specified port */
+static void kill_port_process(uint16_t port) {
+#ifdef _WIN32
+  /* Windows: Use netstat and taskkill */
+  char cmd[256];
+  snprintf(cmd, sizeof(cmd),
+           "for /f \"tokens=5\" %%a in ('netstat -aon ^| findstr \":%d\" ^| findstr \"LISTENING\"') do taskkill /F /PID %%a >nul 2>&1",
+           port);
+  /* Best effort cleanup - ignore return value */
+  int ret = system(cmd);
+  (void)ret;
+#else
+  /* macOS/Linux: Use lsof and kill */
+  char cmd[256];
+  snprintf(cmd, sizeof(cmd), "lsof -ti:%d 2>/dev/null | xargs kill -9 2>/dev/null", port);
+  /* Best effort cleanup - ignore return value */
+#if defined(__GNUC__) && !defined(__clang__)
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wunused-result"
+#endif
+  system(cmd);
+#if defined(__GNUC__) && !defined(__clang__)
+#pragma GCC diagnostic pop
+#endif
+#endif
+  /* Give the OS time to release the port - retry up to 10 times */
+  for (int i = 0; i < 10; i++) {
+#ifdef _WIN32
+    Sleep(100); /* 100ms */
+#else
+    usleep(100000); /* 100ms */
+#endif
+    /* Check if port is now free by attempting a quick bind test */
+    socket_t test_socket = socket(AF_INET, SOCK_STREAM, 0);
+    if (!IS_SOCKET_ERROR(test_socket)) {
+      int opt = 1;
+      setsockopt(test_socket, SOL_SOCKET, SO_REUSEADDR, (const char *)&opt, sizeof(opt));
+      struct sockaddr_in test_addr = {0};
+      test_addr.sin_family = AF_INET;
+      test_addr.sin_addr.s_addr = htonl(INADDR_LOOPBACK);
+      test_addr.sin_port = htons(port);
+      if (bind(test_socket, (struct sockaddr *)&test_addr, sizeof(test_addr)) == 0) {
+        /* Port is free */
+#ifdef _WIN32
+        closesocket(test_socket);
+#else
+        close(test_socket);
+#endif
+        return;
+      }
+#ifdef _WIN32
+      closesocket(test_socket);
+#else
+      close(test_socket);
+#endif
+    }
+  }
+  printf("[MOCK] Warning: Port %d may still be in use after cleanup\n", port);
+}
+
 /* Start mock server */
 bool mock_restreamer_start(uint16_t port) {
   printf("[MOCK] Starting mock server on port %d...\n", port);
+
+  /* Kill any process using this port before starting */
+  printf("[MOCK] Cleaning up port %d...\n", port);
+  kill_port_process(port);
 
   /* Ensure server is not already running */
   if (g_server.running) {

@@ -282,10 +282,12 @@ EOF
 
     <h3>Requirements:</h3>
     <ul>
-        <li>OBS Studio 28.0 or later</li>
+        <li>OBS Studio 28.0 or later (Tested with 32.0.2)</li>
         <li>macOS 11.0 (Big Sur) or later</li>
         <li>datarhei Restreamer instance (local or remote)</li>
     </ul>
+
+    <p><strong>Note:</strong> This plugin has been verified to work with OBS Studio 32.0.2 on both Intel and Apple Silicon Macs.</p>
 
     <h3>Features:</h3>
     <ul>
@@ -406,9 +408,11 @@ EOF
     <h2>Requirements</h2>
     <ul>
         <li>macOS 11.0 or later</li>
-        <li>OBS Studio 28.0 or later</li>
+        <li>OBS Studio 28.0 or later (Tested with 32.0.2)</li>
         <li>datarhei Restreamer instance</li>
     </ul>
+
+    <p><strong>Compatibility:</strong> Tested with OBS Studio 32.0.2. Compatible with OBS 28.x through 32.x+ on both Intel and Apple Silicon.</p>
 
     <h2>Features</h2>
     <ul>

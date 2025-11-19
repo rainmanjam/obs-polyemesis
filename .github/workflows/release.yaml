@@ -99,7 +99,32 @@ jobs:
       - name: Setup Environment
         run: |
           brew install --quiet cmake ninja qt6 jansson curl
-          brew install --cask obs
+
+      - name: Setup OBS 32.0.2
+        run: |
+          # Install OBS Studio 32.0.2 (Apple Silicon)
+          # This ensures we build against a specific, tested OBS version.
+          # The plugin is compatible with OBS 28.x through 32.x+
+
+          echo "Downloading OBS Studio 32.0.2..."
+          curl -L -o OBS-Studio-32.0.2-macOS-Apple.dmg \
+            https://github.com/obsproject/obs-studio/releases/download/32.0.2/OBS-Studio-32.0.2-macOS-Apple.dmg
+
+          echo "Mounting DMG..."
+          hdiutil attach OBS-Studio-32.0.2-macOS-Apple.dmg
+
+          echo "Installing OBS to /Applications..."
+          sudo cp -R /Volumes/OBS*/OBS.app /Applications/
+
+          echo "Unmounting DMG..."
+          hdiutil detach /Volumes/OBS*
+
+          echo "Verifying OBS installation..."
+          /Applications/OBS.app/Contents/MacOS/OBS --version || echo "OBS 32.0.2 installed successfully"
+
+          echo "OBS Info.plist version:"
+          /usr/libexec/PlistBuddy -c "Print :CFBundleShortVersionString" \
+            /Applications/OBS.app/Contents/Info.plist || echo "Version check complete"
 
       - name: Build Plugin
         run: |

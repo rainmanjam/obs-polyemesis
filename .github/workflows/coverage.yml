@@ -1,0 +1,231 @@
+name: Code Coverage
+
+# Manual trigger only - run locally with scripts for faster feedback
+# To run locally: ./scripts/generate-coverage.sh (macOS) or ./scripts/run-coverage-docker.sh (Docker)
+# TODO: Add Windows coverage job (see GitHub issue for implementation details)
+on:
+  workflow_dispatch:
+
+concurrency:
+  group: '${{ github.workflow }} @ ${{ github.event.pull_request.head.label || github.head_ref || github.ref }}'
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+jobs:
+  coverage-linux:
+    name: Coverage Report (Linux) 📊
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Install Dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            build-essential \
+            cmake \
+            ninja-build \
+            lcov \
+            libcurl4-openssl-dev \
+            libjansson-dev \
+            libobs-dev
+
+      - name: Configure with Coverage
+        run: |
+          cmake -B build -G Ninja \
+            -DCMAKE_BUILD_TYPE=Debug \
+            -DENABLE_TESTING=ON \
+            -DENABLE_COVERAGE=ON \
+            -DENABLE_FRONTEND_API=OFF \
+            -DENABLE_QT=OFF
+
+      - name: Build Tests
+        run: cmake --build build --target obs-polyemesis-tests
+
+      - name: Run Tests
+        run: |
+          cd build
+          ctest --output-on-failure --verbose || true
+
+      - name: Generate Coverage Report
+        run: |
+          # Capture initial baseline
+          lcov --capture --initial \
+            --directory build \
+            --output-file build/coverage_base.info \
+            --rc lcov_branch_coverage=1
+
+          # Capture test coverage
+          lcov --capture \
+            --directory build \
+            --output-file build/coverage_test.info \
+            --rc lcov_branch_coverage=1
+
+          # Combine baseline and test coverage
+          lcov --add-tracefile build/coverage_base.info \
+            --add-tracefile build/coverage_test.info \
+            --output-file build/coverage_total.info \
+            --rc lcov_branch_coverage=1
+
+          # Filter out unwanted files
+          lcov --remove build/coverage_total.info \
+            '/usr/*' \
+            '*/tests/*' \
+            '*/build/*' \
+            --output-file build/coverage_filtered.info \
+            --rc lcov_branch_coverage=1
+
+          # Display summary
+          lcov --summary build/coverage_filtered.info \
+            --rc lcov_branch_coverage=1
+
+      - name: Upload to Codecov
+        uses: codecov/codecov-action@v4
+        with:
+          token: ${{ secrets.CODECOV_TOKEN }}
+          files: ./build/coverage_filtered.info
+          flags: unittests,linux
+          name: linux-coverage
+          fail_ci_if_error: false
+          verbose: true
+
+      - name: Generate HTML Report
+        if: always()
+        run: |
+          mkdir -p coverage_html
+          genhtml build/coverage_filtered.info \
+            --output-directory coverage_html \
+            --title "OBS Polyemesis Coverage" \
+            --legend \
+            --show-details \
+            --branch-coverage \
+            --rc genhtml_hi_limit=80 \
+            --rc genhtml_med_limit=50
+
+      - name: Upload HTML Report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage-report-linux
+          path: coverage_html/
+          retention-days: 30
+
+  coverage-macos:
+    name: Coverage Report (macOS) 🍏
+    runs-on: macos-15
+    defaults:
+      run:
+        shell: zsh --no-rcs --errexit --pipefail {0}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set Up Environment
+        run: |
+          print '::group::Enable Xcode 16.1'
+          sudo xcode-select --switch /Applications/Xcode_16.1.0.app/Contents/Developer
+          print '::endgroup::'
+
+          print '::group::Install Dependencies'
+          brew install --quiet jansson lcov
+          print '::endgroup::'
+
+          print '::group::Setup OBS 32.0.2'
+          print 'Downloading OBS Studio 32.0.2...'
+          curl -L -o OBS-Studio-32.0.2-macOS-Apple.dmg \
+            https://github.com/obsproject/obs-studio/releases/download/32.0.2/OBS-Studio-32.0.2-macOS-Apple.dmg
+
+          print 'Mounting DMG...'
+          hdiutil attach OBS-Studio-32.0.2-macOS-Apple.dmg
+
+          print 'Installing OBS to /Applications...'
+          sudo cp -R /Volumes/OBS*/OBS.app /Applications/
+
+          print 'Unmounting DMG...'
+          hdiutil detach /Volumes/OBS*
+          print '::endgroup::'
+
+      - name: Configure with Coverage
+        run: |
+          cmake -B build -G Xcode \
+            -DCMAKE_BUILD_TYPE=Debug \
+            -DENABLE_TESTING=ON \
+            -DENABLE_COVERAGE=ON \
+            -DENABLE_FRONTEND_API=OFF \
+            -DENABLE_QT=OFF \
+            -DCMAKE_OSX_ARCHITECTURES="arm64"
+
+      - name: Build Tests
+        run: cmake --build build --config Debug --target obs-polyemesis-tests
+
+      - name: Run Tests
+        run: |
+          cd build
+          # Note: Tests may fail due to library loading on macOS, but we still want coverage
+          ctest --output-on-failure --verbose -C Debug || {
+            print "::warning::Some tests failed, but continuing with coverage"
+          }
+
+      - name: Generate Coverage Report
+        if: always()
+        run: |
+          # macOS-specific coverage commands
+          xcrun llvm-cov gcov build/**/*.gcda || true
+
+          # Use lcov if available
+          if command -v lcov &> /dev/null; then
+            lcov --capture --directory build \
+              --output-file build/coverage.info \
+              --rc lcov_branch_coverage=1 || true
+
+            lcov --remove build/coverage.info \
+              '/usr/*' \
+              '*/tests/*' \
+              '*/build/*' \
+              --output-file build/coverage_filtered.info \
+              --rc lcov_branch_coverage=1 || true
+
+            lcov --summary build/coverage_filtered.info \
+              --rc lcov_branch_coverage=1 || true
+          fi
+
+      - name: Upload to Codecov
+        if: always()
+        uses: codecov/codecov-action@v4
+        with:
+          token: ${{ secrets.CODECOV_TOKEN }}
+          files: ./build/coverage_filtered.info
+          flags: unittests,macos
+          name: macos-coverage
+          fail_ci_if_error: false
+          verbose: true
+
+  coverage-summary:
+    name: Coverage Summary 📈
+    runs-on: ubuntu-latest
+    needs: [coverage-linux, coverage-macos]
+    if: always()
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Download Coverage Reports
+        uses: actions/download-artifact@v4
+        with:
+          path: coverage-artifacts
+
+      - name: Display Summary
+        run: |
+          echo "## Coverage Reports Generated 📊" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "Coverage reports have been uploaded to Codecov and are available as artifacts." >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### Artifacts:" >> $GITHUB_STEP_SUMMARY
+          echo "- Linux Coverage HTML Report" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### View on Codecov:" >> $GITHUB_STEP_SUMMARY
+          echo "https://codecov.io/gh/${{ github.repository }}" >> $GITHUB_STEP_SUMMARY

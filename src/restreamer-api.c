@@ -24,6 +24,9 @@ struct memory_struct {
   size_t size;
 };
 
+/* Forward declaration for JSON parsing helper */
+static json_t *parse_json_response(restreamer_api_t *api, struct memory_struct *response);
+
 // cppcheck-suppress constParameterCallback
 static size_t write_callback(void *contents, size_t size, size_t nmemb,
                              void *userp) {
@@ -174,12 +177,8 @@ static bool restreamer_api_login(restreamer_api_t *api) {
   }
 
   /* Parse response to get tokens */
-  json_error_t error;
-  json_t *root = json_loads(response.memory, 0, &error);
-  free(response.memory);
-
+  json_t *root = parse_json_response(api, &response);
   if (!root) {
-    dstr_printf(&api->last_error, "JSON parse error: %s", error.text);
     return false;
   }
 
@@ -323,6 +322,18 @@ bool restreamer_api_is_connected(restreamer_api_t *api) {
   return (api->access_token != NULL);
 }
 
+/* Forward declarations for helper functions */
+static void parse_process_fields(json_t *json_obj, restreamer_process_t *process);
+static void parse_log_entry_fields(json_t *json_obj, restreamer_log_entry_t *entry);
+static void parse_session_fields(json_t *json_obj, restreamer_session_t *session);
+static void parse_fs_entry_fields(json_t *json_obj, restreamer_fs_entry_t *entry);
+static bool process_command_helper(restreamer_api_t *api,
+                                    const char *process_id,
+                                    const char *command);
+static bool get_protocol_streams_helper(restreamer_api_t *api,
+                                         const char *endpoint,
+                                         char **streams_json);
+
 bool restreamer_api_get_processes(restreamer_api_t *api,
                                   restreamer_process_list_t *list) {
   if (!api || !list) {
@@ -344,12 +355,8 @@ bool restreamer_api_get_processes(restreamer_api_t *api,
     return false;
   }
 
-  json_error_t error;
-  json_t *root = json_loads(response.memory, 0, &error);
-  free(response.memory);
-
+  json_t *root = parse_json_response(api, &response);
   if (!root) {
-    dstr_printf(&api->last_error, "JSON parse error: %s", error.text);
     return false;
   }
 
@@ -380,50 +387,170 @@ bool restreamer_api_get_processes(restreamer_api_t *api,
   for (size_t i = 0; i < count; i++) {
     json_t *process_obj = json_array_get(root, i);
     restreamer_process_t *process = &list->processes[i];
-
-    json_t *id = json_object_get(process_obj, "id");
-    if (json_is_string(id)) {
-      process->id = bstrdup(json_string_value(id));
-    }
-
-    json_t *reference = json_object_get(process_obj, "reference");
-    if (json_is_string(reference)) {
-      process->reference = bstrdup(json_string_value(reference));
-    }
-
-    json_t *state = json_object_get(process_obj, "state");
-    if (json_is_string(state)) {
-      process->state = bstrdup(json_string_value(state));
-    }
-
-    json_t *uptime = json_object_get(process_obj, "uptime");
-    if (json_is_integer(uptime)) {
-      process->uptime_seconds = json_integer_value(uptime);
-    }
-
-    json_t *cpu = json_object_get(process_obj, "cpu_usage");
-    if (json_is_real(cpu)) {
-      process->cpu_usage = json_real_value(cpu);
-    }
-
-    json_t *memory = json_object_get(process_obj, "memory");
-    if (json_is_integer(memory)) {
-      process->memory_bytes = json_integer_value(memory);
-    }
-
-    json_t *command = json_object_get(process_obj, "command");
-    if (json_is_string(command)) {
-      process->command = bstrdup(json_string_value(command));
-    }
+    parse_process_fields(process_obj, process);
   }
 
   json_decref(root);
   return true;
 }
 
-bool restreamer_api_start_process(restreamer_api_t *api,
-                                  const char *process_id) {
-  if (!api || !process_id || process_id[0] == '\0') {
+/* ========================================================================
+ * Helper Functions
+ * ======================================================================== */
+
+/* Helper function to parse JSON response and handle errors */
+static json_t *parse_json_response(restreamer_api_t *api, struct memory_struct *response) {
+  if (!api || !response || !response->memory) {
+    return NULL;
+  }
+
+  json_error_t error;
+  json_t *root = json_loads(response->memory, 0, &error);
+  free(response->memory);
+  response->memory = NULL;
+  response->size = 0;
+
+  if (!root) {
+    dstr_printf(&api->last_error, "JSON parse error: %s", error.text);
+    return NULL;
+  }
+
+  return root;
+}
+
+/* Helper function to parse JSON object into restreamer_process_t */
+static void parse_process_fields(json_t *json_obj, restreamer_process_t *process) {
+  if (!json_obj || !process) {
+    return;
+  }
+
+  json_t *id = json_object_get(json_obj, "id");
+  if (json_is_string(id)) {
+    process->id = bstrdup(json_string_value(id));
+  }
+
+  json_t *reference = json_object_get(json_obj, "reference");
+  if (json_is_string(reference)) {
+    process->reference = bstrdup(json_string_value(reference));
+  }
+
+  json_t *state = json_object_get(json_obj, "state");
+  if (json_is_string(state)) {
+    process->state = bstrdup(json_string_value(state));
+  }
+
+  json_t *uptime = json_object_get(json_obj, "uptime");
+  if (json_is_integer(uptime)) {
+    process->uptime_seconds = json_integer_value(uptime);
+  }
+
+  json_t *cpu = json_object_get(json_obj, "cpu_usage");
+  if (json_is_real(cpu)) {
+    process->cpu_usage = json_real_value(cpu);
+  }
+
+  json_t *memory = json_object_get(json_obj, "memory");
+  if (json_is_integer(memory)) {
+    process->memory_bytes = json_integer_value(memory);
+  }
+
+  json_t *command = json_object_get(json_obj, "command");
+  if (json_is_string(command)) {
+    process->command = bstrdup(json_string_value(command));
+  }
+}
+
+/* Helper function to parse JSON object into restreamer_log_entry_t */
+static void parse_log_entry_fields(json_t *json_obj, restreamer_log_entry_t *entry) {
+  if (!json_obj || !entry) {
+    return;
+  }
+
+  json_t *timestamp = json_object_get(json_obj, "timestamp");
+  if (json_is_string(timestamp)) {
+    entry->timestamp = bstrdup(json_string_value(timestamp));
+  }
+
+  json_t *message = json_object_get(json_obj, "message");
+  if (json_is_string(message)) {
+    entry->message = bstrdup(json_string_value(message));
+  }
+
+  json_t *level = json_object_get(json_obj, "level");
+  if (json_is_string(level)) {
+    entry->level = bstrdup(json_string_value(level));
+  }
+}
+
+/* Helper function to parse JSON object into restreamer_session_t */
+static void parse_session_fields(json_t *json_obj, restreamer_session_t *session) {
+  if (!json_obj || !session) {
+    return;
+  }
+
+  json_t *session_id = json_object_get(json_obj, "id");
+  if (json_is_string(session_id)) {
+    session->session_id = bstrdup(json_string_value(session_id));
+  }
+
+  json_t *reference = json_object_get(json_obj, "reference");
+  if (json_is_string(reference)) {
+    session->reference = bstrdup(json_string_value(reference));
+  }
+
+  json_t *bytes_sent = json_object_get(json_obj, "bytes_sent");
+  if (json_is_integer(bytes_sent)) {
+    session->bytes_sent = json_integer_value(bytes_sent);
+  }
+
+  json_t *bytes_received = json_object_get(json_obj, "bytes_received");
+  if (json_is_integer(bytes_received)) {
+    session->bytes_received = json_integer_value(bytes_received);
+  }
+
+  json_t *remote_addr = json_object_get(json_obj, "remote_addr");
+  if (json_is_string(remote_addr)) {
+    session->remote_addr = bstrdup(json_string_value(remote_addr));
+  }
+}
+
+/* Helper function to parse JSON object into restreamer_fs_entry_t */
+static void parse_fs_entry_fields(json_t *json_obj, restreamer_fs_entry_t *entry) {
+  if (!json_obj || !entry) {
+    return;
+  }
+
+  json_t *name = json_object_get(json_obj, "name");
+  if (name && json_is_string(name)) {
+    entry->name = bstrdup(json_string_value(name));
+  }
+
+  json_t *path = json_object_get(json_obj, "path");
+  if (path && json_is_string(path)) {
+    entry->path = bstrdup(json_string_value(path));
+  }
+
+  json_t *size = json_object_get(json_obj, "size");
+  if (size && json_is_integer(size)) {
+    entry->size = (uint64_t)json_integer_value(size);
+  }
+
+  json_t *modified = json_object_get(json_obj, "modified");
+  if (modified && json_is_integer(modified)) {
+    entry->modified = json_integer_value(modified);
+  }
+
+  json_t *is_dir = json_object_get(json_obj, "is_directory");
+  if (is_dir && json_is_boolean(is_dir)) {
+    entry->is_directory = json_boolean_value(is_dir);
+  }
+}
+
+/* Helper function for process control commands (start/stop/restart) */
+static bool process_command_helper(restreamer_api_t *api,
+                                    const char *process_id,
+                                    const char *command) {
+  if (!api || !process_id || process_id[0] == '\0' || !command) {
     return false;
   }
 
@@ -433,7 +560,7 @@ bool restreamer_api_start_process(restreamer_api_t *api,
   dstr_cat(&endpoint, "/command");
 
   json_t *root = json_object();
-  json_object_set_new(root, "command", json_string("start"));
+  json_object_set_new(root, "command", json_string(command));
 
   char *post_data = json_dumps(root, 0);
   json_decref(root);
@@ -449,66 +576,25 @@ bool restreamer_api_start_process(restreamer_api_t *api,
   }
 
   return result;
+}
+
+/* ========================================================================
+ * Process Control API
+ * ======================================================================== */
+
+bool restreamer_api_start_process(restreamer_api_t *api,
+                                  const char *process_id) {
+  return process_command_helper(api, process_id, "start");
 }
 
 bool restreamer_api_stop_process(restreamer_api_t *api,
                                  const char *process_id) {
-  if (!api || !process_id || process_id[0] == '\0') {
-    return false;
-  }
-
-  struct dstr endpoint;
-  dstr_init_copy(&endpoint, "/api/v3/process/");
-  dstr_cat(&endpoint, process_id);
-  dstr_cat(&endpoint, "/command");
-
-  json_t *root = json_object();
-  json_object_set_new(root, "command", json_string("stop"));
-
-  char *post_data = json_dumps(root, 0);
-  json_decref(root);
-
-  struct memory_struct response = {NULL, 0};
-  bool result = make_request(api, endpoint.array, "POST", post_data, &response);
-
-  free(post_data);
-  dstr_free(&endpoint);
-
-  if (result) {
-    free(response.memory);
-  }
-
-  return result;
+  return process_command_helper(api, process_id, "stop");
 }
 
 bool restreamer_api_restart_process(restreamer_api_t *api,
                                     const char *process_id) {
-  if (!api || !process_id || process_id[0] == '\0') {
-    return false;
-  }
-
-  struct dstr endpoint;
-  dstr_init_copy(&endpoint, "/api/v3/process/");
-  dstr_cat(&endpoint, process_id);
-  dstr_cat(&endpoint, "/command");
-
-  json_t *root = json_object();
-  json_object_set_new(root, "command", json_string("restart"));
-
-  char *post_data = json_dumps(root, 0);
-  json_decref(root);
-
-  struct memory_struct response = {NULL, 0};
-  bool result = make_request(api, endpoint.array, "POST", post_data, &response);
-
-  free(post_data);
-  dstr_free(&endpoint);
-
-  if (result) {
-    free(response.memory);
-  }
-
-  return result;
+  return process_command_helper(api, process_id, "restart");
 }
 
 bool restreamer_api_get_process(restreamer_api_t *api, const char *process_id,
@@ -529,49 +615,12 @@ bool restreamer_api_get_process(restreamer_api_t *api, const char *process_id,
     return false;
   }
 
-  json_error_t error;
-  json_t *root = json_loads(response.memory, 0, &error);
-  free(response.memory);
-
+  json_t *root = parse_json_response(api, &response);
   if (!root) {
-    dstr_printf(&api->last_error, "JSON parse error: %s", error.text);
     return false;
   }
 
-  json_t *id = json_object_get(root, "id");
-  if (json_is_string(id)) {
-    process->id = bstrdup(json_string_value(id));
-  }
-
-  json_t *reference = json_object_get(root, "reference");
-  if (json_is_string(reference)) {
-    process->reference = bstrdup(json_string_value(reference));
-  }
-
-  json_t *state = json_object_get(root, "state");
-  if (json_is_string(state)) {
-    process->state = bstrdup(json_string_value(state));
-  }
-
-  json_t *uptime = json_object_get(root, "uptime");
-  if (json_is_integer(uptime)) {
-    process->uptime_seconds = json_integer_value(uptime);
-  }
-
-  json_t *cpu = json_object_get(root, "cpu_usage");
-  if (json_is_real(cpu)) {
-    process->cpu_usage = json_real_value(cpu);
-  }
-
-  json_t *memory = json_object_get(root, "memory");
-  if (json_is_integer(memory)) {
-    process->memory_bytes = json_integer_value(memory);
-  }
-
-  json_t *command = json_object_get(root, "command");
-  if (json_is_string(command)) {
-    process->command = bstrdup(json_string_value(command));
-  }
+  parse_process_fields(root, process);
 
   json_decref(root);
   return true;
@@ -597,10 +646,7 @@ bool restreamer_api_get_process_logs(restreamer_api_t *api,
     return false;
   }
 
-  json_error_t error;
-  json_t *root = json_loads(response.memory, 0, &error);
-  free(response.memory);
-
+  json_t *root = parse_json_response(api, &response);
   if (!root || !json_is_array(root)) {
     if (root)
       json_decref(root);
@@ -614,21 +660,7 @@ bool restreamer_api_get_process_logs(restreamer_api_t *api,
   for (size_t i = 0; i < count; i++) {
     json_t *entry_obj = json_array_get(root, i);
     restreamer_log_entry_t *entry = &logs->entries[i];
-
-    json_t *timestamp = json_object_get(entry_obj, "timestamp");
-    if (json_is_string(timestamp)) {
-      entry->timestamp = bstrdup(json_string_value(timestamp));
-    }
-
-    json_t *message = json_object_get(entry_obj, "message");
-    if (json_is_string(message)) {
-      entry->message = bstrdup(json_string_value(message));
-    }
-
-    json_t *level = json_object_get(entry_obj, "level");
-    if (json_is_string(level)) {
-      entry->level = bstrdup(json_string_value(level));
-    }
+    parse_log_entry_fields(entry_obj, entry);
   }
 
   json_decref(root);
@@ -646,10 +678,7 @@ bool restreamer_api_get_sessions(restreamer_api_t *api,
     return false;
   }
 
-  json_error_t error;
-  json_t *root = json_loads(response.memory, 0, &error);
-  free(response.memory);
-
+  json_t *root = parse_json_response(api, &response);
   if (!root || !json_is_object(root)) {
     if (root)
       json_decref(root);
@@ -669,31 +698,7 @@ bool restreamer_api_get_sessions(restreamer_api_t *api,
   for (size_t i = 0; i < count; i++) {
     json_t *session_obj = json_array_get(sessions_array, i);
     restreamer_session_t *session = &sessions->sessions[i];
-
-    json_t *session_id = json_object_get(session_obj, "id");
-    if (json_is_string(session_id)) {
-      session->session_id = bstrdup(json_string_value(session_id));
-    }
-
-    json_t *reference = json_object_get(session_obj, "reference");
-    if (json_is_string(reference)) {
-      session->reference = bstrdup(json_string_value(reference));
-    }
-
-    json_t *bytes_sent = json_object_get(session_obj, "bytes_sent");
-    if (json_is_integer(bytes_sent)) {
-      session->bytes_sent = json_integer_value(bytes_sent);
-    }
-
-    json_t *bytes_received = json_object_get(session_obj, "bytes_received");
-    if (json_is_integer(bytes_received)) {
-      session->bytes_received = json_integer_value(bytes_received);
-    }
-
-    json_t *remote_addr = json_object_get(session_obj, "remote_addr");
-    if (json_is_string(remote_addr)) {
-      session->remote_addr = bstrdup(json_string_value(remote_addr));
-    }
+    parse_session_fields(session_obj, session);
   }
 
   json_decref(root);
@@ -925,11 +930,10 @@ bool restreamer_api_get_process_outputs(restreamer_api_t *api,
   }
 
   /* Parse JSON response */
-  json_error_t error;
-  json_t *root = json_loads(response.memory, 0, &error);
-  free(response.memory);
-
+  json_t *root = parse_json_response(api, &response);
   if (!root || !json_is_object(root)) {
+    if (root)
+      json_decref(root);
     return false;
   }
 
@@ -1075,11 +1079,10 @@ bool restreamer_api_get_output_encoding(restreamer_api_t *api,
   }
 
   /* Parse JSON response */
-  json_error_t error;
-  json_t *root = json_loads(response.memory, 0, &error);
-  free(response.memory);
-
+  json_t *root = parse_json_response(api, &response);
   if (!root || !json_is_object(root)) {
+    if (root)
+      json_decref(root);
     return false;
   }
 
@@ -1291,16 +1294,14 @@ static bool api_request_json(restreamer_api_t *api, const char *endpoint,
 
   /* Parse JSON response */
   if (response_json) {
-    json_error_t error;
-    *response_json = json_loads(response.memory, 0, &error);
+    *response_json = parse_json_response(api, &response);
     if (!*response_json) {
-      dstr_printf(&api->last_error, "JSON parse error: %s", error.text);
-      free(response.memory);
       return false;
     }
+  } else {
+    free(response.memory);
   }
 
-  free(response.memory);
   return true;
 }
 
@@ -1395,16 +1396,14 @@ static bool api_request_put_json(restreamer_api_t *api, const char *endpoint,
 
   /* Parse JSON response */
   if (response_json && response.size > 0) {
-    json_error_t error;
-    *response_json = json_loads(response.memory, 0, &error);
+    *response_json = parse_json_response(api, &response);
     if (!*response_json) {
-      dstr_printf(&api->last_error, "JSON parse error: %s", error.text);
-      free(response.memory);
       return false;
     }
+  } else {
+    free(response.memory);
   }
 
-  free(response.memory);
   return true;
 }
 
@@ -2078,12 +2077,8 @@ bool restreamer_api_refresh_token(restreamer_api_t *api) {
   }
 
   /* Parse response to get new access token */
-  json_error_t error;
-  json_t *root = json_loads(response.memory, 0, &error);
-  free(response.memory);
-
+  json_t *root = parse_json_response(api, &response);
   if (!root) {
-    dstr_printf(&api->last_error, "JSON parse error: %s", error.text);
     return false;
   }
 
@@ -2189,31 +2184,7 @@ bool restreamer_api_list_files(restreamer_api_t *api, const char *storage,
     for (size_t i = 0; i < count; i++) {
       json_t *entry = json_array_get(response, i);
       restreamer_fs_entry_t *f = &files->entries[i];
-
-      json_t *name = json_object_get(entry, "name");
-      if (name && json_is_string(name)) {
-        f->name = bstrdup(json_string_value(name));
-      }
-
-      json_t *path = json_object_get(entry, "path");
-      if (path && json_is_string(path)) {
-        f->path = bstrdup(json_string_value(path));
-      }
-
-      json_t *size = json_object_get(entry, "size");
-      if (size && json_is_integer(size)) {
-        f->size = (uint64_t)json_integer_value(size);
-      }
-
-      json_t *modified = json_object_get(entry, "modified");
-      if (modified && json_is_integer(modified)) {
-        f->modified = json_integer_value(modified);
-      }
-
-      json_t *is_dir = json_object_get(entry, "is_directory");
-      if (is_dir && json_is_boolean(is_dir)) {
-        f->is_directory = json_boolean_value(is_dir);
-      }
+      parse_fs_entry_fields(entry, f);
     }
   }
 
@@ -2245,6 +2216,10 @@ bool restreamer_api_download_file(restreamer_api_t *api, const char *storage,
 
   curl_easy_setopt(api->curl, CURLOPT_URL, url.array);
   curl_easy_setopt(api->curl, CURLOPT_HTTPGET, 1L);
+  /* Clear any POST/PUT fields from previous requests */
+  curl_easy_setopt(api->curl, CURLOPT_POSTFIELDS, NULL);
+  curl_easy_setopt(api->curl, CURLOPT_POSTFIELDSIZE, 0L);
+  curl_easy_setopt(api->curl, CURLOPT_CUSTOMREQUEST, NULL);
   curl_easy_setopt(api->curl, CURLOPT_WRITEDATA, (void *)&response);
 
   CURLcode res = curl_easy_perform(api->curl);
@@ -2281,12 +2256,21 @@ bool restreamer_api_upload_file(restreamer_api_t *api, const char *storage,
   dstr_printf(&url, "%s://%s:%d%s", protocol, api->connection.host,
               api->connection.port, endpoint.array);
 
+  /* Setup response buffer for upload response */
+  struct memory_struct response;
+  response.memory = NULL;
+  response.size = 0;
+
   curl_easy_setopt(api->curl, CURLOPT_URL, url.array);
   curl_easy_setopt(api->curl, CURLOPT_CUSTOMREQUEST, "PUT");
   curl_easy_setopt(api->curl, CURLOPT_POSTFIELDS, data);
   curl_easy_setopt(api->curl, CURLOPT_POSTFIELDSIZE, (long)size);
+  curl_easy_setopt(api->curl, CURLOPT_WRITEDATA, (void *)&response);
 
   CURLcode res = curl_easy_perform(api->curl);
+
+  /* Free response buffer */
+  free(response.memory);
 
   dstr_free(&url);
   dstr_free(&endpoint);
@@ -2315,10 +2299,19 @@ bool restreamer_api_delete_file(restreamer_api_t *api, const char *storage,
   dstr_printf(&url, "%s://%s:%d%s", protocol, api->connection.host,
               api->connection.port, endpoint.array);
 
+  /* Setup response buffer for delete response */
+  struct memory_struct response;
+  response.memory = NULL;
+  response.size = 0;
+
   curl_easy_setopt(api->curl, CURLOPT_URL, url.array);
   curl_easy_setopt(api->curl, CURLOPT_CUSTOMREQUEST, "DELETE");
+  curl_easy_setopt(api->curl, CURLOPT_WRITEDATA, (void *)&response);
 
   CURLcode res = curl_easy_perform(api->curl);
+
+  /* Free response buffer */
+  free(response.memory);
 
   dstr_free(&url);
   dstr_free(&endpoint);
@@ -2349,14 +2342,16 @@ void restreamer_api_free_fs_list(restreamer_fs_list_t *list) {
  * Protocol Monitoring API
  * ======================================================================== */
 
-bool restreamer_api_get_rtmp_streams(restreamer_api_t *api,
-                                     char **streams_json) {
-  if (!api || !streams_json) {
+/* Helper function for getting protocol streams (RTMP/SRT) */
+static bool get_protocol_streams_helper(restreamer_api_t *api,
+                                         const char *endpoint,
+                                         char **streams_json) {
+  if (!api || !streams_json || !endpoint) {
     return false;
   }
 
   json_t *response = NULL;
-  bool result = api_request_json(api, "/api/v3/rtmp", &response);
+  bool result = api_request_json(api, endpoint, &response);
 
   if (!result || !response) {
     return false;
@@ -2368,23 +2363,14 @@ bool restreamer_api_get_rtmp_streams(restreamer_api_t *api,
   return *streams_json != NULL;
 }
 
+bool restreamer_api_get_rtmp_streams(restreamer_api_t *api,
+                                     char **streams_json) {
+  return get_protocol_streams_helper(api, "/api/v3/rtmp", streams_json);
+}
+
 bool restreamer_api_get_srt_streams(restreamer_api_t *api,
                                     char **streams_json) {
-  if (!api || !streams_json) {
-    return false;
-  }
-
-  json_t *response = NULL;
-  bool result = api_request_json(api, "/api/v3/srt", &response);
-
-  if (!result || !response) {
-    return false;
-  }
-
-  *streams_json = json_dumps(response, JSON_INDENT(2));
-  json_decref(response);
-
-  return *streams_json != NULL;
+  return get_protocol_streams_helper(api, "/api/v3/srt", streams_json);
 }
 
 /* ========================================================================
