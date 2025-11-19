@@ -1,0 +1,95 @@
+# Git attributes for OBS Polyemesis
+# Ensures consistent line endings across platforms
+
+# Auto detect text files and normalize line endings to LF
+* text=auto
+
+# Source code - always LF
+*.c text eol=lf
+*.cpp text eol=lf
+*.h text eol=lf
+*.hpp text eol=lf
+
+# Scripts - always LF (critical for cross-platform compatibility)
+*.sh text eol=lf
+*.bash text eol=lf
+*.py text eol=lf
+
+# CMake files - always LF
+*.cmake text eol=lf
+CMakeLists.txt text eol=lf
+
+# Configuration files - always LF
+*.json text eol=lf
+*.yaml text eol=lf
+*.yml text eol=lf
+*.toml text eol=lf
+*.ini text eol=lf
+.gitignore text eol=lf
+.gitattributes text eol=lf
+
+# Documentation - always LF
+*.md text eol=lf
+*.txt text eol=lf
+LICENSE text eol=lf
+README text eol=lf
+
+# Windows-specific files - use CRLF
+*.bat text eol=crlf
+*.cmd text eol=crlf
+*.ps1 text eol=crlf
+
+# Binary files - never modify
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.gif binary
+*.ico binary
+*.icns binary
+*.pdf binary
+*.so binary
+*.dll binary
+*.dylib binary
+*.a binary
+*.lib binary
+*.exe binary
+*.app binary
+*.dmg binary
+*.pkg binary
+*.deb binary
+*.rpm binary
+*.zip binary
+*.tar binary
+*.gz binary
+*.bz2 binary
+*.7z binary
+
+# macOS specific
+*.plist text eol=lf
+*.strings text eol=lf
+
+# Exclude from archives/exports
+.gitignore export-ignore
+.gitattributes export-ignore
+.github export-ignore
+.vscode export-ignore
+.idea export-ignore
+*.md export-ignore
+docs export-ignore
+tests export-ignore
+
+# Diff settings for specific file types
+*.c diff=cpp
+*.cpp diff=cpp
+*.h diff=cpp
+*.hpp diff=cpp
+*.sh diff=bash
+*.py diff=python
+*.json diff=json
+*.md diff=markdown
+
+# Linguist overrides (for GitHub language stats)
+*.cmake linguist-language=CMake
+*.sh linguist-language=Shell
+docs/* linguist-documentation
+tests/* linguist-vendored=false

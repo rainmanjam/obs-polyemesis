@@ -23,6 +23,8 @@ Description: datarhei Restreamer control plugin for OBS Studio
  OBS Polyemesis is a comprehensive plugin for controlling and monitoring
  datarhei Restreamer instances with advanced multistreaming capabilities.
  .
+ Tested with OBS Studio 32.0.2. Compatible with OBS 28.x through 32.x+.
+ .
  Features:
   * Full Restreamer process control and monitoring
   * Real-time statistics and session tracking

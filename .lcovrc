@@ -1,0 +1,42 @@
+# LCOV configuration for OBS Polyemesis code coverage
+# See: http://ltp.sourceforge.net/coverage/lcov/lcovrc.5.php
+
+# Specify whether to capture coverage data for external source files
+geninfo_external = 0
+
+# Specify whether to capture branch coverage data
+lcov_branch_coverage = 1
+
+# Exclude patterns for coverage (these files will be ignored)
+# System headers
+geninfo_exclude = /usr/include/*
+geninfo_exclude = /usr/local/include/*
+geninfo_exclude = /Applications/Xcode.app/*
+
+# OBS SDK headers
+geninfo_exclude = */obs-studio/*
+geninfo_exclude = */.deps/*
+geninfo_exclude = */libobs/*
+
+# Build directories
+geninfo_exclude = */build/*
+geninfo_exclude = */build_*/*
+geninfo_exclude = */.build/*
+
+# Test files (we want to measure production code, not test code)
+geninfo_exclude = */tests/*
+geninfo_exclude = */test_*
+
+# Third-party dependencies
+geninfo_exclude = */jansson/*
+geninfo_exclude = */curl/*
+geninfo_exclude = */Qt/*
+
+# Function coverage (0 = off, 1 = on)
+lcov_function_coverage = 1
+
+# Enable checksum generation for .info files
+geninfo_checksum = 1
+
+# Specify whether to adjust test names for sorting
+geninfo_adjust_src_path = 0

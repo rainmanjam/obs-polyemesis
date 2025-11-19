@@ -1,10 +1,14 @@
 # Build directories
 build/
 build_*/
+build-*/
 .build/
 .build-universal/
 *.build/
 cmake/.CMakeBuildNumber
+
+# Artifacts
+artifacts/
 
 # Dependencies
 .deps/
@@ -73,6 +77,10 @@ release/
 *.gcno
 build-test/
 src/Testing/
+coverage/
+build_coverage/
+*.info
+coverage_filtered.info
 
 # Python
 __pycache__/
@@ -96,3 +104,7 @@ Screenshot*.png
 *.pfx
 credentials.json
 auth.json
+
+# Integration test outputs
+build_integration/
+integration-results/
