@@ -24,7 +24,7 @@ import sys
 import time
 import json
 import unittest
-from typing import Dict, List, Optional
+from typing import Dict
 import requests
 from requests.auth import HTTPBasicAuth
 
@@ -111,7 +111,8 @@ class Test01_ConnectionAuthentication(unittest.TestCase):
             # Some versions have /api/v3/about
             about = self.client.get('/api/v3/about', timeout=5)
             print(f"✓ Server info: {about.get('name', 'N/A')}")
-        except:
+        except Exception:
+            # Ignore if endpoint doesn't exist (varies by Restreamer version)
             print("ℹ No /about endpoint (using datarhei-core)")
 
 
@@ -133,7 +134,8 @@ class Test02_ProcessManagement(unittest.TestCase):
         for process_id in cls.test_processes:
             try:
                 cls.client.delete(f'/api/v3/process/{process_id}')
-            except:
+            except Exception:
+                # Ignore errors during cleanup (process may not exist or already deleted)
                 pass
 
     def test_01_create_process(self):
@@ -268,12 +270,13 @@ class Test03_ProcessControl(unittest.TestCase):
     def tearDownClass(cls):
         try:
             cls.client.delete(f'/api/v3/process/{cls.process_id}')
-        except:
+        except Exception:
+            # Ignore errors during cleanup (process may not exist)
             pass
 
     def test_01_start_process(self):
         """Test 3.1: Start a process"""
-        result = self.client.put(f'/api/v3/process/{self.process_id}/command', {"command": "start"})
+        self.client.put(f'/api/v3/process/{self.process_id}/command', {"command": "start"})
         time.sleep(1)
 
         state = self.client.get(f'/api/v3/process/{self.process_id}/state')
@@ -294,7 +297,7 @@ class Test03_ProcessControl(unittest.TestCase):
         time.sleep(2)
 
         # Stop
-        result = self.client.put(f'/api/v3/process/{self.process_id}/command', {"command": "stop"})
+        self.client.put(f'/api/v3/process/{self.process_id}/command', {"command": "stop"})
         time.sleep(1)
 
         state = self.client.get(f'/api/v3/process/{self.process_id}/state')
@@ -303,7 +306,7 @@ class Test03_ProcessControl(unittest.TestCase):
 
     def test_04_restart_process(self):
         """Test 3.4: Restart a process"""
-        result = self.client.put(f'/api/v3/process/{self.process_id}/command', {"command": "restart"})
+        self.client.put(f'/api/v3/process/{self.process_id}/command', {"command": "restart"})
         time.sleep(1)
 
         state = self.client.get(f'/api/v3/process/{self.process_id}/state')
@@ -327,7 +330,8 @@ class Test04_MultiDestination(unittest.TestCase):
         for process_id in cls.test_processes:
             try:
                 cls.client.delete(f'/api/v3/process/{process_id}')
-            except:
+            except Exception:
+                # Ignore errors during cleanup (process may not exist or already deleted)
                 pass
 
     def test_01_create_multi_output(self):
@@ -411,7 +415,8 @@ class Test05_ProcessMonitoring(unittest.TestCase):
     def tearDownClass(cls):
         try:
             cls.client.delete(f'/api/v3/process/{cls.process_id}')
-        except:
+        except Exception:
+            # Ignore errors during cleanup (process may not exist)
             pass
 
     def test_01_process_state_details(self):
@@ -441,7 +446,7 @@ class Test05_ProcessMonitoring(unittest.TestCase):
     def test_04_process_probe(self):
         """Test 5.4: Probe process input"""
         try:
-            probe = self.client.get(f'/api/v3/process/{self.process_id}/probe')
+            self.client.get(f'/api/v3/process/{self.process_id}/probe')
             print(f"✓ Process probe data available")
         except requests.exceptions.HTTPError as e:
             print(f"ℹ Probe not available (requires active input): {e.response.status_code}")
@@ -470,13 +475,14 @@ class Test06_Metadata(unittest.TestCase):
     def tearDownClass(cls):
         try:
             cls.client.delete(f'/api/v3/process/{cls.process_id}')
-        except:
+        except Exception:
+            # Ignore errors during cleanup (process may not exist)
             pass
 
     def test_01_set_process_metadata(self):
         """Test 6.1: Set process metadata"""
         try:
-            result = self.client.put(
+            self.client.put(
                 f'/api/v3/process/{self.process_id}/metadata/test_key',
                 {"value": "test_value"}
             )
@@ -536,7 +542,8 @@ class Test07_ErrorHandling(unittest.TestCase):
         # Cleanup
         try:
             self.client.delete(f'/api/v3/process/{process_id}')
-        except:
+        except Exception:
+            # Ignore errors during cleanup (process may not exist)
             pass
 
         print(f"✓ Duplicate process ID rejected")
@@ -558,7 +565,8 @@ class Test07_ErrorHandling(unittest.TestCase):
         # Cleanup
         try:
             self.client.delete(f'/api/v3/process/{process_id}')
-        except:
+        except Exception:
+            # Ignore errors during cleanup (process may not exist)
             pass
 
         print(f"✓ Process created with invalid URL (will fail on start)")
@@ -591,7 +599,8 @@ class Test08_Performance(unittest.TestCase):
         for process_id in cls.test_processes:
             try:
                 cls.client.delete(f'/api/v3/process/{process_id}')
-            except:
+            except Exception:
+                # Ignore errors during cleanup (process may not exist or already deleted)
                 pass
 
     def test_01_multiple_concurrent_processes(self):
