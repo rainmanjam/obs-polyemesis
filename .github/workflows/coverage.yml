@@ -1,9 +1,25 @@
 name: Code Coverage
 
-# Manual trigger only - run locally with scripts for faster feedback
+# Runs on push to main, pull requests, and manual trigger
 # To run locally: ./scripts/generate-coverage.sh (macOS) or ./scripts/run-coverage-docker.sh (Docker)
 # TODO: Add Windows coverage job (see GitHub issue for implementation details)
 on:
+  push:
+    branches:
+      - main
+    paths:
+      - 'src/**'
+      - 'tests/**'
+      - 'CMakeLists.txt'
+      - '.github/workflows/coverage.yml'
+  pull_request:
+    branches:
+      - main
+    paths:
+      - 'src/**'
+      - 'tests/**'
+      - 'CMakeLists.txt'
+      - '.github/workflows/coverage.yml'
   workflow_dispatch:
 
 concurrency:
