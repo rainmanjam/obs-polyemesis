@@ -18,6 +18,12 @@ services:
     volumes:
       - restreamer-config:/core/config
       - restreamer-data:/core/data
+    security_opt:
+      - no-new-privileges:true
+    read_only: true
+    tmpfs:
+      - /tmp
+      - /var/tmp
     networks:
       - integration-network
     healthcheck:
@@ -37,6 +43,13 @@ services:
     volumes:
       - ./tests/integration/nginx-rtmp.conf:/etc/nginx/nginx.conf:ro
       - rtmp-recordings:/tmp/recordings
+    security_opt:
+      - no-new-privileges:true
+    read_only: true
+    tmpfs:
+      - /tmp
+      - /var/run
+      - /var/cache/nginx
     networks:
       - integration-network
     healthcheck:
