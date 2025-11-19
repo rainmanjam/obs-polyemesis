@@ -89,9 +89,9 @@ jobs:
           lcov --remove build/coverage_total.info \
             '/usr/*' \
             '*/tests/*' \
-            '*/build/*' \
             --output-file build/coverage_filtered.info \
-            --rc lcov_branch_coverage=1
+            --rc lcov_branch_coverage=1 \
+            --ignore-errors unused
 
           # Display summary
           lcov --summary build/coverage_filtered.info \
