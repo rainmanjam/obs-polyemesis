@@ -70,14 +70,15 @@ safe_read() {
     else
         # For non-interactive mode (like automated testing), remove the -s flag
         # as it requires a terminal. This allows piped input to work.
-        local non_interactive_options=$(echo "$options" | sed 's/-s//g')
-        if eval "read $non_interactive_options $varname" 2>/dev/null; then
-            return 0
-        else
-            # No way to read input
-            print_error "No interactive terminal available. Please run this script directly with a terminal."
-            exit 1
-        fi
+        local non_interactive_options="${options//-s/}"
+
+        # Try to read with modified options
+        eval "read $non_interactive_options $varname" 2>/dev/null
+        local read_status=$?
+
+        # In non-interactive mode, return success even if read returns non-zero
+        # (EOF is normal at end of piped input)
+        return 0
     fi
 }
 
