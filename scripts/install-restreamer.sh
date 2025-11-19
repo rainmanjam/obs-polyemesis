@@ -28,7 +28,6 @@ DOCKER_COMPOSE_CMD=""
 # Installation state tracking
 INSTALLATION_STARTED=false
 INSTALLATION_COMPLETED=false
-DOCKER_WAS_INSTALLED=false
 DOCKER_INSTALLED_BY_US=false
 DIRECTORIES_CREATED=false
 SYSTEMD_SERVICE_CREATED=false
@@ -74,7 +73,6 @@ safe_read() {
 
         # Try to read with modified options
         eval "read $non_interactive_options $varname" 2>/dev/null
-        local read_status=$?
 
         # In non-interactive mode, return success even if read returns non-zero
         # (EOF is normal at end of piped input)
@@ -212,7 +210,6 @@ install_docker() {
 
     if command -v docker &> /dev/null; then
         print_info "Docker is already installed ($(docker --version))"
-        DOCKER_WAS_INSTALLED=true
 
         # Determine Docker Compose command for existing Docker installation
         if docker compose version &> /dev/null; then
