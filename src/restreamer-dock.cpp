@@ -39,6 +39,9 @@ RestreamerDock::RestreamerDock(QWidget *parent)
   setupUI();
   loadSettings();
 
+  /* Update connection status based on loaded settings */
+  updateConnectionStatus();
+
   /* Initialize OBS Bridge with default configuration */
   obs_bridge_config_t bridge_config = {0};
   bridge_config.restreamer_url = bstrdup("http://localhost:8080");
@@ -200,13 +203,19 @@ void RestreamerDock::onFrontendSave(obs_data_t *save_data, bool saving) {
     /* Connection settings now handled by ConnectionConfigDialog */
     /* Settings are saved directly to obs_frontend_get_global_config() */
 
-    /* Save bridge settings */
-    obs_data_set_string(dock_settings, "bridge_horizontal_url",
-                        bridgeHorizontalUrlEdit->text().toUtf8().constData());
-    obs_data_set_string(dock_settings, "bridge_vertical_url",
-                        bridgeVerticalUrlEdit->text().toUtf8().constData());
-    obs_data_set_bool(dock_settings, "bridge_auto_start",
-                      bridgeAutoStartCheckbox->isChecked());
+    /* Save bridge settings (with null checks for shutdown safety) */
+    if (bridgeHorizontalUrlEdit) {
+      obs_data_set_string(dock_settings, "bridge_horizontal_url",
+                          bridgeHorizontalUrlEdit->text().toUtf8().constData());
+    }
+    if (bridgeVerticalUrlEdit) {
+      obs_data_set_string(dock_settings, "bridge_vertical_url",
+                          bridgeVerticalUrlEdit->text().toUtf8().constData());
+    }
+    if (bridgeAutoStartCheckbox) {
+      obs_data_set_bool(dock_settings, "bridge_auto_start",
+                        bridgeAutoStartCheckbox->isChecked());
+    }
 
     /* Enhanced: Save currently selected process for restoration */
     if (selectedProcessId) {
@@ -334,8 +343,10 @@ void RestreamerDock::setupUI() {
   connectionBarLayout->setSpacing(12);
 
   /* Connection status label with icon */
-  connectionStatusLabel = new QLabel("Connection ⚫ Connected");
-  connectionStatusLabel->setStyleSheet("font-weight: 600; font-size: 14px;");
+  connectionStatusLabel = new QLabel("Connection ⚫ Not Connected");
+  connectionStatusLabel->setStyleSheet(
+      QString("color: %1; font-weight: 600; font-size: 14px;")
+          .arg(obs_theme_get_muted_color().name()));
 
   /* Configure button (replaces Test button) */
   configureConnectionButton = new QPushButton("Configure");
@@ -626,20 +637,49 @@ void RestreamerDock::onConfigureConnectionClicked()
       api = nullptr;
     }
 
-    api = restreamer_config_create_global_api();
+    /* Update connection status (will create API and test connection) */
+    updateConnectionStatus();
 
-    if (api && restreamer_api_test_connection(api)) {
-      connectionStatusLabel->setText("Connection ⚫ Connected");
-      connectionStatusLabel->setStyleSheet(
-          QString("color: %1; font-weight: 600; font-size: 14px;")
-              .arg(obs_theme_get_success_color().name()));
+    /* Refresh process list if connected */
+    if (api) {
       onRefreshClicked();
-    } else {
-      connectionStatusLabel->setText("Connection ⚫ Disconnected");
-      connectionStatusLabel->setStyleSheet(
-          QString("color: %1; font-weight: 600; font-size: 14px;")
-              .arg(obs_theme_get_error_color().name()));
     }
+  }
+}
+
+void RestreamerDock::updateConnectionStatus()
+{
+  /* Recreate API client from global config */
+  if (api) {
+    restreamer_api_destroy(api);
+    api = nullptr;
+  }
+
+  api = restreamer_config_create_global_api();
+
+  /* If API creation failed, no settings are configured */
+  if (!api) {
+    connectionStatusLabel->setText("Connection ⚫ Not Connected");
+    connectionStatusLabel->setStyleSheet(
+        QString("color: %1; font-weight: 600; font-size: 14px;")
+            .arg(obs_theme_get_muted_color().name()));
+    obs_log(LOG_DEBUG, "No Restreamer connection settings configured");
+    return;
+  }
+
+  /* Test connection with created API */
+  if (restreamer_api_test_connection(api)) {
+    connectionStatusLabel->setText("Connection ⚫ Connected");
+    connectionStatusLabel->setStyleSheet(
+        QString("color: %1; font-weight: 600; font-size: 14px;")
+            .arg(obs_theme_get_success_color().name()));
+    obs_log(LOG_INFO, "Successfully connected to Restreamer");
+  } else {
+    connectionStatusLabel->setText("Connection ⚫ Disconnected");
+    connectionStatusLabel->setStyleSheet(
+        QString("color: %1; font-weight: 600; font-size: 14px;")
+            .arg(obs_theme_get_error_color().name()));
+    obs_log(LOG_WARNING, "Failed to connect to Restreamer");
   }
 }
 

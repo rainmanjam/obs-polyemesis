@@ -145,24 +145,38 @@ void ConnectionConfigDialog::loadSettings()
 		return;
 	}
 
-	const char *url = obs_data_get_string(settings, "restreamer_url");
-	const char *username =
-		obs_data_get_string(settings, "restreamer_username");
-	const char *password =
-		obs_data_get_string(settings, "restreamer_password");
-	int timeout = (int)obs_data_get_int(settings, "restreamer_timeout");
+	/* Load settings with keys matching restreamer_config_load() */
+	const char *host = obs_data_get_string(settings, "host");
+	int port = (int)obs_data_get_int(settings, "port");
+	bool use_https = obs_data_get_bool(settings, "use_https");
+	const char *username = obs_data_get_string(settings, "username");
+	const char *password = obs_data_get_string(settings, "password");
 
-	if (url && strlen(url) > 0) {
+	/* Reconstruct URL from host, port, and use_https */
+	if (host && strlen(host) > 0) {
+		QString url;
+		if (port > 0 && port != (use_https ? 443 : 80)) {
+			/* Non-standard port, include it */
+			url = QString("%1://%2:%3")
+				      .arg(use_https ? "https" : "http")
+				      .arg(host)
+				      .arg(port);
+		} else {
+			/* Standard port, omit it */
+			url = QString("%1://%2")
+				      .arg(use_https ? "https" : "http")
+				      .arg(host);
+		}
 		m_urlEdit->setText(url);
+		obs_log(LOG_DEBUG, "Loaded connection URL: %s",
+			url.toUtf8().constData());
 	}
+
 	if (username && strlen(username) > 0) {
 		m_usernameEdit->setText(username);
 	}
 	if (password && strlen(password) > 0) {
 		m_passwordEdit->setText(password);
-	}
-	if (timeout > 0) {
-		m_timeoutSpinBox->setValue(timeout);
 	}
 }
 
@@ -176,15 +190,46 @@ void ConnectionConfigDialog::saveSettings()
 		settings = OBSDataAutoRelease(obs_data_create());
 	}
 
-	/* Update connection settings */
-	obs_data_set_string(settings, "restreamer_url",
-			    m_urlEdit->text().toUtf8().constData());
-	obs_data_set_string(settings, "restreamer_username",
+	/* Parse URL into host, port, and use_https */
+	QString url = m_urlEdit->text().trimmed();
+	QString host;
+	int port = 0;
+	bool use_https = false;
+
+	/* Try parsing as full URL first */
+	if (url.contains("://")) {
+		QUrl parsedUrl(url);
+		host = parsedUrl.host();
+		port = parsedUrl.port(-1);
+		use_https = (parsedUrl.scheme() == "https");
+	} else {
+		/* Parse host:port format */
+		QStringList parts = url.split(":");
+		host = parts[0];
+		if (parts.size() > 1) {
+			port = parts[1].toInt();
+		}
+		/* Check if it looks like a domain name (has dots) to guess https */
+		if (host.contains(".") && !host.startsWith("localhost") &&
+		    !host.startsWith("127.")) {
+			use_https = true; // Assume https for domain names
+		}
+	}
+
+	/* Set default port based on protocol if not specified */
+	if (port <= 0) {
+		port = use_https ? 443 : 80;
+	}
+
+	/* Save connection settings with keys matching restreamer_config_load() */
+	obs_data_set_string(settings, "host",
+			    host.toUtf8().constData());
+	obs_data_set_int(settings, "port", port);
+	obs_data_set_bool(settings, "use_https", use_https);
+	obs_data_set_string(settings, "username",
 			    m_usernameEdit->text().toUtf8().constData());
-	obs_data_set_string(settings, "restreamer_password",
+	obs_data_set_string(settings, "password",
 			    m_passwordEdit->text().toUtf8().constData());
-	obs_data_set_int(settings, "restreamer_timeout",
-			 m_timeoutSpinBox->value());
 
 	/* Save to module config file */
 	const char *config_path = obs_module_config_path("config.json");
@@ -194,7 +239,11 @@ void ConnectionConfigDialog::saveSettings()
 		return;
 	}
 
-	obs_log(LOG_INFO, "Connection settings saved");
+	obs_log(LOG_INFO, "Connection settings saved: host=%s, port=%d, use_https=%d",
+		host.toUtf8().constData(), port, use_https);
+
+	/* Call restreamer_config_load() to update global connection */
+	restreamer_config_load(settings);
 }
 
 QString ConnectionConfigDialog::getUrl() const

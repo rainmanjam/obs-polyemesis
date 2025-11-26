@@ -99,6 +99,7 @@ private:
   void updateSessionList();
   void updateDestinationList();
   void updateProfileList();
+  void updateConnectionStatus();
 
   restreamer_api_t *api;
   QTimer *updateTimer;
