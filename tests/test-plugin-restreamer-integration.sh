@@ -69,6 +69,7 @@ if [ ! -f "$SECRETS_FILE" ]; then
     exit 1
 fi
 
+# shellcheck source=/dev/null
 source "$SECRETS_FILE"
 
 # Build base URL
@@ -424,8 +425,8 @@ log_section "Step 10: Process Deletion Test"
 TESTS_RUN=$((TESTS_RUN + 1))
 
 # Delete one test process
-DELETE_RESPONSE=$(curl -s -X DELETE "${BASE_URL}/api/v3/process/${HORIZONTAL_PROCESS_ID}" \
-    -H "Authorization: Bearer ${JWT_TOKEN}")
+curl -s -X DELETE "${BASE_URL}/api/v3/process/${HORIZONTAL_PROCESS_ID}" \
+    -H "Authorization: Bearer ${JWT_TOKEN}" > /dev/null
 
 sleep 1
 

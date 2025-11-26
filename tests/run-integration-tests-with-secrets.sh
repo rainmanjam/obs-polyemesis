@@ -7,7 +7,6 @@ set -e
 # Colors
 RED='\033[0;31m'
 GREEN='\033[0;32m'
-YELLOW='\033[1;33m'
 BLUE='\033[0;34m'
 CYAN='\033[0;36m'
 NC='\033[0m'
@@ -62,6 +61,7 @@ fi
 
 # Load secrets
 log_info "Loading credentials from .secrets..."
+# shellcheck source=/dev/null
 source "$SECRETS_FILE"
 
 # Validate required variables
@@ -153,21 +153,6 @@ log_info "[4/6] Testing process creation capability..."
 TESTS_RUN=$((TESTS_RUN + 1))
 
 # Create a test process configuration
-TEST_PROCESS_CONFIG='{
-  "id": "test_obs_polyemesis_'$(date +%s)'",
-  "reference": "obs-polyemesis-test",
-  "input": [{
-    "id": "input_0",
-    "address": "rtmp://127.0.0.1:1935/live/test",
-    "options": ["-re"]
-  }],
-  "output": [{
-    "id": "output_0",
-    "address": "rtmp://127.0.0.1:1935/live/test-output",
-    "options": ["-c", "copy"]
-  }],
-  "options": ["-err_detect", "ignore_err"]
-}'
 
 # Don't actually create it, just test if we have permission
 METADATA_RESPONSE=$(curl -s -u "$AUTH" "${BASE_URL}/api/v3/process")
