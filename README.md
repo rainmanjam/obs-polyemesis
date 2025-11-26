@@ -194,9 +194,14 @@ cmake --install build
 
 1. Open OBS Studio
 2. Go to View → Docks → Restreamer Control
-3. Configure your restreamer connection (host, port)
-4. Click "Test Connection"
-5. Start controlling your restreamer processes!
+3. Click the **Configure** button in the connection status bar
+4. Enter your Restreamer URL (e.g., `https://rs.example.com` or `http://localhost:8080`)
+   - **Tip**: Include the port number if not using standard ports (80/443)
+   - The dialog will automatically test the connection if settings are already saved
+5. Enter your username and password (if authentication is enabled)
+6. Click **Test Connection** to verify connectivity
+7. Click **Save** to store your settings
+8. Start controlling your restreamer processes!
 
 ## 📖 Documentation
 
