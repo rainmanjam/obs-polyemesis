@@ -195,31 +195,7 @@ void ConnectionConfigDialog::saveSettings()
 	QString host;
 	int port = 0;
 	bool use_https = false;
-
-	/* Try parsing as full URL first */
-	if (url.contains("://")) {
-		QUrl parsedUrl(url);
-		host = parsedUrl.host();
-		port = parsedUrl.port(-1);
-		use_https = (parsedUrl.scheme() == "https");
-	} else {
-		/* Parse host:port format */
-		QStringList parts = url.split(":");
-		host = parts[0];
-		if (parts.size() > 1) {
-			port = parts[1].toInt();
-		}
-		/* Check if it looks like a domain name (has dots) to guess https */
-		if (host.contains(".") && !host.startsWith("localhost") &&
-		    !host.startsWith("127.")) {
-			use_https = true; // Assume https for domain names
-		}
-	}
-
-	/* Set default port based on protocol if not specified */
-	if (port <= 0) {
-		port = use_https ? 443 : 80;
-	}
+	parseUrl(url, host, port, use_https);
 
 	/* Save connection settings with keys matching restreamer_config_load() */
 	obs_data_set_string(settings, "host",
@@ -286,28 +262,9 @@ void ConnectionConfigDialog::setTimeout(int timeout)
 	m_timeoutSpinBox->setValue(timeout);
 }
 
-void ConnectionConfigDialog::onTestConnection()
+void ConnectionConfigDialog::parseUrl(const QString &url, QString &host,
+				       int &port, bool &use_https) const
 {
-	QString url = m_urlEdit->text().trimmed();
-	QString username = m_usernameEdit->text().trimmed();
-	QString password = m_passwordEdit->text().trimmed();
-
-	if (url.isEmpty()) {
-		m_statusLabel->setText(
-			"⚠️ Please enter a Restreamer URL to test");
-		m_statusLabel->setStyleSheet(
-			"background-color: #5a3a00; color: #ffcc00; padding: 8px; border-radius: 4px;");
-		m_statusLabel->show();
-		return;
-	}
-
-	m_testButton->setEnabled(false);
-
-	/* Parse URL into host, port, and use_https */
-	QString host;
-	int port = 0;
-	bool use_https = false;
-
 	/* Try parsing as full URL first */
 	if (url.contains("://")) {
 		QUrl parsedUrl(url);
@@ -332,6 +289,30 @@ void ConnectionConfigDialog::onTestConnection()
 	if (port <= 0) {
 		port = use_https ? 443 : 80;
 	}
+}
+
+void ConnectionConfigDialog::onTestConnection()
+{
+	QString url = m_urlEdit->text().trimmed();
+	QString username = m_usernameEdit->text().trimmed();
+	QString password = m_passwordEdit->text().trimmed();
+
+	if (url.isEmpty()) {
+		m_statusLabel->setText(
+			"⚠️ Please enter a Restreamer URL to test");
+		m_statusLabel->setStyleSheet(
+			"background-color: #5a3a00; color: #ffcc00; padding: 8px; border-radius: 4px;");
+		m_statusLabel->show();
+		return;
+	}
+
+	m_testButton->setEnabled(false);
+
+	/* Parse URL into host, port, and use_https */
+	QString host;
+	int port = 0;
+	bool use_https = false;
+	parseUrl(url, host, port, use_https);
 
 	QString connectionUrl = QString("%1://%2:%3")
 					.arg(use_https ? "https" : "http")
