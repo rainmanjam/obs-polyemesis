@@ -4,18 +4,40 @@ function renderProfiles() {
     const container = document.getElementById('profilesContainer');
 
     if (mockProfiles.length === 0) {
-        container.innerHTML = `
-            <div class="no-profiles">
-                <div class="no-profiles-icon">📺</div>
-                <div class="no-profiles-title">No Streaming Profiles</div>
-                <div class="no-profiles-text">
-                    Create your first profile to start multistreaming to multiple platforms
-                </div>
-                <button class="btn btn-primary" onclick="openProfileEditModal(null)">
-                    <span class="icon">+</span> Create Profile
-                </button>
-            </div>
-        `;
+        // Use DOM methods to prevent XSS
+        const noProfilesDiv = document.createElement('div');
+        noProfilesDiv.className = 'no-profiles';
+
+        const icon = document.createElement('div');
+        icon.className = 'no-profiles-icon';
+        icon.textContent = '📺';
+
+        const title = document.createElement('div');
+        title.className = 'no-profiles-title';
+        title.textContent = 'No Streaming Profiles';
+
+        const text = document.createElement('div');
+        text.className = 'no-profiles-text';
+        text.textContent = 'Create your first profile to start multistreaming to multiple platforms';
+
+        const btn = document.createElement('button');
+        btn.className = 'btn btn-primary';
+        btn.onclick = () => openProfileEditModal(null);
+
+        const iconSpan = document.createElement('span');
+        iconSpan.className = 'icon';
+        iconSpan.textContent = '+';
+
+        btn.appendChild(iconSpan);
+        btn.appendChild(document.createTextNode(' Create Profile'));
+
+        noProfilesDiv.appendChild(icon);
+        noProfilesDiv.appendChild(title);
+        noProfilesDiv.appendChild(text);
+        noProfilesDiv.appendChild(btn);
+
+        container.innerHTML = '';
+        container.appendChild(noProfilesDiv);
         return;
     }
 
@@ -58,24 +80,62 @@ function createProfileWidget(profile) {
         summaryText = parts.join(', ') || `${totalCount} destinations`;
     }
 
-    // Profile header
+    // Profile header - use DOM methods to prevent XSS
     const header = document.createElement('div');
     header.className = 'profile-header';
-    header.innerHTML = `
-        <span class="profile-status-indicator ${aggregateStatus}">${getStatusIcon(aggregateStatus)}</span>
-        <div class="profile-info">
-            <div class="profile-name">${profile.name}</div>
-            <div class="profile-summary">${summaryText}</div>
-        </div>
-        <div class="profile-header-actions">
-            ${profile.status === 'active' || profile.status === 'starting'
-                ? '<button class="profile-btn stop" onclick="stopProfile(\'' + profile.id + '\', event)">■ Stop</button>'
-                : '<button class="profile-btn start" onclick="startProfile(\'' + profile.id + '\', event)">▶ Start</button>'
-            }
-            <button class="profile-btn" onclick="openProfileEditModal(mockProfiles.find(p => p.id === \'' + profile.id + '\'))">Edit</button>
-            <button class="profile-btn menu" onclick="showProfileContextMenu(event, \'' + profile.id + '\')">⋮</button>
-        </div>
-    `;
+
+    const statusIndicator = document.createElement('span');
+    statusIndicator.className = `profile-status-indicator ${aggregateStatus}`;
+    statusIndicator.textContent = getStatusIcon(aggregateStatus);
+
+    const profileInfo = document.createElement('div');
+    profileInfo.className = 'profile-info';
+
+    const profileName = document.createElement('div');
+    profileName.className = 'profile-name';
+    profileName.textContent = profile.name;
+
+    const profileSummary = document.createElement('div');
+    profileSummary.className = 'profile-summary';
+    profileSummary.textContent = summaryText;
+
+    profileInfo.appendChild(profileName);
+    profileInfo.appendChild(profileSummary);
+
+    const profileActions = document.createElement('div');
+    profileActions.className = 'profile-header-actions';
+
+    // Start/Stop button
+    const startStopBtn = document.createElement('button');
+    if (profile.status === 'active' || profile.status === 'starting') {
+        startStopBtn.className = 'profile-btn stop';
+        startStopBtn.textContent = '■ Stop';
+        startStopBtn.onclick = (event) => stopProfile(profile.id, event);
+    } else {
+        startStopBtn.className = 'profile-btn start';
+        startStopBtn.textContent = '▶ Start';
+        startStopBtn.onclick = (event) => startProfile(profile.id, event);
+    }
+
+    // Edit button
+    const editBtn = document.createElement('button');
+    editBtn.className = 'profile-btn';
+    editBtn.textContent = 'Edit';
+    editBtn.onclick = () => openProfileEditModal(mockProfiles.find(p => p.id === profile.id));
+
+    // Menu button
+    const menuBtn = document.createElement('button');
+    menuBtn.className = 'profile-btn menu';
+    menuBtn.textContent = '⋮';
+    menuBtn.onclick = (event) => showProfileContextMenu(event, profile.id);
+
+    profileActions.appendChild(startStopBtn);
+    profileActions.appendChild(editBtn);
+    profileActions.appendChild(menuBtn);
+
+    header.appendChild(statusIndicator);
+    header.appendChild(profileInfo);
+    header.appendChild(profileActions);
 
     // Toggle expansion on header click (but not on buttons)
     header.addEventListener('click', (e) => {
@@ -115,52 +175,116 @@ function createDestinationRow(dest, profile) {
     row.className = 'destination-row';
     row.setAttribute('data-destination-id', dest.id);
 
-    // Build stats HTML
-    let statsHTML = '';
+    // Use DOM methods to prevent XSS
+    const statusSpan = document.createElement('span');
+    statusSpan.className = `destination-status ${dest.status}`;
+    statusSpan.textContent = getStatusIcon(dest.status);
+
+    const destInfo = document.createElement('div');
+    destInfo.className = 'destination-info';
+
+    const destName = document.createElement('div');
+    destName.className = 'destination-name';
+    destName.textContent = dest.service;
+
+    const destDetails = document.createElement('div');
+    destDetails.className = 'destination-details';
+
+    const resolutionSpan = document.createElement('span');
+    resolutionSpan.className = 'destination-detail';
+    resolutionSpan.textContent = dest.resolution;
+
+    const bitrateSpan = document.createElement('span');
+    bitrateSpan.className = 'destination-detail';
+    bitrateSpan.textContent = formatBitrate(dest.bitrate);
+
+    destDetails.appendChild(resolutionSpan);
+    destDetails.appendChild(bitrateSpan);
+
+    if (dest.fps > 0) {
+        const fpsSpan = document.createElement('span');
+        fpsSpan.className = 'destination-detail';
+        fpsSpan.textContent = dest.fps + ' FPS';
+        destDetails.appendChild(fpsSpan);
+    }
+
+    destInfo.appendChild(destName);
+    destInfo.appendChild(destDetails);
+
+    row.appendChild(statusSpan);
+    row.appendChild(destInfo);
+
+    // Build stats section
     if (dest.status === 'active') {
         const droppedPercent = calculateDroppedPercent(dest.droppedFrames, dest.totalFrames);
         const droppedClass = droppedPercent > 5 ? 'error' : droppedPercent > 1 ? 'warning' : 'success';
 
-        statsHTML = `
-            <div class="destination-stats">
-                <span class="stat-item success">↑ ${formatBitrate(dest.currentBitrate)}</span>
-                <span class="stat-item ${droppedClass}">${dest.droppedFrames} dropped (${droppedPercent}%)</span>
-                <span class="stat-item">${formatDuration(dest.duration)}</span>
-            </div>
-        `;
+        const statsDiv = document.createElement('div');
+        statsDiv.className = 'destination-stats';
+
+        const bitrateItem = document.createElement('span');
+        bitrateItem.className = 'stat-item success';
+        bitrateItem.textContent = '↑ ' + formatBitrate(dest.currentBitrate);
+
+        const droppedItem = document.createElement('span');
+        droppedItem.className = `stat-item ${droppedClass}`;
+        droppedItem.textContent = `${dest.droppedFrames} dropped (${droppedPercent}%)`;
+
+        const durationItem = document.createElement('span');
+        durationItem.className = 'stat-item';
+        durationItem.textContent = formatDuration(dest.duration);
+
+        statsDiv.appendChild(bitrateItem);
+        statsDiv.appendChild(droppedItem);
+        statsDiv.appendChild(durationItem);
+
+        row.appendChild(statsDiv);
     } else if (dest.status === 'starting') {
-        statsHTML = `
-            <div class="destination-stats">
-                <span class="stat-item warning">Connecting...</span>
-            </div>
-        `;
+        const statsDiv = document.createElement('div');
+        statsDiv.className = 'destination-stats';
+
+        const connectingItem = document.createElement('span');
+        connectingItem.className = 'stat-item warning';
+        connectingItem.textContent = 'Connecting...';
+
+        statsDiv.appendChild(connectingItem);
+        row.appendChild(statsDiv);
     } else if (dest.status === 'error') {
-        statsHTML = `
-            <div class="destination-stats">
-                <span class="stat-item error">${dest.error}</span>
-            </div>
-        `;
+        const statsDiv = document.createElement('div');
+        statsDiv.className = 'destination-stats';
+
+        const errorItem = document.createElement('span');
+        errorItem.className = 'stat-item error';
+        errorItem.textContent = dest.error;
+
+        statsDiv.appendChild(errorItem);
+        row.appendChild(statsDiv);
     }
 
-    row.innerHTML = `
-        <span class="destination-status ${dest.status}">${getStatusIcon(dest.status)}</span>
-        <div class="destination-info">
-            <div class="destination-name">${dest.service}</div>
-            <div class="destination-details">
-                <span class="destination-detail">${dest.resolution}</span>
-                <span class="destination-detail">${formatBitrate(dest.bitrate)}</span>
-                ${dest.fps > 0 ? '<span class="destination-detail">' + dest.fps + ' FPS</span>' : ''}
-            </div>
-        </div>
-        ${statsHTML}
-        <div class="destination-actions">
-            ${dest.status === 'active'
-                ? '<button class="destination-btn stop" onclick="stopDestination(\'' + profile.id + '\', \'' + dest.id + '\', event)">■</button>'
-                : '<button class="destination-btn start" onclick="startDestination(\'' + profile.id + '\', \'' + dest.id + '\', event)">▶</button>'
-            }
-            <button class="destination-btn" onclick="editDestination(\'' + dest.id + '\')">⚙️</button>
-        </div>
-    `;
+    // Destination actions
+    const actionsDiv = document.createElement('div');
+    actionsDiv.className = 'destination-actions';
+
+    const startStopBtn = document.createElement('button');
+    if (dest.status === 'active') {
+        startStopBtn.className = 'destination-btn stop';
+        startStopBtn.textContent = '■';
+        startStopBtn.onclick = (event) => stopDestination(profile.id, dest.id, event);
+    } else {
+        startStopBtn.className = 'destination-btn start';
+        startStopBtn.textContent = '▶';
+        startStopBtn.onclick = (event) => startDestination(profile.id, dest.id, event);
+    }
+
+    const settingsBtn = document.createElement('button');
+    settingsBtn.className = 'destination-btn';
+    settingsBtn.textContent = '⚙️';
+    settingsBtn.onclick = () => editDestination(dest.id);
+
+    actionsDiv.appendChild(startStopBtn);
+    actionsDiv.appendChild(settingsBtn);
+
+    row.appendChild(actionsDiv);
 
     // Right-click context menu
     row.addEventListener('contextmenu', (e) => {
@@ -183,41 +307,60 @@ function toggleDestinationDetails(row, dest) {
         return;
     }
 
+    // Use DOM methods to prevent XSS
     const details = document.createElement('div');
     details.className = 'destination-expanded';
-    details.innerHTML = `
-        <div class="destination-expanded-grid">
-            <div class="detail-item">
-                <span class="detail-label">Server:</span>
-                <span class="detail-value">live-${dest.service.toLowerCase()}.tv</span>
-            </div>
-            <div class="detail-item">
-                <span class="detail-label">Resolution:</span>
-                <span class="detail-value">${dest.resolution}</span>
-            </div>
-            <div class="detail-item">
-                <span class="detail-label">Bitrate:</span>
-                <span class="detail-value">${formatBitrate(dest.currentBitrate)} / ${formatBitrate(dest.bitrate)}</span>
-            </div>
-            <div class="detail-item">
-                <span class="detail-label">FPS:</span>
-                <span class="detail-value">${dest.fps} fps</span>
-            </div>
-            <div class="detail-item">
-                <span class="detail-label">Dropped:</span>
-                <span class="detail-value">${dest.droppedFrames} (${calculateDroppedPercent(dest.droppedFrames, dest.totalFrames)}%)</span>
-            </div>
-            <div class="detail-item">
-                <span class="detail-label">Duration:</span>
-                <span class="detail-value">${formatDuration(dest.duration)}</span>
-            </div>
-        </div>
-        <div class="destination-expanded-actions">
-            <button class="btn btn-secondary btn-sm">📊 Stats</button>
-            <button class="btn btn-secondary btn-sm">📝 Logs</button>
-            <button class="btn btn-secondary btn-sm">🔍 Test Health</button>
-        </div>
-    `;
+
+    const grid = document.createElement('div');
+    grid.className = 'destination-expanded-grid';
+
+    // Helper function to create detail items
+    function createDetailItem(label, value) {
+        const item = document.createElement('div');
+        item.className = 'detail-item';
+
+        const labelSpan = document.createElement('span');
+        labelSpan.className = 'detail-label';
+        labelSpan.textContent = label + ':';
+
+        const valueSpan = document.createElement('span');
+        valueSpan.className = 'detail-value';
+        valueSpan.textContent = value;
+
+        item.appendChild(labelSpan);
+        item.appendChild(valueSpan);
+
+        return item;
+    }
+
+    grid.appendChild(createDetailItem('Server', `live-${dest.service.toLowerCase()}.tv`));
+    grid.appendChild(createDetailItem('Resolution', dest.resolution));
+    grid.appendChild(createDetailItem('Bitrate', `${formatBitrate(dest.currentBitrate)} / ${formatBitrate(dest.bitrate)}`));
+    grid.appendChild(createDetailItem('FPS', `${dest.fps} fps`));
+    grid.appendChild(createDetailItem('Dropped', `${dest.droppedFrames} (${calculateDroppedPercent(dest.droppedFrames, dest.totalFrames)}%)`));
+    grid.appendChild(createDetailItem('Duration', formatDuration(dest.duration)));
+
+    const actions = document.createElement('div');
+    actions.className = 'destination-expanded-actions';
+
+    const statsBtn = document.createElement('button');
+    statsBtn.className = 'btn btn-secondary btn-sm';
+    statsBtn.textContent = '📊 Stats';
+
+    const logsBtn = document.createElement('button');
+    logsBtn.className = 'btn btn-secondary btn-sm';
+    logsBtn.textContent = '📝 Logs';
+
+    const healthBtn = document.createElement('button');
+    healthBtn.className = 'btn btn-secondary btn-sm';
+    healthBtn.textContent = '🔍 Test Health';
+
+    actions.appendChild(statsBtn);
+    actions.appendChild(logsBtn);
+    actions.appendChild(healthBtn);
+
+    details.appendChild(grid);
+    details.appendChild(actions);
 
     row.appendChild(details);
 }

@@ -45,10 +45,16 @@ class ContextMenu {
                 if (item.disabled) menuItem.classList.add('disabled');
                 if (item.danger) menuItem.classList.add('danger');
 
-                menuItem.innerHTML = `
-                    <span class="icon">${item.icon || ''}</span>
-                    <span>${item.text}</span>
-                `;
+                // Use DOM methods to prevent XSS
+                const iconSpan = document.createElement('span');
+                iconSpan.className = 'icon';
+                iconSpan.textContent = item.icon || '';
+
+                const textSpan = document.createElement('span');
+                textSpan.textContent = item.text;
+
+                menuItem.appendChild(iconSpan);
+                menuItem.appendChild(textSpan);
 
                 if (!item.disabled && item.action) {
                     menuItem.addEventListener('click', (e) => {
@@ -98,7 +104,7 @@ const contextMenuItems = {
             icon: '▶',
             text: 'Start Profile',
             action: (target) => {
-                console.log('Start profile:', profile.id);
+                // Start profile action
                 profile.status = 'starting';
                 setTimeout(() => {
                     profile.status = 'active';
@@ -113,7 +119,7 @@ const contextMenuItems = {
             icon: '■',
             text: 'Stop Profile',
             action: (target) => {
-                console.log('Stop profile:', profile.id);
+                // Stop profile action
                 profile.status = 'inactive';
                 profile.destinations.forEach(d => {
                     d.status = 'inactive';
@@ -128,7 +134,7 @@ const contextMenuItems = {
             icon: '↻',
             text: 'Restart Profile',
             action: (target) => {
-                console.log('Restart profile:', profile.id);
+                // Restart profile action
                 profile.status = 'starting';
                 setTimeout(() => {
                     profile.status = 'active';
@@ -183,8 +189,8 @@ const contextMenuItems = {
             text: 'Export Configuration',
             action: (target) => {
                 const config = JSON.stringify(profile, null, 2);
-                console.log('Profile config:', config);
-                alert('Configuration exported to console');
+                // Configuration exported (console.log removed for security)
+                alert('Configuration exported');
             }
         },
         { type: 'separator' },
@@ -200,7 +206,7 @@ const contextMenuItems = {
             icon: '▶',
             text: 'Start Stream',
             action: (target) => {
-                console.log('Start destination:', dest.id);
+                // Start stream action
                 dest.status = 'starting';
                 setTimeout(() => {
                     dest.status = 'active';
@@ -215,7 +221,7 @@ const contextMenuItems = {
             icon: '■',
             text: 'Stop Stream',
             action: (target) => {
-                console.log('Stop destination:', dest.id);
+                // Stop stream action
                 dest.status = 'inactive';
                 dest.currentBitrate = 0;
                 dest.duration = 0;
@@ -227,7 +233,7 @@ const contextMenuItems = {
             icon: '↻',
             text: 'Restart Stream',
             action: (target) => {
-                console.log('Restart destination:', dest.id);
+                // Restart stream action
                 dest.status = 'starting';
                 setTimeout(() => {
                     dest.status = 'active';
@@ -241,7 +247,7 @@ const contextMenuItems = {
             icon: '⏸',
             text: 'Pause Stream',
             action: (target) => {
-                console.log('Pause destination:', dest.id);
+                // Pause stream action
                 dest.status = 'paused';
                 renderProfiles();
             },

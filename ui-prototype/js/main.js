@@ -2,7 +2,7 @@
 
 // Initialize the app when DOM is ready
 document.addEventListener('DOMContentLoaded', () => {
-    console.log('OBS Polyemesis UI Prototype loaded');
+    // OBS Polyemesis UI Prototype loaded
 
     // Initial render
     renderProfiles();
@@ -118,13 +118,11 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     });
 
-    console.log('✓ Profiles rendered');
-    console.log('✓ Event listeners attached');
-    console.log('✓ Real-time updates started');
-    console.log('\nKeyboard shortcuts:');
-    console.log('  Ctrl/Cmd + S: Start all profiles');
-    console.log('  Ctrl/Cmd + Q: Stop all profiles');
-    console.log('  Ctrl/Cmd + N: New profile');
-    console.log('  Ctrl/Cmd + M: Open monitoring');
-    console.log('  Esc: Close modals/menus');
+    // Initialization complete
+    // Keyboard shortcuts available:
+    //   Ctrl/Cmd + S: Start all profiles
+    //   Ctrl/Cmd + Q: Stop all profiles
+    //   Ctrl/Cmd + N: New profile
+    //   Ctrl/Cmd + M: Open monitoring
+    //   Esc: Close modals/menus
 });
