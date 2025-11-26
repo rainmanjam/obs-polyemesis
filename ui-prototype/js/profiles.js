@@ -170,6 +170,14 @@ function createProfileWidget(profile) {
     return widget;
 }
 
+// Helper function to create stats items
+function createStatItem(className, text) {
+    const item = document.createElement('span');
+    item.className = `stat-item ${className}`;
+    item.textContent = text;
+    return item;
+}
+
 function createDestinationRow(dest, profile) {
     const row = document.createElement('div');
     row.className = 'destination-row';
@@ -215,49 +223,22 @@ function createDestinationRow(dest, profile) {
     row.appendChild(destInfo);
 
     // Build stats section
+    const statsDiv = document.createElement('div');
+    statsDiv.className = 'destination-stats';
+
     if (dest.status === 'active') {
         const droppedPercent = calculateDroppedPercent(dest.droppedFrames, dest.totalFrames);
         const droppedClass = droppedPercent > 5 ? 'error' : droppedPercent > 1 ? 'warning' : 'success';
 
-        const statsDiv = document.createElement('div');
-        statsDiv.className = 'destination-stats';
-
-        const bitrateItem = document.createElement('span');
-        bitrateItem.className = 'stat-item success';
-        bitrateItem.textContent = '↑ ' + formatBitrate(dest.currentBitrate);
-
-        const droppedItem = document.createElement('span');
-        droppedItem.className = `stat-item ${droppedClass}`;
-        droppedItem.textContent = `${dest.droppedFrames} dropped (${droppedPercent}%)`;
-
-        const durationItem = document.createElement('span');
-        durationItem.className = 'stat-item';
-        durationItem.textContent = formatDuration(dest.duration);
-
-        statsDiv.appendChild(bitrateItem);
-        statsDiv.appendChild(droppedItem);
-        statsDiv.appendChild(durationItem);
-
+        statsDiv.appendChild(createStatItem('success', '↑ ' + formatBitrate(dest.currentBitrate)));
+        statsDiv.appendChild(createStatItem(droppedClass, `${dest.droppedFrames} dropped (${droppedPercent}%)`));
+        statsDiv.appendChild(createStatItem('', formatDuration(dest.duration)));
         row.appendChild(statsDiv);
     } else if (dest.status === 'starting') {
-        const statsDiv = document.createElement('div');
-        statsDiv.className = 'destination-stats';
-
-        const connectingItem = document.createElement('span');
-        connectingItem.className = 'stat-item warning';
-        connectingItem.textContent = 'Connecting...';
-
-        statsDiv.appendChild(connectingItem);
+        statsDiv.appendChild(createStatItem('warning', 'Connecting...'));
         row.appendChild(statsDiv);
     } else if (dest.status === 'error') {
-        const statsDiv = document.createElement('div');
-        statsDiv.className = 'destination-stats';
-
-        const errorItem = document.createElement('span');
-        errorItem.className = 'stat-item error';
-        errorItem.textContent = dest.error;
-
-        statsDiv.appendChild(errorItem);
+        statsDiv.appendChild(createStatItem('error', dest.error));
         row.appendChild(statsDiv);
     }
 
@@ -402,7 +383,8 @@ function startProfile(profileId, event) {
         profile.status = 'active';
         profile.destinations.forEach(d => {
             d.status = 'active';
-            d.currentBitrate = d.bitrate * (0.9 + Math.random() * 0.1);
+            // Fixed bitrate for UI simulation (95% of target)
+            d.currentBitrate = d.bitrate * 0.95;
         });
         renderProfiles();
     }, 1500);
@@ -437,7 +419,8 @@ function startDestination(profileId, destId, event) {
 
     setTimeout(() => {
         dest.status = 'active';
-        dest.currentBitrate = dest.bitrate * (0.9 + Math.random() * 0.1);
+        // Fixed bitrate for UI simulation (95% of target)
+        dest.currentBitrate = dest.bitrate * 0.95;
         renderProfiles();
     }, 1000);
 }
@@ -498,7 +481,8 @@ document.getElementById('startAllBtn').addEventListener('click', () => {
                 profile.destinations.forEach(d => {
                     if (d.status === 'starting') {
                         d.status = 'active';
-                        d.currentBitrate = d.bitrate * (0.9 + Math.random() * 0.1);
+                        // Fixed bitrate for UI simulation (95% of target)
+                        d.currentBitrate = d.bitrate * 0.95;
                     }
                 });
             }
