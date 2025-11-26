@@ -28,6 +28,8 @@ typedef struct obs_bridge obs_bridge_t;
 
 /* Forward declare Qt classes */
 class CollapsibleSection;
+class ProfileWidget;
+class ConnectionConfigDialog;
 
 class RestreamerDock : public QWidget {
   Q_OBJECT
@@ -45,6 +47,7 @@ public:
 private slots:
   void onRefreshClicked();
   void onTestConnectionClicked();
+  void onConfigureConnectionClicked();
   void onProcessSelected();
   void onStartProcessClicked();
   void onStopProcessClicked();
@@ -57,15 +60,15 @@ private slots:
 
   /* Profile management slots */
   void onCreateProfileClicked();
-  void onDeleteProfileClicked();
-  void onProfileSelected();
-  void onStartProfileClicked();
-  void onStopProfileClicked();
   void onStartAllProfilesClicked();
   void onStopAllProfilesClicked();
-  void onConfigureProfileClicked();
-  void onDuplicateProfileClicked();
-  void onProfileListContextMenu(const QPoint &pos);
+
+  /* ProfileWidget signal handlers */
+  void onProfileStartRequested(const char *profileId);
+  void onProfileStopRequested(const char *profileId);
+  void onProfileEditRequested(const char *profileId);
+  void onProfileDeleteRequested(const char *profileId);
+  void onProfileDuplicateRequested(const char *profileId);
 
   /* Extended API slots */
   void onProbeInputClicked();
@@ -96,7 +99,6 @@ private:
   void updateSessionList();
   void updateDestinationList();
   void updateProfileList();
-  void updateProfileDetails();
 
   restreamer_api_t *api;
   QTimer *updateTimer;
@@ -116,26 +118,18 @@ private:
   bool sizeInitialized;
 
   /* Connection group */
-  QLineEdit *hostEdit;
-  QLineEdit *portEdit;
-  QCheckBox *httpsCheckbox;
-  QLineEdit *usernameEdit;
-  QLineEdit *passwordEdit;
-  QPushButton *testConnectionButton;
+  /* Connection status bar */
   QLabel *connectionStatusLabel;
+  QPushButton *configureConnectionButton;
 
   /* Output Profiles group */
-  QListWidget *profileListWidget;
+  QWidget *profileListContainer;
+  QVBoxLayout *profileListLayout;
+  QList<ProfileWidget *> profileWidgets;
   QPushButton *createProfileButton;
-  QPushButton *deleteProfileButton;
-  QPushButton *duplicateProfileButton;
-  QPushButton *configureProfileButton;
-  QPushButton *startProfileButton;
-  QPushButton *stopProfileButton;
   QPushButton *startAllProfilesButton;
   QPushButton *stopAllProfilesButton;
   QLabel *profileStatusLabel;
-  QTableWidget *profileDestinationsTable;
 
   /* Process list group */
   QListWidget *processList;
@@ -183,23 +177,4 @@ private:
 
   /* OBS Service Loader */
   OBSServiceLoader *serviceLoader;
-
-  /* Collapsible Section References */
-  CollapsibleSection *connectionSection;
-  CollapsibleSection *bridgeSection;
-  CollapsibleSection *profilesSection;
-  CollapsibleSection *monitoringSection;
-  CollapsibleSection *systemSection;
-  CollapsibleSection *advancedSection;
-
-  /* Quick Action Button References */
-  QPushButton *quickProfileToggleButton;
-
-  /* Helper methods for section titles */
-  void updateConnectionSectionTitle();
-  void updateBridgeSectionTitle();
-  void updateProfilesSectionTitle();
-  void updateMonitoringSectionTitle();
-  void updateSystemSectionTitle();
-  void updateAdvancedSectionTitle();
 };
