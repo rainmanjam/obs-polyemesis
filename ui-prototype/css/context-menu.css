@@ -1,0 +1,130 @@
+/* ===== Context Menu ===== */
+.context-menu {
+    position: fixed;
+    background-color: var(--bg-secondary);
+    border: 1px solid var(--border-secondary);
+    border-radius: 4px;
+    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.5);
+    padding: 4px 0;
+    min-width: 200px;
+    z-index: 10000;
+    display: none;
+    overflow: hidden;
+}
+
+.context-menu.visible {
+    display: block;
+    animation: contextMenuFadeIn 150ms ease;
+}
+
+@keyframes contextMenuFadeIn {
+    from {
+        opacity: 0;
+        transform: translateY(-5px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+.context-menu-item {
+    padding: 6px 16px;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    gap: var(--spacing-md);
+    color: var(--text-primary);
+    font-size: var(--font-size-base);
+    transition: background-color var(--transition-fast);
+    user-select: none;
+}
+
+.context-menu-item:hover {
+    background-color: var(--bg-hover);
+}
+
+.context-menu-item.disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+}
+
+.context-menu-item.disabled:hover {
+    background-color: transparent;
+}
+
+.context-menu-item.danger {
+    color: var(--status-error);
+}
+
+.context-menu-item .icon {
+    width: 16px;
+    text-align: center;
+    flex-shrink: 0;
+}
+
+.context-menu-separator {
+    height: 1px;
+    background-color: var(--border-primary);
+    margin: 4px 0;
+}
+
+.context-menu-label {
+    padding: 4px 16px;
+    color: var(--text-muted);
+    font-size: var(--font-size-sm);
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
+
+/* ===== Tooltip ===== */
+.tooltip {
+    position: fixed;
+    background-color: var(--bg-tertiary);
+    border: 1px solid var(--border-secondary);
+    border-radius: 4px;
+    padding: var(--spacing-sm) var(--spacing-md);
+    font-size: var(--font-size-sm);
+    color: var(--text-primary);
+    max-width: 300px;
+    z-index: 9999;
+    pointer-events: none;
+    display: none;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+}
+
+.tooltip.visible {
+    display: block;
+    animation: tooltipFadeIn 200ms ease;
+}
+
+@keyframes tooltipFadeIn {
+    from {
+        opacity: 0;
+    }
+    to {
+        opacity: 1;
+    }
+}
+
+.tooltip-title {
+    font-weight: 600;
+    margin-bottom: 4px;
+}
+
+.tooltip-content {
+    line-height: 1.4;
+}
+
+.tooltip-divider {
+    height: 1px;
+    background-color: var(--border-primary);
+    margin: 6px 0;
+}
+
+.tooltip-hint {
+    color: var(--text-muted);
+    font-size: var(--font-size-sm);
+    font-style: italic;
+}

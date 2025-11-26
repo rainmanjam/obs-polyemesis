@@ -1,0 +1,343 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>OBS Polyemesis - Restreamer Control</title>
+    <link rel="stylesheet" href="css/main.css">
+    <link rel="stylesheet" href="css/profiles.css">
+    <link rel="stylesheet" href="css/context-menu.css">
+    <link rel="stylesheet" href="css/modals.css">
+</head>
+<body>
+    <div class="dock-window">
+        <!-- Header -->
+        <div class="dock-header">
+            <span class="dock-title">Restreamer Control</span>
+            <div class="dock-actions">
+                <button class="icon-btn" id="helpBtn" title="Help">
+                    <span class="icon">?</span>
+                </button>
+                <button class="icon-btn" id="settingsBtn" title="Settings">
+                    <span class="icon">⚙️</span>
+                </button>
+            </div>
+        </div>
+
+        <!-- Connection Section -->
+        <div class="section connection-section">
+            <div class="section-header" id="connectionHeader">
+                <span class="section-title">Connection</span>
+            </div>
+            <div class="connection-content">
+                <div class="connection-status">
+                    <span class="status-indicator active" id="connectionIndicator">●</span>
+                    <span class="connection-text" id="connectionText">restreamer.example.com:8080</span>
+                </div>
+                <div class="connection-actions">
+                    <button class="btn btn-secondary" id="testConnectionBtn">Test</button>
+                    <button class="btn btn-secondary" id="connectionSettingsBtn">Settings</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Profiles Section -->
+        <div class="section profiles-section">
+            <div class="section-header">
+                <span class="section-title">Streaming Profiles</span>
+            </div>
+
+            <div class="profiles-container" id="profilesContainer">
+                <!-- Profiles will be dynamically generated -->
+            </div>
+
+            <div class="profile-actions">
+                <button class="btn btn-primary" id="newProfileBtn">
+                    <span class="icon">+</span> New Profile
+                </button>
+                <button class="btn btn-success" id="startAllBtn">
+                    <span class="icon">▶</span> Start All
+                </button>
+                <button class="btn btn-danger" id="stopAllBtn">
+                    <span class="icon">■</span> Stop All
+                </button>
+                <button class="btn btn-secondary" id="refreshBtn">
+                    <span class="icon">🔄</span> Refresh
+                </button>
+            </div>
+        </div>
+
+        <!-- Quick Actions -->
+        <div class="section quick-actions">
+            <button class="btn btn-wide" id="monitoringBtn">
+                <span class="icon">📊</span> Monitoring
+            </button>
+            <button class="btn btn-wide" id="advancedBtn">
+                <span class="icon">🔧</span> Advanced
+            </button>
+            <button class="btn btn-wide" id="serverSettingsBtn">
+                <span class="icon">⚙️</span> Server Settings
+            </button>
+        </div>
+    </div>
+
+    <!-- Context Menu -->
+    <div class="context-menu" id="contextMenu">
+        <!-- Dynamically populated -->
+    </div>
+
+    <!-- Monitoring Modal -->
+    <div class="modal" id="monitoringModal">
+        <div class="modal-content modal-large">
+            <div class="modal-header">
+                <h2>Monitoring</h2>
+                <button class="modal-close" data-modal="monitoringModal">&times;</button>
+            </div>
+            <div class="modal-body">
+                <div class="monitoring-grid">
+                    <div class="metric-card">
+                        <div class="metric-icon">🔧</div>
+                        <div class="metric-label">CPU Usage</div>
+                        <div class="metric-value" id="cpuValue">24%</div>
+                        <div class="metric-bar">
+                            <div class="metric-fill" id="cpuFill" style="width: 24%"></div>
+                        </div>
+                    </div>
+                    <div class="metric-card">
+                        <div class="metric-icon">💾</div>
+                        <div class="metric-label">Memory</div>
+                        <div class="metric-value" id="memoryValue">1.2 GB</div>
+                        <div class="metric-bar">
+                            <div class="metric-fill" id="memoryFill" style="width: 45%"></div>
+                        </div>
+                    </div>
+                    <div class="metric-card">
+                        <div class="metric-icon">📊</div>
+                        <div class="metric-label">Total Bitrate</div>
+                        <div class="metric-value" id="bitrateValue">19.4 Mbps</div>
+                        <div class="metric-bar">
+                            <div class="metric-fill success" id="bitrateFill" style="width: 65%"></div>
+                        </div>
+                    </div>
+                    <div class="metric-card">
+                        <div class="metric-icon">🎬</div>
+                        <div class="metric-label">Dropped Frames</div>
+                        <div class="metric-value" id="droppedValue">15 (0.02%)</div>
+                        <div class="metric-bar">
+                            <div class="metric-fill success" id="droppedFill" style="width: 2%"></div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="processes-section">
+                    <h3>Active Processes</h3>
+                    <table class="processes-table">
+                        <thead>
+                            <tr>
+                                <th>Process ID</th>
+                                <th>State</th>
+                                <th>Uptime</th>
+                                <th>CPU</th>
+                                <th>Memory</th>
+                                <th>Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody id="processesTableBody">
+                            <!-- Dynamically populated -->
+                        </tbody>
+                    </table>
+                </div>
+
+                <div class="sessions-section">
+                    <h3>Active Sessions</h3>
+                    <table class="sessions-table">
+                        <thead>
+                            <tr>
+                                <th>Session ID</th>
+                                <th>Remote Address</th>
+                                <th>Bytes Sent</th>
+                                <th>Duration</th>
+                            </tr>
+                        </thead>
+                        <tbody id="sessionsTableBody">
+                            <!-- Dynamically populated -->
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-secondary" data-modal="monitoringModal">Close</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Connection Settings Modal -->
+    <div class="modal" id="connectionSettingsModal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2>Connection Settings</h2>
+                <button class="modal-close" data-modal="connectionSettingsModal">&times;</button>
+            </div>
+            <div class="modal-body">
+                <form id="connectionForm">
+                    <div class="form-group">
+                        <label for="hostInput">Host:</label>
+                        <input type="text" id="hostInput" class="form-control" placeholder="localhost or 192.168.1.100" value="restreamer.example.com">
+                    </div>
+                    <div class="form-group">
+                        <label for="portInput">Port:</label>
+                        <input type="number" id="portInput" class="form-control" placeholder="8080" value="8080" min="1" max="65535">
+                    </div>
+                    <div class="form-group">
+                        <label for="httpsCheck">
+                            <input type="checkbox" id="httpsCheck"> Use HTTPS
+                        </label>
+                    </div>
+                    <div class="form-group">
+                        <label for="usernameInput">Username:</label>
+                        <input type="text" id="usernameInput" class="form-control" placeholder="admin">
+                    </div>
+                    <div class="form-group">
+                        <label for="passwordInput">Password:</label>
+                        <input type="password" id="passwordInput" class="form-control" placeholder="Password">
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-secondary" data-modal="connectionSettingsModal">Cancel</button>
+                <button class="btn btn-primary" id="saveConnectionBtn">Save & Test</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Advanced Settings Modal -->
+    <div class="modal" id="advancedModal">
+        <div class="modal-content modal-large">
+            <div class="modal-header">
+                <h2>Advanced Settings</h2>
+                <button class="modal-close" data-modal="advancedModal">&times;</button>
+            </div>
+            <div class="modal-body">
+                <div class="advanced-section">
+                    <h3>Manual Multistream Setup</h3>
+                    <div class="form-group">
+                        <label>
+                            <input type="checkbox" id="autoDetectOrientation" checked> Auto-detect orientation
+                        </label>
+                    </div>
+                    <div class="form-group">
+                        <label for="orientationSelect">Orientation:</label>
+                        <select id="orientationSelect" class="form-control">
+                            <option value="horizontal">Horizontal (Landscape)</option>
+                            <option value="vertical">Vertical (Portrait)</option>
+                            <option value="square">Square</option>
+                        </select>
+                    </div>
+                </div>
+
+                <div class="advanced-section">
+                    <h3>FFmpeg Capabilities</h3>
+                    <button class="btn btn-secondary">View Codecs & Formats</button>
+                </div>
+
+                <div class="advanced-section">
+                    <h3>Protocol Monitoring</h3>
+                    <div class="btn-group">
+                        <button class="btn btn-secondary">View RTMP Streams</button>
+                        <button class="btn btn-secondary">View SRT Streams</button>
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-secondary" data-modal="advancedModal">Close</button>
+                <button class="btn btn-primary">Apply</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Profile Edit Modal -->
+    <div class="modal" id="profileEditModal">
+        <div class="modal-content modal-large">
+            <div class="modal-header">
+                <h2 id="profileEditTitle">Edit Profile</h2>
+                <button class="modal-close" data-modal="profileEditModal">&times;</button>
+            </div>
+            <div class="modal-body">
+                <form id="profileEditForm">
+                    <div class="form-group">
+                        <label for="profileNameInput">Profile Name:</label>
+                        <input type="text" id="profileNameInput" class="form-control" placeholder="e.g., Gaming - Horizontal">
+                    </div>
+
+                    <h3>Destinations</h3>
+                    <div id="destinationsEditList" class="destinations-edit-list">
+                        <!-- Destinations will be listed here -->
+                    </div>
+
+                    <button type="button" class="btn btn-secondary" id="addDestinationBtn">
+                        <span class="icon">+</span> Add Destination
+                    </button>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-secondary" data-modal="profileEditModal">Cancel</button>
+                <button class="btn btn-primary" id="saveProfileBtn">Save Profile</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Destination Edit Modal -->
+    <div class="modal" id="destinationEditModal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2 id="destinationEditTitle">Add Destination</h2>
+                <button class="modal-close" data-modal="destinationEditModal">&times;</button>
+            </div>
+            <div class="modal-body">
+                <form id="destinationEditForm">
+                    <div class="form-group">
+                        <label for="serviceSelect">Service:</label>
+                        <select id="serviceSelect" class="form-control">
+                            <option value="twitch">Twitch</option>
+                            <option value="youtube">YouTube</option>
+                            <option value="facebook">Facebook Gaming</option>
+                            <option value="tiktok">TikTok</option>
+                            <option value="instagram">Instagram</option>
+                            <option value="kick">Kick</option>
+                            <option value="custom">Custom RTMP</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label for="streamKeyInput">Stream Key:</label>
+                        <input type="password" id="streamKeyInput" class="form-control" placeholder="Your stream key">
+                        <button type="button" class="btn-link" id="toggleStreamKey">Show</button>
+                    </div>
+                    <div class="form-group">
+                        <label for="resolutionInput">Resolution:</label>
+                        <input type="text" id="resolutionInput" class="form-control" placeholder="1920x1080 or 0x0 for source">
+                    </div>
+                    <div class="form-group">
+                        <label for="bitrateInput">Video Bitrate (kbps):</label>
+                        <input type="number" id="bitrateInput" class="form-control" placeholder="6000" min="0">
+                    </div>
+                    <div class="form-group">
+                        <label for="fpsInput">Framerate (FPS):</label>
+                        <input type="number" id="fpsInput" class="form-control" placeholder="60 or 0 for source" min="0">
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-secondary" data-modal="destinationEditModal">Cancel</button>
+                <button class="btn btn-primary" id="saveDestinationBtn">Save Destination</button>
+            </div>
+        </div>
+    </div>
+
+    <script src="js/data.js"></script>
+    <script src="js/context-menu.js"></script>
+    <script src="js/modals.js"></script>
+    <script src="js/profiles.js"></script>
+    <script src="js/monitoring.js"></script>
+    <script src="js/main.js"></script>
+</body>
+</html>
