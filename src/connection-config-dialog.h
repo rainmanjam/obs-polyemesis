@@ -42,6 +42,8 @@ private:
 	void setupUI();
 	void loadSettings();
 	void saveSettings();
+	void parseUrl(const QString &url, QString &host, int &port,
+		      bool &use_https) const;
 
 	/* UI Elements */
 	QLineEdit *m_urlEdit;
