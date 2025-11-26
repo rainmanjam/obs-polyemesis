@@ -49,22 +49,47 @@ function updateProcessesTable() {
 
     mockProcesses.forEach(proc => {
         const row = document.createElement('tr');
-        row.innerHTML = `
-            <td>${proc.reference || proc.id}</td>
-            <td>
-                <span class="table-status">
-                    <span class="table-status-dot ${proc.state}"></span>
-                    ${proc.state}
-                </span>
-            </td>
-            <td>${formatDuration(proc.uptime)}</td>
-            <td>${proc.cpu.toFixed(1)}%</td>
-            <td>${formatBytes(proc.memory * 1024 * 1024)}</td>
-            <td class="table-actions">
-                <button class="table-btn">Stop</button>
-                <button class="table-btn">Restart</button>
-            </td>
-        `;
+
+        // Use DOM methods to prevent XSS
+        const tdId = document.createElement('td');
+        tdId.textContent = proc.reference || proc.id;
+
+        const tdStatus = document.createElement('td');
+        const statusSpan = document.createElement('span');
+        statusSpan.className = 'table-status';
+        const statusDot = document.createElement('span');
+        statusDot.className = `table-status-dot ${proc.state}`;
+        statusSpan.appendChild(statusDot);
+        statusSpan.appendChild(document.createTextNode(' ' + proc.state));
+        tdStatus.appendChild(statusSpan);
+
+        const tdUptime = document.createElement('td');
+        tdUptime.textContent = formatDuration(proc.uptime);
+
+        const tdCpu = document.createElement('td');
+        tdCpu.textContent = proc.cpu.toFixed(1) + '%';
+
+        const tdMemory = document.createElement('td');
+        tdMemory.textContent = formatBytes(proc.memory * 1024 * 1024);
+
+        const tdActions = document.createElement('td');
+        tdActions.className = 'table-actions';
+        const stopBtn = document.createElement('button');
+        stopBtn.className = 'table-btn';
+        stopBtn.textContent = 'Stop';
+        const restartBtn = document.createElement('button');
+        restartBtn.className = 'table-btn';
+        restartBtn.textContent = 'Restart';
+        tdActions.appendChild(stopBtn);
+        tdActions.appendChild(restartBtn);
+
+        row.appendChild(tdId);
+        row.appendChild(tdStatus);
+        row.appendChild(tdUptime);
+        row.appendChild(tdCpu);
+        row.appendChild(tdMemory);
+        row.appendChild(tdActions);
+
         tbody.appendChild(row);
     });
 }
@@ -75,12 +100,25 @@ function updateSessionsTable() {
 
     mockSessions.forEach(sess => {
         const row = document.createElement('tr');
-        row.innerHTML = `
-            <td>${sess.id}</td>
-            <td>${sess.remoteAddr}</td>
-            <td>${formatBytes(sess.bytesSent)}</td>
-            <td>${formatDuration(sess.duration)}</td>
-        `;
+
+        // Use DOM methods to prevent XSS
+        const tdId = document.createElement('td');
+        tdId.textContent = sess.id;
+
+        const tdAddr = document.createElement('td');
+        tdAddr.textContent = sess.remoteAddr;
+
+        const tdBytes = document.createElement('td');
+        tdBytes.textContent = formatBytes(sess.bytesSent);
+
+        const tdDuration = document.createElement('td');
+        tdDuration.textContent = formatDuration(sess.duration);
+
+        row.appendChild(tdId);
+        row.appendChild(tdAddr);
+        row.appendChild(tdBytes);
+        row.appendChild(tdDuration);
+
         tbody.appendChild(row);
     });
 }

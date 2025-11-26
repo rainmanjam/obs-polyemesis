@@ -46,7 +46,7 @@ document.getElementById('saveConnectionBtn').addEventListener('click', () => {
 
     // Update connection display
     const protocol = https ? 'https' : 'http';
-    document.getElementById('connectionText').textContent = `${host}:${port}`;
+    document.getElementById('connectionText').textContent = `${protocol}://${host}:${port}`;
     document.getElementById('connectionIndicator').className = 'status-indicator active';
 
     // Close modal
@@ -93,22 +93,40 @@ function openProfileEditModal(profile) {
         profile.destinations.forEach(dest => {
             const destItem = document.createElement('div');
             destItem.className = 'destination-edit-item';
-            destItem.innerHTML = `
-                <div class="destination-edit-info">
-                    <div class="destination-edit-name">${dest.service}</div>
-                    <div class="destination-edit-details">
-                        ${dest.resolution} @ ${formatBitrate(dest.bitrate)}
-                    </div>
-                </div>
-                <div class="destination-edit-actions">
-                    <button class="btn btn-secondary btn-sm" onclick="editDestination('${dest.id}')">
-                        Edit
-                    </button>
-                    <button class="btn btn-danger btn-sm" onclick="removeDestination('${profile.id}', '${dest.id}')">
-                        Remove
-                    </button>
-                </div>
-            `;
+
+            // Use DOM methods to prevent XSS
+            const destInfo = document.createElement('div');
+            destInfo.className = 'destination-edit-info';
+
+            const destName = document.createElement('div');
+            destName.className = 'destination-edit-name';
+            destName.textContent = dest.service;
+
+            const destDetails = document.createElement('div');
+            destDetails.className = 'destination-edit-details';
+            destDetails.textContent = `${dest.resolution} @ ${formatBitrate(dest.bitrate)}`;
+
+            destInfo.appendChild(destName);
+            destInfo.appendChild(destDetails);
+
+            const destActions = document.createElement('div');
+            destActions.className = 'destination-edit-actions';
+
+            const editBtn = document.createElement('button');
+            editBtn.className = 'btn btn-secondary btn-sm';
+            editBtn.textContent = 'Edit';
+            editBtn.onclick = () => editDestination(dest.id);
+
+            const removeBtn = document.createElement('button');
+            removeBtn.className = 'btn btn-danger btn-sm';
+            removeBtn.textContent = 'Remove';
+            removeBtn.onclick = () => removeDestination(profile.id, dest.id);
+
+            destActions.appendChild(editBtn);
+            destActions.appendChild(removeBtn);
+
+            destItem.appendChild(destInfo);
+            destItem.appendChild(destActions);
             destList.appendChild(destItem);
         });
     }
