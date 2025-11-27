@@ -76,7 +76,7 @@ void ProfileEditDialog::setupUI()
 	sourceForm->addRow("Orientation:", m_orientationCombo);
 
 	m_autoDetectCheckBox = new QCheckBox("Auto-detect orientation from source");
-	connect(m_autoDetectCheckBox, &QCheckBox::stateChanged, this,
+	connect(m_autoDetectCheckBox, &QCheckBox::checkStateChanged, this,
 		&ProfileEditDialog::onAutoDetectChanged);
 	sourceForm->addRow("", m_autoDetectCheckBox);
 
@@ -134,7 +134,7 @@ void ProfileEditDialog::setupUI()
 	QVBoxLayout *reconnectLayout = new QVBoxLayout(reconnectGroup);
 
 	m_autoReconnectCheckBox = new QCheckBox("Enable auto-reconnect on disconnect");
-	connect(m_autoReconnectCheckBox, &QCheckBox::stateChanged, this,
+	connect(m_autoReconnectCheckBox, &QCheckBox::checkStateChanged, this,
 		&ProfileEditDialog::onAutoReconnectChanged);
 	reconnectLayout->addWidget(m_autoReconnectCheckBox);
 
@@ -172,7 +172,7 @@ void ProfileEditDialog::setupUI()
 	QVBoxLayout *healthGroupLayout = new QVBoxLayout(healthGroup);
 
 	m_healthMonitoringCheckBox = new QCheckBox("Enable stream health monitoring");
-	connect(m_healthMonitoringCheckBox, &QCheckBox::stateChanged, this,
+	connect(m_healthMonitoringCheckBox, &QCheckBox::checkStateChanged, this,
 		&ProfileEditDialog::onHealthMonitoringChanged);
 	healthGroupLayout->addWidget(m_healthMonitoringCheckBox);
 
@@ -437,7 +437,7 @@ void ProfileEditDialog::onOrientationChanged(int index)
 	}
 }
 
-void ProfileEditDialog::onAutoDetectChanged(int state)
+void ProfileEditDialog::onAutoDetectChanged(Qt::CheckState state)
 {
 	bool autoDetect = (state == Qt::Checked);
 
@@ -451,14 +451,14 @@ void ProfileEditDialog::onAutoDetectChanged(int state)
 	}
 }
 
-void ProfileEditDialog::onAutoReconnectChanged(int state)
+void ProfileEditDialog::onAutoReconnectChanged(Qt::CheckState state)
 {
 	bool enabled = (state == Qt::Checked);
 	m_reconnectDelaySpin->setEnabled(enabled);
 	m_maxReconnectAttemptsSpin->setEnabled(enabled);
 }
 
-void ProfileEditDialog::onHealthMonitoringChanged(int state)
+void ProfileEditDialog::onHealthMonitoringChanged(Qt::CheckState state)
 {
 	bool enabled = (state == Qt::Checked);
 	m_healthCheckIntervalSpin->setEnabled(enabled);
