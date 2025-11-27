@@ -44,9 +44,9 @@ private slots:
 	void onSave();
 	void onCancel();
 	void onOrientationChanged(int index);
-	void onAutoDetectChanged(Qt::CheckState state);
-	void onAutoReconnectChanged(Qt::CheckState state);
-	void onHealthMonitoringChanged(Qt::CheckState state);
+	void onAutoDetectChanged(bool checked);
+	void onAutoReconnectChanged(bool checked);
+	void onHealthMonitoringChanged(bool checked);
 
 private:
 	void setupUI();

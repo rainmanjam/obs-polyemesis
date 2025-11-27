@@ -76,7 +76,7 @@ void ProfileEditDialog::setupUI()
 	sourceForm->addRow("Orientation:", m_orientationCombo);
 
 	m_autoDetectCheckBox = new QCheckBox("Auto-detect orientation from source");
-	connect(m_autoDetectCheckBox, &QCheckBox::checkStateChanged, this,
+	connect(m_autoDetectCheckBox, &QCheckBox::toggled, this,
 		&ProfileEditDialog::onAutoDetectChanged);
 	sourceForm->addRow("", m_autoDetectCheckBox);
 
@@ -134,7 +134,7 @@ void ProfileEditDialog::setupUI()
 	QVBoxLayout *reconnectLayout = new QVBoxLayout(reconnectGroup);
 
 	m_autoReconnectCheckBox = new QCheckBox("Enable auto-reconnect on disconnect");
-	connect(m_autoReconnectCheckBox, &QCheckBox::checkStateChanged, this,
+	connect(m_autoReconnectCheckBox, &QCheckBox::toggled, this,
 		&ProfileEditDialog::onAutoReconnectChanged);
 	reconnectLayout->addWidget(m_autoReconnectCheckBox);
 
@@ -172,7 +172,7 @@ void ProfileEditDialog::setupUI()
 	QVBoxLayout *healthGroupLayout = new QVBoxLayout(healthGroup);
 
 	m_healthMonitoringCheckBox = new QCheckBox("Enable stream health monitoring");
-	connect(m_healthMonitoringCheckBox, &QCheckBox::checkStateChanged, this,
+	connect(m_healthMonitoringCheckBox, &QCheckBox::toggled, this,
 		&ProfileEditDialog::onHealthMonitoringChanged);
 	healthGroupLayout->addWidget(m_healthMonitoringCheckBox);
 
@@ -277,14 +277,9 @@ void ProfileEditDialog::loadProfileSettings()
 	m_failureThresholdSpin->setValue(m_profile->failure_threshold);
 
 	/* Update UI state */
-	onAutoDetectChanged(m_autoDetectCheckBox->isChecked() ? Qt::Checked
-							      : Qt::Unchecked);
-	onAutoReconnectChanged(m_autoReconnectCheckBox->isChecked()
-				       ? Qt::Checked
-				       : Qt::Unchecked);
-	onHealthMonitoringChanged(m_healthMonitoringCheckBox->isChecked()
-					  ? Qt::Checked
-					  : Qt::Unchecked);
+	onAutoDetectChanged(m_autoDetectCheckBox->isChecked());
+	onAutoReconnectChanged(m_autoReconnectCheckBox->isChecked());
+	onHealthMonitoringChanged(m_healthMonitoringCheckBox->isChecked());
 }
 
 void ProfileEditDialog::validateAndSave()
@@ -437,30 +432,26 @@ void ProfileEditDialog::onOrientationChanged(int index)
 	}
 }
 
-void ProfileEditDialog::onAutoDetectChanged(Qt::CheckState state)
+void ProfileEditDialog::onAutoDetectChanged(bool checked)
 {
-	bool autoDetect = (state == Qt::Checked);
-
 	/* Disable manual dimension inputs when auto-detect is enabled */
-	m_sourceWidthSpin->setEnabled(!autoDetect);
-	m_sourceHeightSpin->setEnabled(!autoDetect);
+	m_sourceWidthSpin->setEnabled(!checked);
+	m_sourceHeightSpin->setEnabled(!checked);
 
-	if (autoDetect) {
+	if (checked) {
 		m_sourceWidthSpin->setValue(0);
 		m_sourceHeightSpin->setValue(0);
 	}
 }
 
-void ProfileEditDialog::onAutoReconnectChanged(Qt::CheckState state)
+void ProfileEditDialog::onAutoReconnectChanged(bool checked)
 {
-	bool enabled = (state == Qt::Checked);
-	m_reconnectDelaySpin->setEnabled(enabled);
-	m_maxReconnectAttemptsSpin->setEnabled(enabled);
+	m_reconnectDelaySpin->setEnabled(checked);
+	m_maxReconnectAttemptsSpin->setEnabled(checked);
 }
 
-void ProfileEditDialog::onHealthMonitoringChanged(Qt::CheckState state)
+void ProfileEditDialog::onHealthMonitoringChanged(bool checked)
 {
-	bool enabled = (state == Qt::Checked);
-	m_healthCheckIntervalSpin->setEnabled(enabled);
-	m_failureThresholdSpin->setEnabled(enabled);
+	m_healthCheckIntervalSpin->setEnabled(checked);
+	m_failureThresholdSpin->setEnabled(checked);
 }
