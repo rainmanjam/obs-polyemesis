@@ -58,10 +58,12 @@ if(NOT TARGET OBS::libobs)
   if(LIBOBS_FOUND)
     # Create imported target from pkg-config info
     add_library(libobs INTERFACE IMPORTED)
-    set_target_properties(libobs PROPERTIES
-      INTERFACE_INCLUDE_DIRECTORIES "${LIBOBS_INCLUDE_DIRS}"
-      INTERFACE_LINK_LIBRARIES "${LIBOBS_LIBRARIES}"
-      INTERFACE_LINK_DIRECTORIES "${LIBOBS_LIBRARY_DIRS}"
+    set_target_properties(
+      libobs
+      PROPERTIES
+        INTERFACE_INCLUDE_DIRECTORIES "${LIBOBS_INCLUDE_DIRS}"
+        INTERFACE_LINK_LIBRARIES "${LIBOBS_LIBRARIES}"
+        INTERFACE_LINK_DIRECTORIES "${LIBOBS_LIBRARY_DIRS}"
     )
     add_library(OBS::libobs ALIAS libobs)
   else()

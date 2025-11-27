@@ -4,7 +4,10 @@
 include(ExternalProject)
 
 set(JANSSON_VERSION "2.14")
-set(JANSSON_URL "https://github.com/akheron/jansson/releases/download/v${JANSSON_VERSION}/jansson-${JANSSON_VERSION}.tar.gz")
+set(
+  JANSSON_URL
+  "https://github.com/akheron/jansson/releases/download/v${JANSSON_VERSION}/jansson-${JANSSON_VERSION}.tar.gz"
+)
 set(JANSSON_HASH "5798d010e41cf8d76b66236cfb2f2543c8d082181d16bc3085ab49538d4b9929")
 
 if(APPLE)
@@ -20,15 +23,10 @@ if(APPLE)
     PREFIX ${CMAKE_BINARY_DIR}/external/jansson
     CMAKE_GENERATOR "Unix Makefiles"
     CMAKE_CACHE_ARGS
-      -DCMAKE_INSTALL_PREFIX:PATH=${CMAKE_BINARY_DIR}/external/jansson/install
-      -DCMAKE_BUILD_TYPE:STRING=Release
-      -DCMAKE_OSX_ARCHITECTURES:STRING=arm64;x86_64
-      -DCMAKE_OSX_DEPLOYMENT_TARGET:STRING=${CMAKE_OSX_DEPLOYMENT_TARGET}
-      -DCMAKE_POLICY_VERSION_MINIMUM:STRING=3.5
-      -DJANSSON_BUILD_DOCS:BOOL=OFF
-      -DJANSSON_BUILD_SHARED_LIBS:BOOL=OFF
-      -DJANSSON_EXAMPLES:BOOL=OFF
-      -DJANSSON_WITHOUT_TESTS:BOOL=ON
+      -DCMAKE_INSTALL_PREFIX:PATH=${CMAKE_BINARY_DIR}/external/jansson/install -DCMAKE_BUILD_TYPE:STRING=Release
+      -DCMAKE_OSX_ARCHITECTURES:STRING=arm64;x86_64 -DCMAKE_OSX_DEPLOYMENT_TARGET:STRING=${CMAKE_OSX_DEPLOYMENT_TARGET}
+      -DCMAKE_POLICY_VERSION_MINIMUM:STRING=3.5 -DJANSSON_BUILD_DOCS:BOOL=OFF -DJANSSON_BUILD_SHARED_LIBS:BOOL=OFF
+      -DJANSSON_EXAMPLES:BOOL=OFF -DJANSSON_WITHOUT_TESTS:BOOL=ON
     BUILD_COMMAND ${CMAKE_COMMAND} --build <BINARY_DIR> --config Release
     INSTALL_COMMAND ${CMAKE_COMMAND} --install <BINARY_DIR> --config Release
     BUILD_BYPRODUCTS
@@ -47,9 +45,11 @@ if(APPLE)
 
   # Create imported target
   add_library(Jansson::Jansson STATIC IMPORTED GLOBAL)
-  set_target_properties(Jansson::Jansson PROPERTIES
-    IMPORTED_LOCATION ${CMAKE_BINARY_DIR}/external/jansson/install/lib/libjansson.a
-    INTERFACE_INCLUDE_DIRECTORIES ${CMAKE_BINARY_DIR}/external/jansson/install/include
+  set_target_properties(
+    Jansson::Jansson
+    PROPERTIES
+      IMPORTED_LOCATION ${CMAKE_BINARY_DIR}/external/jansson/install/lib/libjansson.a
+      INTERFACE_INCLUDE_DIRECTORIES ${CMAKE_BINARY_DIR}/external/jansson/install/include
   )
 
   # Make sure our plugin depends on jansson being built
