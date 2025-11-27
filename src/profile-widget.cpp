@@ -9,6 +9,9 @@
 #include <QMenu>
 #include <QMouseEvent>
 #include <QStyle>
+#include <QMessageBox>
+#include <QFileDialog>
+#include <QStandardPaths>
 #include <obs-module.h>
 
 extern "C" {
@@ -471,14 +474,180 @@ void ProfileWidget::showContextMenu(const QPoint &pos)
 	connect(statsAction, &QAction::triggered, this, [this]() {
 		obs_log(LOG_INFO, "View stats for profile: %s",
 			m_profile->profile_id);
-		// TODO: Show stats dialog
+
+		/* Build comprehensive statistics message */
+		QString stats;
+		stats += QString("<b>Profile: %1</b><br><br>").arg(m_profile->profile_name);
+
+		/* Profile Status */
+		stats += "<b>Status:</b> ";
+		switch (m_profile->status) {
+		case PROFILE_STATUS_INACTIVE:
+			stats += "Inactive";
+			break;
+		case PROFILE_STATUS_STARTING:
+			stats += "Starting";
+			break;
+		case PROFILE_STATUS_ACTIVE:
+			stats += "Active";
+			break;
+		case PROFILE_STATUS_STOPPING:
+			stats += "Stopping";
+			break;
+		case PROFILE_STATUS_PREVIEW:
+			stats += "Preview Mode";
+			break;
+		case PROFILE_STATUS_ERROR:
+			stats += "Error";
+			break;
+		}
+		stats += "<br><br>";
+
+		/* Source Configuration */
+		stats += "<b>Source Configuration:</b><br>";
+		stats += QString("  Orientation: ");
+		switch (m_profile->source_orientation) {
+		case STREAM_ORIENTATION_AUTO:
+			stats += "Auto-Detect";
+			break;
+		case STREAM_ORIENTATION_HORIZONTAL:
+			stats += "Horizontal (16:9)";
+			break;
+		case STREAM_ORIENTATION_VERTICAL:
+			stats += "Vertical (9:16)";
+			break;
+		case STREAM_ORIENTATION_SQUARE:
+			stats += "Square (1:1)";
+			break;
+		}
+		stats += "<br>";
+
+		if (m_profile->source_width > 0 && m_profile->source_height > 0) {
+			stats += QString("  Resolution: %1x%2<br>")
+				.arg(m_profile->source_width)
+				.arg(m_profile->source_height);
+		}
+
+		if (m_profile->input_url) {
+			stats += QString("  Input URL: %1<br>").arg(m_profile->input_url);
+		}
+		stats += "<br>";
+
+		/* Destinations */
+		stats += QString("<b>Destinations: %1</b><br>").arg(m_profile->destination_count);
+		size_t active_count = 0;
+		uint64_t total_bytes = 0;
+		uint32_t total_dropped = 0;
+
+		for (size_t i = 0; i < m_profile->destination_count; i++) {
+			profile_destination_t *dest = &m_profile->destinations[i];
+			if (dest->connected) {
+				active_count++;
+			}
+			total_bytes += dest->bytes_sent;
+			total_dropped += dest->dropped_frames;
+		}
+
+		stats += QString("  Active: %1<br>").arg(active_count);
+		stats += QString("  Total Data Sent: %1 MB<br>")
+			.arg(total_bytes / (1024.0 * 1024.0), 0, 'f', 2);
+		stats += QString("  Total Dropped Frames: %1<br><br>").arg(total_dropped);
+
+		/* Settings */
+		stats += "<b>Settings:</b><br>";
+		stats += QString("  Auto-Start: %1<br>")
+			.arg(m_profile->auto_start ? "Yes" : "No");
+		stats += QString("  Auto-Reconnect: %1<br>")
+			.arg(m_profile->auto_reconnect ? "Yes" : "No");
+
+		if (m_profile->auto_reconnect) {
+			stats += QString("  Reconnect Delay: %1 seconds<br>")
+				.arg(m_profile->reconnect_delay_sec);
+			stats += QString("  Max Reconnect Attempts: %1<br>")
+				.arg(m_profile->max_reconnect_attempts == 0 ? "Unlimited" :
+				     QString::number(m_profile->max_reconnect_attempts));
+		}
+
+		stats += QString("  Health Monitoring: %1<br>")
+			.arg(m_profile->health_monitoring_enabled ? "Enabled" : "Disabled");
+
+		QMessageBox::information(this, "Profile Statistics", stats);
 	});
 
 	QAction *exportAction = menu.addAction("📝 Export Configuration");
 	connect(exportAction, &QAction::triggered, this, [this]() {
 		obs_log(LOG_INFO, "Export config for profile: %s",
 			m_profile->profile_id);
-		// TODO: Export config
+
+		/* Build JSON configuration */
+		QString config = "{\n";
+		config += QString("  \"profile_name\": \"%1\",\n").arg(m_profile->profile_name);
+		config += QString("  \"profile_id\": \"%1\",\n").arg(m_profile->profile_id);
+
+		/* Source configuration */
+		config += "  \"source\": {\n";
+		config += QString("    \"orientation\": \"%1\",\n")
+			.arg(m_profile->source_orientation == STREAM_ORIENTATION_AUTO ? "auto" :
+			     m_profile->source_orientation == STREAM_ORIENTATION_HORIZONTAL ? "horizontal" :
+			     m_profile->source_orientation == STREAM_ORIENTATION_VERTICAL ? "vertical" : "square");
+		config += QString("    \"auto_detect\": %1,\n")
+			.arg(m_profile->auto_detect_orientation ? "true" : "false");
+		config += QString("    \"width\": %1,\n").arg(m_profile->source_width);
+		config += QString("    \"height\": %1").arg(m_profile->source_height);
+		if (m_profile->input_url) {
+			config += QString(",\n    \"input_url\": \"%1\"\n").arg(m_profile->input_url);
+		} else {
+			config += "\n";
+		}
+		config += "  },\n";
+
+		/* Settings */
+		config += "  \"settings\": {\n";
+		config += QString("    \"auto_start\": %1,\n")
+			.arg(m_profile->auto_start ? "true" : "false");
+		config += QString("    \"auto_reconnect\": %1,\n")
+			.arg(m_profile->auto_reconnect ? "true" : "false");
+		config += QString("    \"reconnect_delay_sec\": %1,\n")
+			.arg(m_profile->reconnect_delay_sec);
+		config += QString("    \"max_reconnect_attempts\": %1,\n")
+			.arg(m_profile->max_reconnect_attempts);
+		config += QString("    \"health_monitoring_enabled\": %1,\n")
+			.arg(m_profile->health_monitoring_enabled ? "true" : "false");
+		config += QString("    \"health_check_interval_sec\": %1,\n")
+			.arg(m_profile->health_check_interval_sec);
+		config += QString("    \"failure_threshold\": %1\n")
+			.arg(m_profile->failure_threshold);
+		config += "  },\n";
+
+		/* Destinations */
+		config += QString("  \"destination_count\": %1\n").arg(m_profile->destination_count);
+		config += "}\n";
+
+		/* Save to file */
+		QString defaultPath = QStandardPaths::writableLocation(QStandardPaths::DocumentsLocation);
+		QString fileName = QString("%1_profile.json").arg(m_profile->profile_name);
+		QString filePath = QFileDialog::getSaveFileName(
+			this,
+			"Export Profile Configuration",
+			defaultPath + "/" + fileName,
+			"JSON Files (*.json)");
+
+		if (!filePath.isEmpty()) {
+			QFile file(filePath);
+			if (file.open(QIODevice::WriteOnly | QIODevice::Text)) {
+				QTextStream out(&file);
+				out << config;
+				file.close();
+
+				QMessageBox::information(this, "Export Successful",
+					QString("Profile configuration exported to:\n%1").arg(filePath));
+				obs_log(LOG_INFO, "Profile configuration exported to: %s",
+					filePath.toUtf8().constData());
+			} else {
+				QMessageBox::warning(this, "Export Failed",
+					QString("Failed to write to file:\n%1").arg(filePath));
+			}
+		}
 	});
 
 	menu.addSeparator();

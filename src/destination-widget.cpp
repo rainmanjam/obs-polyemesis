@@ -403,11 +403,156 @@ void DestinationWidget::toggleDetailsPanel()
 		m_detailsPanel = new QWidget(this);
 		QVBoxLayout *detailsLayout = new QVBoxLayout(m_detailsPanel);
 		detailsLayout->setContentsMargins(40, 8, 12, 8);
+		detailsLayout->setSpacing(8);
 
-		QLabel *detailsLabel = new QLabel("Detailed statistics coming soon...", this);
-		detailsLabel->setStyleSheet("font-size: 11px; color: palette(mid);");
+		QColor mutedColor = obs_theme_get_muted_color();
+		QString mutedStyle = QString("font-size: 11px; color: %1;").arg(mutedColor.name());
 
-		detailsLayout->addWidget(detailsLabel);
+		/* Network Statistics */
+		QLabel *networkTitle = new QLabel("<b>Network Statistics</b>", this);
+		networkTitle->setStyleSheet("font-size: 11px;");
+		detailsLayout->addWidget(networkTitle);
+
+		double bytesSentMB = m_destination->bytes_sent / (1024.0 * 1024.0);
+		QLabel *bytesLabel = new QLabel(
+			QString("  Total Data Sent: %1 MB").arg(bytesSentMB, 0, 'f', 2), this);
+		bytesLabel->setStyleSheet(mutedStyle);
+		detailsLayout->addWidget(bytesLabel);
+
+		QLabel *currentBitrateLabel = new QLabel(
+			QString("  Current Bitrate: %1 kbps").arg(m_destination->current_bitrate), this);
+		currentBitrateLabel->setStyleSheet(mutedStyle);
+		detailsLayout->addWidget(currentBitrateLabel);
+
+		QLabel *droppedLabel = new QLabel(
+			QString("  Dropped Frames: %1").arg(m_destination->dropped_frames), this);
+		droppedLabel->setStyleSheet(mutedStyle);
+		detailsLayout->addWidget(droppedLabel);
+
+		/* Connection Status */
+		detailsLayout->addSpacing(4);
+		QLabel *connectionTitle = new QLabel("<b>Connection</b>", this);
+		connectionTitle->setStyleSheet("font-size: 11px;");
+		detailsLayout->addWidget(connectionTitle);
+
+		QLabel *connectedLabel = new QLabel(
+			QString("  Status: %1")
+				.arg(m_destination->connected ? "Connected" : "Disconnected"),
+			this);
+		connectedLabel->setStyleSheet(mutedStyle);
+		detailsLayout->addWidget(connectedLabel);
+
+		QLabel *autoReconnectLabel = new QLabel(
+			QString("  Auto-Reconnect: %1")
+				.arg(m_destination->auto_reconnect_enabled ? "Enabled"
+									    : "Disabled"),
+			this);
+		autoReconnectLabel->setStyleSheet(mutedStyle);
+		detailsLayout->addWidget(autoReconnectLabel);
+
+		/* Health Monitoring */
+		if (m_destination->last_health_check > 0) {
+			detailsLayout->addSpacing(4);
+			QLabel *healthTitle = new QLabel("<b>Health Monitoring</b>", this);
+			healthTitle->setStyleSheet("font-size: 11px;");
+			detailsLayout->addWidget(healthTitle);
+
+			time_t now = time(NULL);
+			int secondsSinceCheck = (int)difftime(now, m_destination->last_health_check);
+			QLabel *lastCheckLabel = new QLabel(
+				QString("  Last Health Check: %1 seconds ago")
+					.arg(secondsSinceCheck),
+				this);
+			lastCheckLabel->setStyleSheet(mutedStyle);
+			detailsLayout->addWidget(lastCheckLabel);
+
+			QLabel *failuresLabel = new QLabel(
+				QString("  Consecutive Failures: %1")
+					.arg(m_destination->consecutive_failures),
+				this);
+			failuresLabel->setStyleSheet(mutedStyle);
+			detailsLayout->addWidget(failuresLabel);
+		}
+
+		/* Failover Information */
+		if (m_destination->is_backup || m_destination->failover_active) {
+			detailsLayout->addSpacing(4);
+			QLabel *failoverTitle = new QLabel("<b>Failover</b>", this);
+			failoverTitle->setStyleSheet("font-size: 11px;");
+			detailsLayout->addWidget(failoverTitle);
+
+			if (m_destination->is_backup) {
+				QLabel *backupLabel = new QLabel(
+					QString("  Role: Backup for destination #%1")
+						.arg(m_destination->primary_index),
+					this);
+				backupLabel->setStyleSheet(mutedStyle);
+				detailsLayout->addWidget(backupLabel);
+			} else if (m_destination->backup_index != (size_t)-1) {
+				QLabel *primaryLabel = new QLabel(
+					QString("  Role: Primary (Backup: #%1)")
+						.arg(m_destination->backup_index),
+					this);
+				primaryLabel->setStyleSheet(mutedStyle);
+				detailsLayout->addWidget(primaryLabel);
+			}
+
+			if (m_destination->failover_active) {
+				time_t now = time(NULL);
+				int failoverDuration = (int)difftime(now, m_destination->failover_start_time);
+				QLabel *failoverLabel = new QLabel(
+					QString("  Failover Active: %1 seconds")
+						.arg(failoverDuration),
+					this);
+				failoverLabel->setStyleSheet(mutedStyle);
+				detailsLayout->addWidget(failoverLabel);
+			}
+		}
+
+		/* Encoding Settings */
+		detailsLayout->addSpacing(4);
+		QLabel *encodingTitle = new QLabel("<b>Encoding Settings</b>", this);
+		encodingTitle->setStyleSheet("font-size: 11px;");
+		detailsLayout->addWidget(encodingTitle);
+
+		if (m_destination->encoding.width > 0 && m_destination->encoding.height > 0) {
+			QLabel *resolutionLabel = new QLabel(
+				QString("  Resolution: %1x%2")
+					.arg(m_destination->encoding.width)
+					.arg(m_destination->encoding.height),
+				this);
+			resolutionLabel->setStyleSheet(mutedStyle);
+			detailsLayout->addWidget(resolutionLabel);
+		}
+
+		if (m_destination->encoding.bitrate > 0) {
+			QLabel *targetBitrateLabel = new QLabel(
+				QString("  Target Bitrate: %1 kbps")
+					.arg(m_destination->encoding.bitrate),
+				this);
+			targetBitrateLabel->setStyleSheet(mutedStyle);
+			detailsLayout->addWidget(targetBitrateLabel);
+		}
+
+		if (m_destination->encoding.fps_num > 0) {
+			double fps = (double)m_destination->encoding.fps_num /
+				     (m_destination->encoding.fps_den > 0
+					      ? m_destination->encoding.fps_den
+					      : 1);
+			QLabel *fpsLabel = new QLabel(
+				QString("  Frame Rate: %1 fps").arg(fps, 0, 'f', 2), this);
+			fpsLabel->setStyleSheet(mutedStyle);
+			detailsLayout->addWidget(fpsLabel);
+		}
+
+		if (m_destination->encoding.audio_bitrate > 0) {
+			QLabel *audioBitrateLabel = new QLabel(
+				QString("  Audio Bitrate: %1 kbps")
+					.arg(m_destination->encoding.audio_bitrate),
+				this);
+			audioBitrateLabel->setStyleSheet(mutedStyle);
+			detailsLayout->addWidget(audioBitrateLabel);
+		}
 
 		/* Add to parent layout */
 		QWidget *parentWidget = qobject_cast<QWidget *>(parent());
