@@ -503,16 +503,9 @@ void RestreamerDock::setupUI() {
     settingsInfo += "<b>Current Configuration:</b><br>";
 
     if (api) {
-      restreamer_connection_t *conn = restreamer_api_get_connection(api);
-      if (conn) {
-        settingsInfo += QString("  Server: %1://%2:%3<br>")
-          .arg(conn->use_https ? "https" : "http")
-          .arg(conn->host)
-          .arg(conn->port);
-        if (conn->username) {
-          settingsInfo += QString("  Username: %1<br>").arg(conn->username);
-        }
-      }
+      settingsInfo += "  Status: Connected to Restreamer server<br>";
+    } else {
+      settingsInfo += "  Status: Not connected<br>";
     }
 
     settingsInfo += "<br><i>Additional settings coming in future update</i>";
@@ -1587,12 +1580,12 @@ void RestreamerDock::onProfileEditRequested(const char *profileId) {
   ProfileEditDialog *dialog = new ProfileEditDialog(profile, this);
   connect(dialog, &ProfileEditDialog::profileUpdated, this, [this]() {
     obs_log(LOG_INFO, "Profile configuration updated, refreshing UI");
-    refreshProfilesList();
+    updateProfileList();
   });
 
   if (dialog->exec() == QDialog::Accepted) {
     obs_log(LOG_INFO, "Profile '%s' updated successfully", profile->profile_name);
-    refreshProfilesList();
+    updateProfileList();
   }
 
   dialog->deleteLater();
@@ -1707,18 +1700,8 @@ void RestreamerDock::onViewConfigClicked() {
 
   QString configInfo = "<b>Restreamer Configuration</b><br><br>";
 
-  restreamer_connection_t *conn = restreamer_api_get_connection(api);
-  if (conn) {
-    configInfo += "<b>Connection:</b><br>";
-    configInfo += QString("  Server: %1://%2:%3<br>")
-      .arg(conn->use_https ? "https" : "http")
-      .arg(conn->host)
-      .arg(conn->port);
-    if (conn->username) {
-      configInfo += QString("  Username: %1<br>").arg(conn->username);
-    }
-    configInfo += "<br>";
-  }
+  configInfo += "<b>Connection:</b><br>";
+  configInfo += "  Status: Connected to Restreamer server<br><br>";
 
   configInfo += "<b>Profiles:</b><br>";
   if (profileManager) {
@@ -1807,7 +1790,7 @@ void RestreamerDock::onReloadConfigClicked() {
 
   if (reply == QMessageBox::Yes) {
     /* Refresh profiles list */
-    refreshProfilesList();
+    updateProfileList();
     QMessageBox::information(this, "Configuration Reloaded",
                              "All profiles and settings have been reloaded from the server.");
     obs_log(LOG_INFO, "Configuration reloaded from server");

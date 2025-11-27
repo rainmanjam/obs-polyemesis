@@ -507,16 +507,16 @@ void ProfileWidget::showContextMenu(const QPoint &pos)
 		stats += "<b>Source Configuration:</b><br>";
 		stats += QString("  Orientation: ");
 		switch (m_profile->source_orientation) {
-		case STREAM_ORIENTATION_AUTO:
+		case ORIENTATION_AUTO:
 			stats += "Auto-Detect";
 			break;
-		case STREAM_ORIENTATION_HORIZONTAL:
+		case ORIENTATION_HORIZONTAL:
 			stats += "Horizontal (16:9)";
 			break;
-		case STREAM_ORIENTATION_VERTICAL:
+		case ORIENTATION_VERTICAL:
 			stats += "Vertical (9:16)";
 			break;
-		case STREAM_ORIENTATION_SQUARE:
+		case ORIENTATION_SQUARE:
 			stats += "Square (1:1)";
 			break;
 		}
@@ -587,9 +587,9 @@ void ProfileWidget::showContextMenu(const QPoint &pos)
 		/* Source configuration */
 		config += "  \"source\": {\n";
 		config += QString("    \"orientation\": \"%1\",\n")
-			.arg(m_profile->source_orientation == STREAM_ORIENTATION_AUTO ? "auto" :
-			     m_profile->source_orientation == STREAM_ORIENTATION_HORIZONTAL ? "horizontal" :
-			     m_profile->source_orientation == STREAM_ORIENTATION_VERTICAL ? "vertical" : "square");
+			.arg(m_profile->source_orientation == ORIENTATION_AUTO ? "auto" :
+			     m_profile->source_orientation == ORIENTATION_HORIZONTAL ? "horizontal" :
+			     m_profile->source_orientation == ORIENTATION_VERTICAL ? "vertical" : "square");
 		config += QString("    \"auto_detect\": %1,\n")
 			.arg(m_profile->auto_detect_orientation ? "true" : "false");
 		config += QString("    \"width\": %1,\n").arg(m_profile->source_width);
