@@ -163,6 +163,8 @@ if(ENABLE_QT)
       src/destination-widget.h
       src/connection-config-dialog.cpp
       src/connection-config-dialog.h
+      src/profile-edit-dialog.cpp
+      src/profile-edit-dialog.h
       # Temporarily disabled - requires OBS WebSocket plugin headers
       # src/websocket-api.cpp
       # src/websocket-api.h

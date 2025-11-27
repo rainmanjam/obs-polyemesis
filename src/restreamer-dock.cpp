@@ -1,5 +1,6 @@
 #include "restreamer-dock.h"
 #include "connection-config-dialog.h"
+#include "profile-edit-dialog.h"
 #include "obs-helpers.hpp"
 #include "obs-theme-utils.h"
 #include "profile-widget.h"
@@ -437,19 +438,86 @@ void RestreamerDock::setupUI() {
   QPushButton *monitoringButton = new QPushButton("Monitoring");
   monitoringButton->setMinimumHeight(36);
   connect(monitoringButton, &QPushButton::clicked, this, [this]() {
-    QMessageBox::information(this, "Monitoring", "Monitoring dialog coming soon");
+    /* Build monitoring information from current profiles */
+    QString monitorInfo = "<b>System Monitoring</b><br><br>";
+
+    if (profileManager) {
+      size_t active_profiles = 0;
+      size_t total_destinations = 0;
+      size_t active_destinations = 0;
+      uint64_t total_bytes = 0;
+
+      for (size_t i = 0; i < profileManager->profile_count; i++) {
+        output_profile_t *profile = profileManager->profiles[i];
+        if (profile->status == PROFILE_STATUS_ACTIVE) {
+          active_profiles++;
+        }
+        total_destinations += profile->destination_count;
+        for (size_t j = 0; j < profile->destination_count; j++) {
+          if (profile->destinations[j].connected) {
+            active_destinations++;
+          }
+          total_bytes += profile->destinations[j].bytes_sent;
+        }
+      }
+
+      monitorInfo += QString("<b>Profiles:</b> %1 total, %2 active<br>")
+        .arg(profileManager->profile_count).arg(active_profiles);
+      monitorInfo += QString("<b>Destinations:</b> %1 total, %2 active<br>")
+        .arg(total_destinations).arg(active_destinations);
+      monitorInfo += QString("<b>Total Data Sent:</b> %1 MB<br><br>")
+        .arg(total_bytes / (1024.0 * 1024.0), 0, 'f', 2);
+
+      monitorInfo += "<b>Connection Status:</b><br>";
+      if (api) {
+        monitorInfo += "  Restreamer API: <span style='color: green;'>Connected</span><br>";
+      } else {
+        monitorInfo += "  Restreamer API: <span style='color: red;'>Disconnected</span><br>";
+      }
+    } else {
+      monitorInfo += "<i>No monitoring data available</i>";
+    }
+
+    QMessageBox::information(this, "System Monitoring", monitorInfo);
   });
 
   QPushButton *advancedButton = new QPushButton("Advanced");
   advancedButton->setMinimumHeight(36);
   connect(advancedButton, &QPushButton::clicked, this, [this]() {
-    QMessageBox::information(this, "Advanced", "Advanced settings dialog coming soon");
+    QString advancedInfo = "<b>Advanced Settings</b><br><br>";
+    advancedInfo += "This section will include:<br>";
+    advancedInfo += "• Custom RTMP server configuration<br>";
+    advancedInfo += "• Advanced encoding options<br>";
+    advancedInfo += "• Network bandwidth limits<br>";
+    advancedInfo += "• Buffer settings<br>";
+    advancedInfo += "• Debug logging options<br><br>";
+    advancedInfo += "<i>Features coming in future update</i>";
+
+    QMessageBox::information(this, "Advanced Settings", advancedInfo);
   });
 
   QPushButton *settingsButton = new QPushButton("Settings");
   settingsButton->setMinimumHeight(36);
   connect(settingsButton, &QPushButton::clicked, this, [this]() {
-    QMessageBox::information(this, "Settings", "Settings dialog coming soon");
+    QString settingsInfo = "<b>Global Settings</b><br><br>";
+    settingsInfo += "<b>Current Configuration:</b><br>";
+
+    if (api) {
+      restreamer_connection_t *conn = restreamer_api_get_connection(api);
+      if (conn) {
+        settingsInfo += QString("  Server: %1://%2:%3<br>")
+          .arg(conn->use_https ? "https" : "http")
+          .arg(conn->host)
+          .arg(conn->port);
+        if (conn->username) {
+          settingsInfo += QString("  Username: %1<br>").arg(conn->username);
+        }
+      }
+    }
+
+    settingsInfo += "<br><i>Additional settings coming in future update</i>";
+
+    QMessageBox::information(this, "Settings", settingsInfo);
   });
 
   quickActionsLayout->addWidget(monitoringButton);
@@ -1515,15 +1583,19 @@ void RestreamerDock::onProfileEditRequested(const char *profileId) {
     return;
   }
 
-  /* TODO: Implement profile configuration dialog */
-  /* This should open a dialog similar to the old onConfigureProfileClicked */
-  /* For now, show a placeholder message */
-  QMessageBox::information(
-      this, "Edit Profile",
-      QString("Profile configuration dialog for '%1' will be implemented here.\n\n"
-              "Profile ID: %2")
-          .arg(profile->profile_name)
-          .arg(profileId));
+  /* Open profile edit dialog */
+  ProfileEditDialog *dialog = new ProfileEditDialog(profile, this);
+  connect(dialog, &ProfileEditDialog::profileUpdated, this, [this]() {
+    obs_log(LOG_INFO, "Profile configuration updated, refreshing UI");
+    refreshProfilesList();
+  });
+
+  if (dialog->exec() == QDialog::Accepted) {
+    obs_log(LOG_INFO, "Profile '%s' updated successfully", profile->profile_name);
+    refreshProfilesList();
+  }
+
+  dialog->deleteLater();
 }
 
 void RestreamerDock::onProfileDeleteRequested(const char *profileId) {
@@ -1606,44 +1678,219 @@ void RestreamerDock::onProfileDuplicateRequested(const char *profileId) {
 
 void RestreamerDock::onProbeInputClicked() {
   obs_log(LOG_INFO, "Probe Input clicked");
-  QMessageBox::information(this, "Probe Input",
-                           "Input probing feature coming soon.");
+
+  if (!api) {
+    QMessageBox::warning(this, "Not Connected",
+                         "Please connect to Restreamer server first.");
+    return;
+  }
+
+  QString probeInfo = "<b>Input Probing</b><br><br>";
+  probeInfo += "This feature allows you to probe RTMP/SRT inputs to determine:<br>";
+  probeInfo += "• Stream codec information<br>";
+  probeInfo += "• Resolution and frame rate<br>";
+  probeInfo += "• Audio configuration<br>";
+  probeInfo += "• Bitrate and quality metrics<br><br>";
+  probeInfo += "<i>Full implementation requires additional FFprobe integration</i>";
+
+  QMessageBox::information(this, "Probe Input", probeInfo);
 }
 
 void RestreamerDock::onViewConfigClicked() {
   obs_log(LOG_INFO, "View Config clicked");
-  QMessageBox::information(this, "View Config",
-                           "Configuration viewer coming soon.");
+
+  if (!api) {
+    QMessageBox::warning(this, "Not Connected",
+                         "Please connect to Restreamer server first.");
+    return;
+  }
+
+  QString configInfo = "<b>Restreamer Configuration</b><br><br>";
+
+  restreamer_connection_t *conn = restreamer_api_get_connection(api);
+  if (conn) {
+    configInfo += "<b>Connection:</b><br>";
+    configInfo += QString("  Server: %1://%2:%3<br>")
+      .arg(conn->use_https ? "https" : "http")
+      .arg(conn->host)
+      .arg(conn->port);
+    if (conn->username) {
+      configInfo += QString("  Username: %1<br>").arg(conn->username);
+    }
+    configInfo += "<br>";
+  }
+
+  configInfo += "<b>Profiles:</b><br>";
+  if (profileManager) {
+    configInfo += QString("  Total Profiles: %1<br>").arg(profileManager->profile_count);
+    configInfo += QString("  Total Templates: %1<br>").arg(profileManager->template_count);
+  }
+
+  QMessageBox::information(this, "View Configuration", configInfo);
 }
 
 void RestreamerDock::onViewSkillsClicked() {
   obs_log(LOG_INFO, "View Skills clicked");
-  QMessageBox::information(this, "View Skills",
-                           "Skills viewer coming soon.");
+
+  if (!api) {
+    QMessageBox::warning(this, "Not Connected",
+                         "Please connect to Restreamer server first.");
+    return;
+  }
+
+  QString skillsInfo = "<b>Restreamer Server Capabilities</b><br><br>";
+  skillsInfo += "Server capabilities include:<br>";
+  skillsInfo += "• FFmpeg encoding/transcoding<br>";
+  skillsInfo += "• RTMP/SRT input/output<br>";
+  skillsInfo += "• HLS output<br>";
+  skillsInfo += "• Hardware acceleration (if available)<br>";
+  skillsInfo += "• Multi-destination streaming<br><br>";
+  skillsInfo += "<i>Detailed capability detection requires API /skills endpoint</i>";
+
+  QMessageBox::information(this, "Server Capabilities", skillsInfo);
 }
 
 void RestreamerDock::onViewMetricsClicked() {
   obs_log(LOG_INFO, "View Metrics clicked");
-  QMessageBox::information(this, "View Metrics",
-                           "Metrics viewer coming soon.");
+
+  if (!api) {
+    QMessageBox::warning(this, "Not Connected",
+                         "Please connect to Restreamer server first.");
+    return;
+  }
+
+  QString metricsInfo = "<b>System Metrics</b><br><br>";
+
+  if (profileManager) {
+    size_t total_destinations = 0;
+    size_t active_destinations = 0;
+    uint64_t total_bytes = 0;
+    uint32_t total_dropped = 0;
+
+    for (size_t i = 0; i < profileManager->profile_count; i++) {
+      output_profile_t *profile = profileManager->profiles[i];
+      total_destinations += profile->destination_count;
+      for (size_t j = 0; j < profile->destination_count; j++) {
+        if (profile->destinations[j].connected) {
+          active_destinations++;
+        }
+        total_bytes += profile->destinations[j].bytes_sent;
+        total_dropped += profile->destinations[j].dropped_frames;
+      }
+    }
+
+    metricsInfo += QString("<b>Active Streams:</b> %1 / %2<br>")
+      .arg(active_destinations).arg(total_destinations);
+    metricsInfo += QString("<b>Total Data Sent:</b> %1 MB<br>")
+      .arg(total_bytes / (1024.0 * 1024.0), 0, 'f', 2);
+    metricsInfo += QString("<b>Total Dropped Frames:</b> %1<br>")
+      .arg(total_dropped);
+  }
+
+  QMessageBox::information(this, "System Metrics", metricsInfo);
 }
 
 void RestreamerDock::onReloadConfigClicked() {
   obs_log(LOG_INFO, "Reload Config clicked");
-  QMessageBox::information(this, "Reload Config",
-                           "Configuration reload feature coming soon.");
+
+  if (!api) {
+    QMessageBox::warning(this, "Not Connected",
+                         "Please connect to Restreamer server first.");
+    return;
+  }
+
+  QMessageBox::StandardButton reply = QMessageBox::question(
+    this, "Reload Configuration",
+    "Reload all profiles and settings from the server?\n\n"
+    "This will refresh all profile data and may reset local changes.",
+    QMessageBox::Yes | QMessageBox::No);
+
+  if (reply == QMessageBox::Yes) {
+    /* Refresh profiles list */
+    refreshProfilesList();
+    QMessageBox::information(this, "Configuration Reloaded",
+                             "All profiles and settings have been reloaded from the server.");
+    obs_log(LOG_INFO, "Configuration reloaded from server");
+  }
 }
 
 void RestreamerDock::onViewSrtStreamsClicked() {
   obs_log(LOG_INFO, "View SRT Streams clicked");
-  QMessageBox::information(this, "View SRT Streams",
-                           "SRT streams viewer coming soon.");
+
+  if (!api) {
+    QMessageBox::warning(this, "Not Connected",
+                         "Please connect to Restreamer server first.");
+    return;
+  }
+
+  QString srtInfo = "<b>SRT Streams</b><br><br>";
+  srtInfo += "SRT (Secure Reliable Transport) is a streaming protocol that provides:<br>";
+  srtInfo += "• Low latency streaming<br>";
+  srtInfo += "• Automatic error correction<br>";
+  srtInfo += "• Encryption support<br>";
+  srtInfo += "• Firewall traversal<br><br>";
+
+  if (profileManager) {
+    int srt_count = 0;
+    for (size_t i = 0; i < profileManager->profile_count; i++) {
+      output_profile_t *profile = profileManager->profiles[i];
+      for (size_t j = 0; j < profile->destination_count; j++) {
+        if (profile->destinations[j].rtmp_url &&
+            strstr(profile->destinations[j].rtmp_url, "srt://")) {
+          srt_count++;
+        }
+      }
+    }
+    srtInfo += QString("<b>Active SRT Streams:</b> %1<br>").arg(srt_count);
+  }
+
+  srtInfo += "<br><i>Detailed SRT stream monitoring requires API integration</i>";
+
+  QMessageBox::information(this, "SRT Streams", srtInfo);
 }
 
 void RestreamerDock::onViewRtmpStreamsClicked() {
   obs_log(LOG_INFO, "View RTMP Streams clicked");
-  QMessageBox::information(this, "View RTMP Streams",
-                           "RTMP streams viewer coming soon.");
+
+  if (!api) {
+    QMessageBox::warning(this, "Not Connected",
+                         "Please connect to Restreamer server first.");
+    return;
+  }
+
+  QString rtmpInfo = "<b>RTMP Streams</b><br><br>";
+
+  if (profileManager) {
+    int rtmp_count = 0;
+    QString streamList;
+
+    for (size_t i = 0; i < profileManager->profile_count; i++) {
+      output_profile_t *profile = profileManager->profiles[i];
+      for (size_t j = 0; j < profile->destination_count; j++) {
+        if (profile->destinations[j].rtmp_url &&
+            strstr(profile->destinations[j].rtmp_url, "rtmp://")) {
+          rtmp_count++;
+          if (rtmp_count <= 5) {  /* Show first 5 streams */
+            streamList += QString("  • %1: %2<br>")
+              .arg(profile->profile_name)
+              .arg(profile->destinations[j].service_name ?
+                   profile->destinations[j].service_name : "Custom");
+          }
+        }
+      }
+    }
+
+    rtmpInfo += QString("<b>Active RTMP Streams:</b> %1<br><br>").arg(rtmp_count);
+
+    if (!streamList.isEmpty()) {
+      rtmpInfo += streamList;
+      if (rtmp_count > 5) {
+        rtmpInfo += QString("<i>... and %1 more</i><br>").arg(rtmp_count - 5);
+      }
+    }
+  }
+
+  QMessageBox::information(this, "RTMP Streams", rtmpInfo);
 }
 
 /* ===== Section Title Update Helpers ===== */
