@@ -74,12 +74,7 @@ endif()
 if(ENABLE_FRONTEND_API)
   find_package(obs-frontend-api REQUIRED)
   target_link_libraries(${CMAKE_PROJECT_NAME} PRIVATE OBS::obs-frontend-api)
-  target_sources(
-    ${CMAKE_PROJECT_NAME}
-    PRIVATE
-      src/obs-bridge.c
-      src/obs-bridge.h
-  )
+  target_sources(${CMAKE_PROJECT_NAME} PRIVATE src/obs-bridge.c src/obs-bridge.h)
 endif()
 
 if(ENABLE_QT)
@@ -103,8 +98,7 @@ if(ENABLE_QT)
     get_target_property(_qt_opengl_libs WrapOpenGL::WrapOpenGL INTERFACE_LINK_LIBRARIES)
     if(_qt_opengl_libs)
       list(FILTER _qt_opengl_libs EXCLUDE REGEX ".*AGL.*")
-      set_target_properties(WrapOpenGL::WrapOpenGL PROPERTIES
-        INTERFACE_LINK_LIBRARIES "${_qt_opengl_libs}")
+      set_target_properties(WrapOpenGL::WrapOpenGL PROPERTIES INTERFACE_LINK_LIBRARIES "${_qt_opengl_libs}")
     endif()
   endif()
 
@@ -203,15 +197,15 @@ if(APPLE)
     set(_qt_version "0.0.0")
   endif()
   # Apply workaround only for OBS < 29.1 and Qt < 6.2
-  if(
-    (ENABLE_QT)
-    AND (
-      ("${_obs_version}" VERSION_LESS "29.1")
-      OR ("${_qt_version}" VERSION_LESS "6.2")
+  if((ENABLE_QT) AND (("${_obs_version}" VERSION_LESS "29.1") OR ("${_qt_version}" VERSION_LESS "6.2")))
+    message(
+      WARNING
+      "Applying AGL linker workaround for OBS Studio < 29.1 or Qt < 6.2. This may be fragile; upgrade dependencies if possible."
     )
-  )
-    message(WARNING "Applying AGL linker workaround for OBS Studio < 29.1 or Qt < 6.2. This may be fragile; upgrade dependencies if possible.")
-    target_link_options(${CMAKE_PROJECT_NAME} PRIVATE "LINKER:-U,_CGLChoosePixelFormat"  "LINKER:-U,_aglChoosePixelFormat")
+    target_link_options(
+      ${CMAKE_PROJECT_NAME}
+      PRIVATE "LINKER:-U,_CGLChoosePixelFormat" "LINKER:-U,_aglChoosePixelFormat"
+    )
   endif()
 
   # Post-build step to fix library dependencies on macOS
@@ -223,14 +217,10 @@ if(APPLE)
     COMMENT "Displaying library dependencies for verification"
     VERBATIM
   )
-
 elseif(UNIX AND NOT APPLE)
   set_target_properties(
     ${CMAKE_PROJECT_NAME}
-    PROPERTIES
-      BUILD_WITH_INSTALL_RPATH FALSE
-      INSTALL_RPATH "$ORIGIN"
-      INSTALL_RPATH_USE_LINK_PATH FALSE
+    PROPERTIES BUILD_WITH_INSTALL_RPATH FALSE INSTALL_RPATH "$ORIGIN" INSTALL_RPATH_USE_LINK_PATH FALSE
   )
 endif()
 
