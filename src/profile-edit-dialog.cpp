@@ -64,13 +64,13 @@ void ProfileEditDialog::setupUI()
 	QFormLayout *sourceForm = new QFormLayout(sourceGroup);
 
 	m_orientationCombo = new QComboBox(this);
-	m_orientationCombo->addItem("Auto-Detect", STREAM_ORIENTATION_AUTO);
+	m_orientationCombo->addItem("Auto-Detect", ORIENTATION_AUTO);
 	m_orientationCombo->addItem("Horizontal (16:9)",
-				    STREAM_ORIENTATION_HORIZONTAL);
+				    ORIENTATION_HORIZONTAL);
 	m_orientationCombo->addItem("Vertical (9:16)",
-				    STREAM_ORIENTATION_VERTICAL);
+				    ORIENTATION_VERTICAL);
 	m_orientationCombo->addItem("Square (1:1)",
-				    STREAM_ORIENTATION_SQUARE);
+				    ORIENTATION_SQUARE);
 	connect(m_orientationCombo, QOverload<int>::of(&QComboBox::currentIndexChanged), this,
 		&ProfileEditDialog::onOrientationChanged);
 	sourceForm->addRow("Orientation:", m_orientationCombo);
@@ -432,7 +432,7 @@ void ProfileEditDialog::onOrientationChanged(int index)
 			m_orientationCombo->itemData(index).toInt());
 
 	/* Auto-enable auto-detect if orientation is set to AUTO */
-	if (orientation == STREAM_ORIENTATION_AUTO) {
+	if (orientation == ORIENTATION_AUTO) {
 		m_autoDetectCheckBox->setChecked(true);
 	}
 }
