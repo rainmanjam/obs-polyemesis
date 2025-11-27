@@ -25,6 +25,10 @@ PROFILE_ID=""
 VERTICAL_PROCESS_ID=""
 HORIZONTAL_PROCESS_ID=""
 
+# Curl options with timeouts for Windows/WSL compatibility
+# --http1.1 fixes HTTP/2 stream issues in WSL
+CURL_OPTS="--http1.1 --max-time 60 --connect-timeout 10"
+
 log_info() {
     echo -e "${BLUE}[INFO]${NC} $1"
 }
@@ -97,7 +101,7 @@ echo ""
 
 # Get JWT token
 log_info "Authenticating with server..."
-LOGIN_RESPONSE=$(curl -s -X POST "${BASE_URL}/api/login" \
+LOGIN_RESPONSE=$(curl $CURL_OPTS -s -X POST "${BASE_URL}/api/login" \
     -H "Content-Type: application/json" \
     -d "{\"username\":\"${RESTREAMER_USERNAME}\",\"password\":\"${RESTREAMER_PASSWORD}\"}")
 
@@ -127,7 +131,7 @@ log_info "[1.1] Simulating plugin initialization..."
 TESTS_RUN=$((TESTS_RUN + 1))
 # In real scenario, this would be OBS loading the plugin
 # We simulate by checking if we can reach the API
-HTTP_CODE=$(curl -s -o /dev/null -w "%{http_code}" "${BASE_URL}/api/v3")
+HTTP_CODE=$(curl $CURL_OPTS -s -o /dev/null -w "%{http_code}" "${BASE_URL}/api/v3")
 if [ "$HTTP_CODE" = "401" ] || [ "$HTTP_CODE" = "200" ]; then
     log_success "Plugin initialization: Server reachable"
 else
@@ -139,7 +143,7 @@ log_info "[1.2] Testing connection configuration..."
 TESTS_RUN=$((TESTS_RUN + 1))
 
 # Simulate user entering connection details and testing
-TEST_CONN=$(curl -s -o /dev/null -w "%{http_code}" \
+TEST_CONN=$(curl $CURL_OPTS -s -o /dev/null -w "%{http_code}" \
     -H "Authorization: Bearer ${JWT_TOKEN}" \
     "${BASE_URL}/api/v3/process")
 
@@ -241,7 +245,7 @@ VERTICAL_CONFIG=$(cat <<EOF
 EOF
 )
 
-CREATE_VERTICAL=$(curl -s -X POST "${BASE_URL}/api/v3/process" \
+CREATE_VERTICAL=$(curl $CURL_OPTS -s -X POST "${BASE_URL}/api/v3/process" \
     -H "Authorization: Bearer ${JWT_TOKEN}" \
     -H "Content-Type: application/json" \
     -d "$VERTICAL_CONFIG")
@@ -280,7 +284,7 @@ HORIZONTAL_CONFIG=$(cat <<EOF
 EOF
 )
 
-CREATE_HORIZONTAL=$(curl -s -X POST "${BASE_URL}/api/v3/process" \
+CREATE_HORIZONTAL=$(curl $CURL_OPTS -s -X POST "${BASE_URL}/api/v3/process" \
     -H "Authorization: Bearer ${JWT_TOKEN}" \
     -H "Content-Type: application/json" \
     -d "$HORIZONTAL_CONFIG")
@@ -311,7 +315,7 @@ TESTS_RUN=$((TESTS_RUN + 1))
 
 # Start vertical process
 if [ -n "$VERTICAL_PROCESS_ID" ]; then
-    curl -s -X PUT "${BASE_URL}/api/v3/process/${VERTICAL_PROCESS_ID}/command" \
+    curl $CURL_OPTS -s -X PUT "${BASE_URL}/api/v3/process/${VERTICAL_PROCESS_ID}/command" \
         -H "Authorization: Bearer ${JWT_TOKEN}" \
         -H "Content-Type: application/json" \
         -d '{"command": "start"}' >/dev/null
@@ -319,7 +323,7 @@ fi
 
 # Start horizontal process
 if [ -n "$HORIZONTAL_PROCESS_ID" ]; then
-    curl -s -X PUT "${BASE_URL}/api/v3/process/${HORIZONTAL_PROCESS_ID}/command" \
+    curl $CURL_OPTS -s -X PUT "${BASE_URL}/api/v3/process/${HORIZONTAL_PROCESS_ID}/command" \
         -H "Authorization: Bearer ${JWT_TOKEN}" \
         -H "Content-Type: application/json" \
         -d '{"command": "start"}' >/dev/null
@@ -333,7 +337,7 @@ TESTS_RUN=$((TESTS_RUN + 1))
 
 sleep 3  # Wait for processes to start
 
-PROCESSES=$(curl -s "${BASE_URL}/api/v3/process" \
+PROCESSES=$(curl $CURL_OPTS -s "${BASE_URL}/api/v3/process" \
     -H "Authorization: Bearer ${JWT_TOKEN}")
 
 if echo "$PROCESSES" | jq -e 'type == "array"' >/dev/null 2>&1; then
@@ -348,7 +352,7 @@ log_info "[4.3] Viewing detailed per-destination metrics..."
 TESTS_RUN=$((TESTS_RUN + 1))
 
 if [ -n "$VERTICAL_PROCESS_ID" ]; then
-    VERTICAL_STATS=$(curl -s "${BASE_URL}/api/v3/process/${VERTICAL_PROCESS_ID}" \
+    VERTICAL_STATS=$(curl $CURL_OPTS -s "${BASE_URL}/api/v3/process/${VERTICAL_PROCESS_ID}" \
         -H "Authorization: Bearer ${JWT_TOKEN}")
 
     if echo "$VERTICAL_STATS" | jq -e '.state' >/dev/null 2>&1; then
@@ -403,7 +407,7 @@ log_success "Configuration exported to: /tmp/${PROFILE_NAME}_config.json"
 log_info "[5.2] Viewing system-wide metrics..."
 TESTS_RUN=$((TESTS_RUN + 1))
 
-ALL_PROCESSES=$(curl -s "${BASE_URL}/api/v3/process" \
+ALL_PROCESSES=$(curl $CURL_OPTS -s "${BASE_URL}/api/v3/process" \
     -H "Authorization: Bearer ${JWT_TOKEN}")
 
 if echo "$ALL_PROCESSES" | jq -e 'type == "array"' >/dev/null 2>&1; then
@@ -418,7 +422,7 @@ fi
 log_info "[5.3] Viewing server capabilities..."
 TESTS_RUN=$((TESTS_RUN + 1))
 
-SKILLS=$(curl -s "${BASE_URL}/api/v3/skills" \
+SKILLS=$(curl $CURL_OPTS -s "${BASE_URL}/api/v3/skills" \
     -H "Authorization: Bearer ${JWT_TOKEN}")
 
 if echo "$SKILLS" | jq -e 'has("ffmpeg")' >/dev/null 2>&1; then
@@ -432,7 +436,7 @@ fi
 log_info "[5.4] Reloading configuration from server..."
 TESTS_RUN=$((TESTS_RUN + 1))
 
-RELOAD_PROCESSES=$(curl -s "${BASE_URL}/api/v3/process" \
+RELOAD_PROCESSES=$(curl $CURL_OPTS -s "${BASE_URL}/api/v3/process" \
     -H "Authorization: Bearer ${JWT_TOKEN}")
 
 if echo "$RELOAD_PROCESSES" | jq -e 'type == "array"' >/dev/null 2>&1; then
@@ -461,7 +465,7 @@ TESTS_RUN=$((TESTS_RUN + 1))
 
 # Stop vertical process
 if [ -n "$VERTICAL_PROCESS_ID" ]; then
-    curl -s -X PUT "${BASE_URL}/api/v3/process/${VERTICAL_PROCESS_ID}/command" \
+    curl $CURL_OPTS -s -X PUT "${BASE_URL}/api/v3/process/${VERTICAL_PROCESS_ID}/command" \
         -H "Authorization: Bearer ${JWT_TOKEN}" \
         -H "Content-Type: application/json" \
         -d '{"command": "stop"}' >/dev/null
@@ -469,7 +473,7 @@ fi
 
 # Stop horizontal process
 if [ -n "$HORIZONTAL_PROCESS_ID" ]; then
-    curl -s -X PUT "${BASE_URL}/api/v3/process/${HORIZONTAL_PROCESS_ID}/command" \
+    curl $CURL_OPTS -s -X PUT "${BASE_URL}/api/v3/process/${HORIZONTAL_PROCESS_ID}/command" \
         -H "Authorization: Bearer ${JWT_TOKEN}" \
         -H "Content-Type: application/json" \
         -d '{"command": "stop"}' >/dev/null
@@ -484,13 +488,13 @@ TESTS_RUN=$((TESTS_RUN + 1))
 DELETED=0
 
 if [ -n "$VERTICAL_PROCESS_ID" ]; then
-    curl -s -X DELETE "${BASE_URL}/api/v3/process/${VERTICAL_PROCESS_ID}" \
+    curl $CURL_OPTS -s -X DELETE "${BASE_URL}/api/v3/process/${VERTICAL_PROCESS_ID}" \
         -H "Authorization: Bearer ${JWT_TOKEN}" > /dev/null
     DELETED=$((DELETED + 1))
 fi
 
 if [ -n "$HORIZONTAL_PROCESS_ID" ]; then
-    curl -s -X DELETE "${BASE_URL}/api/v3/process/${HORIZONTAL_PROCESS_ID}" \
+    curl $CURL_OPTS -s -X DELETE "${BASE_URL}/api/v3/process/${HORIZONTAL_PROCESS_ID}" \
         -H "Authorization: Bearer ${JWT_TOKEN}" > /dev/null
     DELETED=$((DELETED + 1))
 fi
