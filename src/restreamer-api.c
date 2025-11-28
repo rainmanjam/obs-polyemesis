@@ -39,6 +39,7 @@ static void secure_memzero(void *ptr, size_t len) {
 /* Security: Securely free sensitive string data by clearing memory first */
 static void secure_free(char *ptr) {
   if (ptr) {
+    /* SECURITY: strlen is safe here - ptr is verified non-NULL by the if condition above */
     size_t len = strlen(ptr);
     if (len > 0) {
       secure_memzero(ptr, len);
@@ -268,7 +269,7 @@ static bool restreamer_api_login(restreamer_api_t *api) {
   curl_easy_setopt(api->curl, CURLOPT_POSTFIELDSIZE, 0L);
 
   /* Security: Clear login credentials from memory before freeing */
-  /* post_data is guaranteed non-NULL here (checked at line 196) */
+  /* SECURITY: strlen is safe - post_data is guaranteed non-NULL (checked at line 196) */
   secure_memzero(post_data, strlen(post_data));
   free(post_data);
   dstr_free(&url);
