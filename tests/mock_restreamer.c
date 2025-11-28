@@ -309,6 +309,46 @@ static void handle_request(socket_t client_fd, const char *request) {
                "Content-Length: 111\r\n"
                "\r\n"
                "{\"video_bitrate\": 4500000, \"audio_bitrate\": 192000, \"width\": 1920, \"height\": 1080, \"fps_num\": 30, \"fps_den\": 1}";
+  } else if (strstr(request, "GET /api/v3/process/") != NULL && strstr(request, "/config") != NULL) {
+    /* Get process config */
+    printf("[MOCK] -> Matched: GET /api/v3/process/{id}/config\n");
+    response = "HTTP/1.1 200 OK\r\n"
+               "Content-Type: application/json\r\n"
+               "Content-Length: 110\r\n"
+               "\r\n"
+               "{\"id\": \"test-process-1\", \"reference\": \"test-stream\", \"config\": {\"input\": \"rtmp://in\", \"output\": \"rtmp://out\"}}";
+  } else if (strstr(request, "GET /ping ") != NULL || strstr(request, "GET /ping\r\n") != NULL) {
+    /* Ping endpoint - returns JSON string "pong" */
+    printf("[MOCK] -> Matched: GET /ping\n");
+    response = "HTTP/1.1 200 OK\r\n"
+               "Content-Type: application/json\r\n"
+               "Content-Length: 6\r\n"
+               "\r\n"
+               "\"pong\"";
+  } else if (strstr(request, "GET /api ") != NULL || strstr(request, "GET /api\r\n") != NULL) {
+    /* API info endpoint */
+    printf("[MOCK] -> Matched: GET /api\n");
+    response = "HTTP/1.1 200 OK\r\n"
+               "Content-Type: application/json\r\n"
+               "Content-Length: 95\r\n"
+               "\r\n"
+               "{\"name\": \"datarhei-core\", \"version\": \"16.12.0\", \"build_date\": \"2024-01-15\", \"commit\": \"abc123\"}";
+  } else if (strstr(request, "GET /api/v3/log") != NULL) {
+    /* Log entries endpoint */
+    printf("[MOCK] -> Matched: GET /api/v3/log\n");
+    response = "HTTP/1.1 200 OK\r\n"
+               "Content-Type: application/json\r\n"
+               "Content-Length: 165\r\n"
+               "\r\n"
+               "[{\"time\": \"2024-01-15T10:00:00Z\", \"level\": \"info\", \"message\": \"Server started\"}, {\"time\": \"2024-01-15T10:01:00Z\", \"level\": \"debug\", \"message\": \"Processing request\"}]";
+  } else if (strstr(request, "GET /api/v3/session/active") != NULL) {
+    /* Active session summary endpoint */
+    printf("[MOCK] -> Matched: GET /api/v3/session/active\n");
+    response = "HTTP/1.1 200 OK\r\n"
+               "Content-Type: application/json\r\n"
+               "Content-Length: 74\r\n"
+               "\r\n"
+               "{\"session_count\": 5, \"total_rx_bytes\": 1024000, \"total_tx_bytes\": 2048000}";
   } else if (strstr(request, "GET /api/v3/process") != NULL) {
     /* Check for auth header */
     if (strstr(request, "Authorization:") == NULL) {
