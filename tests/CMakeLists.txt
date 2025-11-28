@@ -7,6 +7,9 @@ add_executable(
   obs-polyemesis-tests
   test_main.c
   test_api_client.c
+  test_api_system.c
+  test_api_skills.c
+  test_api_filesystem.c
   test_restreamer_api_comprehensive.c
   test_restreamer_api_extensions.c
   test_restreamer_api_advanced.c
@@ -88,6 +91,9 @@ endif()
 # Add tests with proper executable path handling
 # Use TARGET_FILE generator expression to handle multi-config generators (Xcode, Visual Studio)
 add_test(NAME api_client_tests COMMAND $<TARGET_FILE:obs-polyemesis-tests> --test-suite=api)
+add_test(NAME api_system_tests COMMAND $<TARGET_FILE:obs-polyemesis-tests> --test-suite=api-system)
+add_test(NAME api_skills_tests COMMAND $<TARGET_FILE:obs-polyemesis-tests> --test-suite=api-skills)
+add_test(NAME api_filesystem_tests COMMAND $<TARGET_FILE:obs-polyemesis-tests> --test-suite=api-filesystem)
 add_test(NAME api_comprehensive_tests COMMAND $<TARGET_FILE:obs-polyemesis-tests> --test-suite=api-comprehensive)
 add_test(NAME api_extensions_tests COMMAND $<TARGET_FILE:obs-polyemesis-tests> --test-suite=api-extensions)
 add_test(NAME api_advanced_tests COMMAND $<TARGET_FILE:obs-polyemesis-tests> --test-suite=api-advanced)
@@ -113,6 +119,9 @@ add_test(NAME output_tests COMMAND $<TARGET_FILE:obs-polyemesis-tests> --test-su
 # Set working directory for tests to ensure they run from the correct location
 set_tests_properties(
   api_client_tests
+  api_system_tests
+  api_skills_tests
+  api_filesystem_tests
   api_comprehensive_tests
   api_extensions_tests
   api_advanced_tests
