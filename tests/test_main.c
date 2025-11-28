@@ -105,6 +105,8 @@ static int tests_failed = 0;
 
 /* Test suite declarations */
 extern bool run_api_client_tests(void);
+extern bool run_api_system_tests(void);
+extern bool run_api_filesystem_tests(void);
 extern bool run_config_tests(void);
 extern bool run_multistream_tests(void);
 extern bool run_output_profile_tests(void);
@@ -147,6 +149,9 @@ extern int run_api_process_state_tests(void);
 
 /* Dynamic output tests (returns int: 0=success, 1=failure) */
 extern int run_api_dynamic_output_tests(void);
+
+/* Skills and extended features tests (returns int: 0=success, 1=failure) */
+extern int run_api_skills_tests(void);
 
 /* TODO: Re-enable once tests are fixed to match actual API
  * New integration test declarations (return int: 0=success, 1=failure)
@@ -205,6 +210,11 @@ static bool run_api_process_state_tests_wrapper(void) {
 /* Wrapper for dynamic output tests (converts int return to bool) */
 static bool run_api_dynamic_output_tests_wrapper(void) {
   return run_api_dynamic_output_tests() == 0;
+}
+
+/* Wrapper for skills tests (converts int return to bool) */
+static bool run_api_skills_tests_wrapper(void) {
+  return run_api_skills_tests() == 0;
 }
 
 /*
@@ -266,6 +276,14 @@ int main(int argc, char **argv) {
     run_test_suite("API Client Tests", run_api_client_tests);
   }
 
+  if (!suite_filter || strcmp(suite_filter, "api-system") == 0) {
+    run_test_suite("API System & Configuration Tests", run_api_system_tests);
+  }
+
+  if (!suite_filter || strcmp(suite_filter, "api-filesystem") == 0) {
+    run_test_suite("API Filesystem & Connection Tests", run_api_filesystem_tests);
+  }
+
   if (!suite_filter || strcmp(suite_filter, "api-comprehensive") == 0) {
     run_test_suite("Comprehensive API Tests", run_api_comprehensive_tests);
   }
@@ -308,6 +326,10 @@ int main(int argc, char **argv) {
 
   if (!suite_filter || strcmp(suite_filter, "api-dynamic-output") == 0) {
     run_test_suite("API Dynamic Output Tests", run_api_dynamic_output_tests_wrapper);
+  }
+
+  if (!suite_filter || strcmp(suite_filter, "api-skills") == 0) {
+    run_test_suite("API Skills and Extended Features Tests", run_api_skills_tests_wrapper);
   }
 
   /* TODO: Re-enable once tests are fixed to match actual API
