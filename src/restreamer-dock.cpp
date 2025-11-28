@@ -57,6 +57,8 @@ RestreamerDock::RestreamerDock(QWidget *parent)
 
   /* Initialize OBS Bridge with default configuration */
   obs_bridge_config_t bridge_config = {0};
+  /* Security: HTTP is used here for local development default only.
+   * Users should configure HTTPS for production deployments via Settings. */
   bridge_config.restreamer_url = bstrdup("http://localhost:8080");
   bridge_config.rtmp_horizontal_url =
       bstrdup("rtmp://localhost/live/obs_horizontal");
