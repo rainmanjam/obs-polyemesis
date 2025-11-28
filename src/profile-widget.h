@@ -53,6 +53,11 @@ signals:
   void deleteRequested(const char *profileId);
   void duplicateRequested(const char *profileId);
 
+  /* Emitted when destination-specific actions are requested */
+  void destinationStartRequested(const char *profileId, size_t destIndex);
+  void destinationStopRequested(const char *profileId, size_t destIndex);
+  void destinationEditRequested(const char *profileId, size_t destIndex);
+
   /* Emitted when expanded state changes */
   void expandedChanged(bool expanded);
 
