@@ -133,6 +133,21 @@ typedef struct {
 } test_results_t;
 extern test_results_t run_api_process_config_tests(void);
 
+/* API utility tests (returns int: 0=success, 1=failure) */
+extern int run_api_utils_tests(void);
+
+/* Process management tests (returns int: 0=success, 1=failure) */
+extern int run_api_process_management_tests(void);
+
+/* Sessions tests (returns int: 0=success, 1=failure) */
+extern int run_api_sessions_tests(void);
+
+/* Process state tests (returns int: 0=success, 1=failure) */
+extern int run_api_process_state_tests(void);
+
+/* Dynamic output tests (returns int: 0=success, 1=failure) */
+extern int run_api_dynamic_output_tests(void);
+
 /* TODO: Re-enable once tests are fixed to match actual API
  * New integration test declarations (return int: 0=success, 1=failure)
  */
@@ -165,6 +180,31 @@ static bool run_security_tests_wrapper(void) {
 static bool run_process_config_tests_wrapper(void) {
   test_results_t results = run_api_process_config_tests();
   return results.failed == 0;
+}
+
+/* Wrapper for API utils tests (converts int return to bool) */
+static bool run_api_utils_tests_wrapper(void) {
+  return run_api_utils_tests() == 0;
+}
+
+/* Wrapper for process management tests (converts int return to bool) */
+static bool run_api_process_management_tests_wrapper(void) {
+  return run_api_process_management_tests() == 0;
+}
+
+/* Wrapper for sessions tests (converts int return to bool) */
+static bool run_api_sessions_tests_wrapper(void) {
+  return run_api_sessions_tests() == 0;
+}
+
+/* Wrapper for process state tests (converts int return to bool) */
+static bool run_api_process_state_tests_wrapper(void) {
+  return run_api_process_state_tests() == 0;
+}
+
+/* Wrapper for dynamic output tests (converts int return to bool) */
+static bool run_api_dynamic_output_tests_wrapper(void) {
+  return run_api_dynamic_output_tests() == 0;
 }
 
 /*
@@ -248,6 +288,26 @@ int main(int argc, char **argv) {
 
   if (!suite_filter || strcmp(suite_filter, "api-process-config") == 0) {
     run_test_suite("API Process Config Tests", run_process_config_tests_wrapper);
+  }
+
+  if (!suite_filter || strcmp(suite_filter, "api-utils") == 0) {
+    run_test_suite("API Utility Tests", run_api_utils_tests_wrapper);
+  }
+
+  if (!suite_filter || strcmp(suite_filter, "api-process-management") == 0) {
+    run_test_suite("API Process Management Tests", run_api_process_management_tests_wrapper);
+  }
+
+  if (!suite_filter || strcmp(suite_filter, "api-sessions") == 0) {
+    run_test_suite("API Sessions Tests", run_api_sessions_tests_wrapper);
+  }
+
+  if (!suite_filter || strcmp(suite_filter, "api-process-state") == 0) {
+    run_test_suite("API Process State Tests", run_api_process_state_tests_wrapper);
+  }
+
+  if (!suite_filter || strcmp(suite_filter, "api-dynamic-output") == 0) {
+    run_test_suite("API Dynamic Output Tests", run_api_dynamic_output_tests_wrapper);
   }
 
   /* TODO: Re-enable once tests are fixed to match actual API
