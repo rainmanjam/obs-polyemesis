@@ -424,12 +424,12 @@ static void handle_request(socket_t client_fd, const char *request) {
                    "\r\n"
                    "Test file content";
       } else {
-        /* List files in storage - return array of file entries */
+        /* List files in storage */
         response = "HTTP/1.1 200 OK\r\n"
                    "Content-Type: application/json\r\n"
-                   "Content-Length: 46\r\n"
+                   "Content-Length: 50\r\n"
                    "\r\n"
-                   "[{\"name\": \"test.mp4\", \"size\": 1024000}]";
+                   "{\"files\": [{\"name\": \"test.mp4\", \"size\": 1024000}]}";
       }
     }
   } else if (strstr(request, "GET /api/v3/rtmp") != NULL) {
