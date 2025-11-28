@@ -13,6 +13,11 @@ add_executable(
   test_api_diagnostics.c
   test_api_security.c
   test_api_process_config.c
+  test_api_utils.c
+  test_api_process_management.c
+  test_api_sessions.c
+  test_api_process_state.c
+  test_api_dynamic_output.c
   # TODO: Fix these tests to match actual API (API v3 functions don't exist)
   # test_api_auth.c
   # test_api_error_handling.c
@@ -32,6 +37,7 @@ target_sources(
   obs-polyemesis-tests
   PRIVATE
     ${CMAKE_SOURCE_DIR}/src/restreamer-api.c
+    ${CMAKE_SOURCE_DIR}/src/restreamer-api-utils.c
     ${CMAKE_SOURCE_DIR}/src/restreamer-config.c
     ${CMAKE_SOURCE_DIR}/src/restreamer-multistream.c
     ${CMAKE_SOURCE_DIR}/src/restreamer-output-profile.c
@@ -88,6 +94,11 @@ add_test(NAME api_advanced_tests COMMAND $<TARGET_FILE:obs-polyemesis-tests> --t
 add_test(NAME api_diagnostics_tests COMMAND $<TARGET_FILE:obs-polyemesis-tests> --test-suite=api-diagnostics)
 add_test(NAME api_security_tests COMMAND $<TARGET_FILE:obs-polyemesis-tests> --test-suite=api-security)
 add_test(NAME api_process_config_tests COMMAND $<TARGET_FILE:obs-polyemesis-tests> --test-suite=api-process-config)
+add_test(NAME api_utils_tests COMMAND $<TARGET_FILE:obs-polyemesis-tests> --test-suite=api-utils)
+add_test(NAME api_process_management_tests COMMAND $<TARGET_FILE:obs-polyemesis-tests> --test-suite=api-process-management)
+add_test(NAME api_sessions_tests COMMAND $<TARGET_FILE:obs-polyemesis-tests> --test-suite=api-sessions)
+add_test(NAME api_process_state_tests COMMAND $<TARGET_FILE:obs-polyemesis-tests> --test-suite=api-process-state)
+add_test(NAME api_dynamic_output_tests COMMAND $<TARGET_FILE:obs-polyemesis-tests> --test-suite=api-dynamic-output)
 # TODO: Re-enable once tests are fixed to match actual API
 # add_test(NAME api_auth_tests COMMAND $<TARGET_FILE:obs-polyemesis-tests> --test-suite=api-auth)
 # add_test(NAME api_error_handling_tests COMMAND $<TARGET_FILE:obs-polyemesis-tests> --test-suite=api-errors)
@@ -108,6 +119,11 @@ set_tests_properties(
   api_diagnostics_tests
   api_security_tests
   api_process_config_tests
+  api_utils_tests
+  api_process_management_tests
+  api_sessions_tests
+  api_process_state_tests
+  api_dynamic_output_tests
   # TODO: Re-enable once tests are fixed
   # api_auth_tests
   # api_error_handling_tests
