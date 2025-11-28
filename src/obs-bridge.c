@@ -168,6 +168,8 @@ obs_bridge_t *obs_bridge_create(const obs_bridge_config_t *config) {
     obs_bridge_set_config(bridge, config);
   } else {
     /* Default configuration */
+    /* Security: HTTP is used here for local development default only.
+     * Users should configure HTTPS for production deployments via Settings. */
     bridge->config.restreamer_url = bstrdup("http://localhost:8080");
     bridge->config.rtmp_horizontal_url =
         bstrdup("rtmp://localhost/live/obs_horizontal");

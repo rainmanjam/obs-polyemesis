@@ -56,10 +56,12 @@ void ConnectionConfigDialog::setupUI() {
   m_urlEdit->setToolTip(
       "Enter the Restreamer URL. You can specify a custom port:\n"
       "Examples:\n"
-      "  • https://rs.example.com (uses port 443)\n"
+      "  • https://rs.example.com (uses port 443) - RECOMMENDED\n"
       "  • https://rs.example.com:8080 (custom port)\n"
-      "  • http://localhost:8080 (local HTTP)\n"
-      "  • example.com:9000 (auto-detects protocol)");
+      "  • http://localhost:8080 (local development only)\n"
+      "  • example.com:9000 (auto-detects protocol)\n\n"
+      "SECURITY WARNING: Use HTTPS for production deployments.\n"
+      "HTTP should only be used for local development/testing.");
 
   QLabel *urlLabel = new QLabel("Restreamer URL:");
   formLayout->addRow(urlLabel, m_urlEdit);

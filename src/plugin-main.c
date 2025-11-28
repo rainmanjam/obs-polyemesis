@@ -29,7 +29,9 @@ with this program. If not, see <https://www.gnu.org/licenses/>
 #endif
 
 #include <jansson.h>
+#include <stdlib.h>
 #include <sys/stat.h>
+#include <time.h>
 #include <util/platform.h>
 
 // cppcheck-suppress unknownMacro
@@ -421,6 +423,9 @@ static void install_service_definition(void) {
 bool obs_module_load(void) {
   obs_log(LOG_INFO, "obs-polyemesis plugin loaded (version %s)",
           PLUGIN_VERSION);
+
+  /* Security: Initialize random number generator for profile ID generation */
+  srand((unsigned int)time(NULL));
 
   /* Initialize configuration system */
   restreamer_config_init();
