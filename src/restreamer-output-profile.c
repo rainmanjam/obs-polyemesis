@@ -400,29 +400,6 @@ bool profile_set_destination_enabled(output_profile_t *profile, size_t index,
 
 /* Streaming Control */
 
-/* State machine validation */
-static bool is_valid_state_transition(profile_status_t from,
-                                      profile_status_t to) {
-  switch (from) {
-  case PROFILE_STATUS_INACTIVE:
-    return to == PROFILE_STATUS_STARTING || to == PROFILE_STATUS_PREVIEW;
-  case PROFILE_STATUS_STARTING:
-    return to == PROFILE_STATUS_ACTIVE || to == PROFILE_STATUS_ERROR ||
-           to == PROFILE_STATUS_INACTIVE;
-  case PROFILE_STATUS_ACTIVE:
-    return to == PROFILE_STATUS_STOPPING || to == PROFILE_STATUS_ERROR;
-  case PROFILE_STATUS_STOPPING:
-    return to == PROFILE_STATUS_INACTIVE || to == PROFILE_STATUS_ERROR;
-  case PROFILE_STATUS_ERROR:
-    return to == PROFILE_STATUS_INACTIVE || to == PROFILE_STATUS_STARTING;
-  case PROFILE_STATUS_PREVIEW:
-    return to == PROFILE_STATUS_ACTIVE || to == PROFILE_STATUS_STOPPING ||
-           to == PROFILE_STATUS_INACTIVE;
-  default:
-    return false;
-  }
-}
-
 bool output_profile_start(profile_manager_t *manager, const char *profile_id) {
   if (!manager || !profile_id) {
     return false;
