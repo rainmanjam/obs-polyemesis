@@ -153,6 +153,14 @@ extern int run_api_dynamic_output_tests(void);
 /* Skills and extended features tests (returns int: 0=success, 1=failure) */
 extern int run_api_skills_tests(void);
 
+/* Edge case and NULL parameter tests (returns bool: true=success, false=failure) */
+extern bool run_api_edge_case_tests(void);
+
+/* TODO: Add these test files if needed
+extern int run_api_coverage_gaps_tests(void);
+extern int test_api_coverage_improvements(void);
+*/
+
 /* TODO: Re-enable once tests are fixed to match actual API
  * New integration test declarations (return int: 0=success, 1=failure)
  */
@@ -216,6 +224,16 @@ static bool run_api_dynamic_output_tests_wrapper(void) {
 static bool run_api_skills_tests_wrapper(void) {
   return run_api_skills_tests() == 0;
 }
+
+/* TODO: Add wrappers if test files are created
+static bool run_api_coverage_improvements_tests_wrapper(void) {
+  return test_api_coverage_improvements() == 0;
+}
+
+static bool run_api_coverage_gaps_tests_wrapper(void) {
+  return run_api_coverage_gaps_tests() == 0;
+}
+*/
 
 /*
 static bool run_api_auth_tests(void) {
@@ -339,6 +357,20 @@ int main(int argc, char **argv) {
   if (suite_filter && strcmp(suite_filter, "api-skills") == 0) {
     run_test_suite("API Skills and Extended Features Tests", run_api_skills_tests_wrapper);
   }
+
+  if (!suite_filter || strcmp(suite_filter, "api-edge-cases") == 0) {
+    run_test_suite("API Edge Cases and NULL Parameter Tests", run_api_edge_case_tests);
+  }
+
+  /* TODO: Add these test suites if test files are created
+  if (!suite_filter || strcmp(suite_filter, "api-coverage-gaps") == 0) {
+    run_test_suite("API Coverage Gaps Tests", run_api_coverage_gaps_tests_wrapper);
+  }
+
+  if (!suite_filter || strcmp(suite_filter, "api-coverage-improvements") == 0) {
+    run_test_suite("API Coverage Improvement Tests", run_api_coverage_improvements_tests_wrapper);
+  }
+  */
 
   /* TODO: Re-enable once tests are fixed to match actual API
   if (!suite_filter || strcmp(suite_filter, "api-auth") == 0) {
