@@ -272,7 +272,8 @@ PLUGIN_STATIC obs_properties_t *restreamer_output_properties(void *data) {
 
   obs_properties_add_text(
       props, "destinations_info",
-      "Configure destinations in the Restreamer Control Panel", OBS_TEXT_DEFAULT);
+      "Configure destinations in the Restreamer Control Panel",
+      OBS_TEXT_DEFAULT);
 
   return props;
 }

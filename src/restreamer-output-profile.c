@@ -400,6 +400,29 @@ bool profile_set_destination_enabled(output_profile_t *profile, size_t index,
 
 /* Streaming Control */
 
+/* State machine validation */
+static bool is_valid_state_transition(profile_status_t from,
+                                      profile_status_t to) {
+  switch (from) {
+  case PROFILE_STATUS_INACTIVE:
+    return to == PROFILE_STATUS_STARTING || to == PROFILE_STATUS_PREVIEW;
+  case PROFILE_STATUS_STARTING:
+    return to == PROFILE_STATUS_ACTIVE || to == PROFILE_STATUS_ERROR ||
+           to == PROFILE_STATUS_INACTIVE;
+  case PROFILE_STATUS_ACTIVE:
+    return to == PROFILE_STATUS_STOPPING || to == PROFILE_STATUS_ERROR;
+  case PROFILE_STATUS_STOPPING:
+    return to == PROFILE_STATUS_INACTIVE || to == PROFILE_STATUS_ERROR;
+  case PROFILE_STATUS_ERROR:
+    return to == PROFILE_STATUS_INACTIVE || to == PROFILE_STATUS_STARTING;
+  case PROFILE_STATUS_PREVIEW:
+    return to == PROFILE_STATUS_ACTIVE || to == PROFILE_STATUS_STOPPING ||
+           to == PROFILE_STATUS_INACTIVE;
+  default:
+    return false;
+  }
+}
+
 bool output_profile_start(profile_manager_t *manager, const char *profile_id) {
   if (!manager || !profile_id) {
     return false;
@@ -509,6 +532,10 @@ bool output_profile_start(profile_manager_t *manager, const char *profile_id) {
   /* Clean up temporary config */
   restreamer_multistream_destroy(config);
 
+  /* Clear last_error on successful start */
+  bfree(profile->last_error);
+  profile->last_error = NULL;
+
   profile->status = PROFILE_STATUS_ACTIVE;
   obs_log(LOG_INFO,
           "Profile %s started successfully with process reference: %s",
@@ -553,6 +580,10 @@ bool output_profile_stop(profile_manager_t *manager, const char *profile_id) {
   }
 
   obs_log(LOG_INFO, "Stopped profile: %s", profile->profile_name);
+
+  /* Clear last_error on successful stop */
+  bfree(profile->last_error);
+  profile->last_error = NULL;
 
   profile->status = PROFILE_STATUS_INACTIVE;
   return true;
@@ -691,6 +722,10 @@ bool output_profile_preview_to_live(profile_manager_t *manager,
   profile->preview_start_time = 0;
 
   /* Update status to active */
+  /* Clear last_error on successful preview to live transition */
+  bfree(profile->last_error);
+  profile->last_error = NULL;
+
   profile->status = PROFILE_STATUS_ACTIVE;
 
   obs_log(LOG_INFO, "Profile %s is now live", profile->profile_name);
