@@ -226,10 +226,9 @@ static bool restreamer_api_login(restreamer_api_t *api) {
   curl_easy_setopt(api->curl, CURLOPT_POSTFIELDSIZE, 0L);
 
   /* Security: Clear login credentials from memory before freeing */
-  if (post_data) {
-    memset(post_data, 0, strlen(post_data));
-    free(post_data);
-  }
+  /* post_data is guaranteed non-NULL here (checked at line 190) */
+  memset(post_data, 0, strlen(post_data));
+  free(post_data);
   dstr_free(&url);
 
   if (res != CURLE_OK) {
