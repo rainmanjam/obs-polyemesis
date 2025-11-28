@@ -10,6 +10,9 @@ add_executable(
   test_restreamer_api_comprehensive.c
   test_restreamer_api_extensions.c
   test_restreamer_api_advanced.c
+  test_api_diagnostics.c
+  test_api_security.c
+  test_api_process_config.c
   # TODO: Fix these tests to match actual API (API v3 functions don't exist)
   # test_api_auth.c
   # test_api_error_handling.c
@@ -82,6 +85,9 @@ add_test(NAME api_client_tests COMMAND $<TARGET_FILE:obs-polyemesis-tests> --tes
 add_test(NAME api_comprehensive_tests COMMAND $<TARGET_FILE:obs-polyemesis-tests> --test-suite=api-comprehensive)
 add_test(NAME api_extensions_tests COMMAND $<TARGET_FILE:obs-polyemesis-tests> --test-suite=api-extensions)
 add_test(NAME api_advanced_tests COMMAND $<TARGET_FILE:obs-polyemesis-tests> --test-suite=api-advanced)
+add_test(NAME api_diagnostics_tests COMMAND $<TARGET_FILE:obs-polyemesis-tests> --test-suite=api-diagnostics)
+add_test(NAME api_security_tests COMMAND $<TARGET_FILE:obs-polyemesis-tests> --test-suite=api-security)
+add_test(NAME api_process_config_tests COMMAND $<TARGET_FILE:obs-polyemesis-tests> --test-suite=api-process-config)
 # TODO: Re-enable once tests are fixed to match actual API
 # add_test(NAME api_auth_tests COMMAND $<TARGET_FILE:obs-polyemesis-tests> --test-suite=api-auth)
 # add_test(NAME api_error_handling_tests COMMAND $<TARGET_FILE:obs-polyemesis-tests> --test-suite=api-errors)
@@ -99,6 +105,9 @@ set_tests_properties(
   api_comprehensive_tests
   api_extensions_tests
   api_advanced_tests
+  api_diagnostics_tests
+  api_security_tests
+  api_process_config_tests
   # TODO: Re-enable once tests are fixed
   # api_auth_tests
   # api_error_handling_tests

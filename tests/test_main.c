@@ -120,6 +120,19 @@ extern int test_restreamer_api_extensions(void);
 /* New API advanced feature tests (returns int: 0=success, 1=failure) */
 extern int test_restreamer_api_advanced(void);
 
+/* New diagnostic API tests (returns bool: true=success, false=failure) */
+extern bool run_api_diagnostics_tests(void);
+
+/* New security API tests (returns int: 0=success, 1=failure) */
+extern int run_api_security_tests(void);
+
+/* Process config tests - define the struct type here */
+typedef struct {
+  int passed;
+  int failed;
+} test_results_t;
+extern test_results_t run_api_process_config_tests(void);
+
 /* TODO: Re-enable once tests are fixed to match actual API
  * New integration test declarations (return int: 0=success, 1=failure)
  */
@@ -141,6 +154,17 @@ static bool run_api_extensions_tests(void) {
 
 static bool run_api_advanced_tests(void) {
   return test_restreamer_api_advanced() == 0;
+}
+
+/* Wrapper for security tests (converts int return to bool) */
+static bool run_security_tests_wrapper(void) {
+  return run_api_security_tests() == 0;
+}
+
+/* Wrapper for process config tests (converts struct return to bool) */
+static bool run_process_config_tests_wrapper(void) {
+  test_results_t results = run_api_process_config_tests();
+  return results.failed == 0;
 }
 
 /*
@@ -212,6 +236,18 @@ int main(int argc, char **argv) {
 
   if (!suite_filter || strcmp(suite_filter, "api-advanced") == 0) {
     run_test_suite("API Advanced Feature Tests", run_api_advanced_tests);
+  }
+
+  if (!suite_filter || strcmp(suite_filter, "api-diagnostics") == 0) {
+    run_test_suite("API Diagnostics Tests", run_api_diagnostics_tests);
+  }
+
+  if (!suite_filter || strcmp(suite_filter, "api-security") == 0) {
+    run_test_suite("API Security Tests", run_security_tests_wrapper);
+  }
+
+  if (!suite_filter || strcmp(suite_filter, "api-process-config") == 0) {
+    run_test_suite("API Process Config Tests", run_process_config_tests_wrapper);
   }
 
   /* TODO: Re-enable once tests are fixed to match actual API
