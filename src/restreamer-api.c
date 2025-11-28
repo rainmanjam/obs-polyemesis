@@ -27,12 +27,21 @@ struct restreamer_api {
   int login_retry_count;
 };
 
+/* Security: Securely clear memory that won't be optimized away by compiler.
+ * Uses volatile pointer to prevent dead-store elimination. */
+static void secure_memzero(void *ptr, size_t len) {
+  volatile unsigned char *p = (volatile unsigned char *)ptr;
+  while (len--) {
+    *p++ = 0;
+  }
+}
+
 /* Security: Securely free sensitive string data by clearing memory first */
 static void secure_free(char *ptr) {
   if (ptr) {
     size_t len = strlen(ptr);
     if (len > 0) {
-      memset(ptr, 0, len);
+      secure_memzero(ptr, len);
     }
     bfree(ptr);
   }
@@ -153,6 +162,45 @@ void restreamer_api_destroy(restreamer_api_t *api) {
   bfree(api);
 }
 
+/* Helper: Handle login failure with exponential backoff */
+static void handle_login_failure(restreamer_api_t *api, long http_code) {
+  api->login_retry_count++;
+  api->last_login_attempt = time(NULL);
+
+  if (api->login_retry_count < MAX_LOGIN_RETRIES) {
+    api->login_backoff_ms *= 2;
+    if (http_code > 0) {
+      obs_log(LOG_WARNING,
+              "[obs-polyemesis] Login failed with HTTP %ld (attempt %d/%d), "
+              "backing off %d ms",
+              http_code, api->login_retry_count, MAX_LOGIN_RETRIES,
+              api->login_backoff_ms);
+    } else {
+      obs_log(
+          LOG_WARNING,
+          "[obs-polyemesis] Login failed (attempt %d/%d), backing off %d ms",
+          api->login_retry_count, MAX_LOGIN_RETRIES, api->login_backoff_ms);
+    }
+  } else {
+    obs_log(LOG_ERROR, "[obs-polyemesis] Login failed after %d attempts",
+            MAX_LOGIN_RETRIES);
+  }
+}
+
+/* Helper: Check if login is throttled by backoff */
+static bool is_login_throttled(restreamer_api_t *api) {
+  if (api->login_retry_count > 0 && api->last_login_attempt > 0) {
+    time_t elapsed = time(NULL) - api->last_login_attempt;
+    time_t backoff_seconds = api->login_backoff_ms / 1000;
+    if (elapsed < backoff_seconds) {
+      dstr_printf(&api->last_error, "Login throttled, retry in %ld seconds",
+                  backoff_seconds - elapsed);
+      return true;
+    }
+  }
+  return false;
+}
+
 /* Login to get JWT token */
 static bool restreamer_api_login(restreamer_api_t *api) {
   /* Check api separately first to avoid NULL dereference */
@@ -166,15 +214,8 @@ static bool restreamer_api_login(restreamer_api_t *api) {
   }
 
   /* Check if we need to apply backoff before attempting login */
-  time_t current_time = time(NULL);
-  if (api->login_retry_count > 0 && api->last_login_attempt > 0) {
-    time_t elapsed = current_time - api->last_login_attempt;
-    time_t backoff_seconds = api->login_backoff_ms / 1000;
-    if (elapsed < backoff_seconds) {
-      dstr_printf(&api->last_error, "Login throttled, retry in %ld seconds",
-                  backoff_seconds - elapsed);
-      return false;
-    }
+  if (is_login_throttled(api)) {
+    return false;
   }
 
   /* Build login request */
@@ -226,27 +267,15 @@ static bool restreamer_api_login(restreamer_api_t *api) {
   curl_easy_setopt(api->curl, CURLOPT_POSTFIELDSIZE, 0L);
 
   /* Security: Clear login credentials from memory before freeing */
-  /* post_data is guaranteed non-NULL here (checked at line 190) */
-  memset(post_data, 0, strlen(post_data));
+  /* post_data is guaranteed non-NULL here (checked at line 196) */
+  secure_memzero(post_data, strlen(post_data));
   free(post_data);
   dstr_free(&url);
 
   if (res != CURLE_OK) {
     dstr_copy(&api->last_error, api->error_buffer);
     free(response.memory);
-
-    /* Increment retry count and apply exponential backoff */
-    api->login_retry_count++;
-    if (api->login_retry_count < MAX_LOGIN_RETRIES) {
-      api->login_backoff_ms *= 2;
-      obs_log(
-          LOG_WARNING,
-          "[obs-polyemesis] Login failed (attempt %d/%d), backing off %d ms",
-          api->login_retry_count, MAX_LOGIN_RETRIES, api->login_backoff_ms);
-    } else {
-      obs_log(LOG_ERROR, "[obs-polyemesis] Login failed after %d attempts",
-              MAX_LOGIN_RETRIES);
-    }
+    handle_login_failure(api, 0);
     return false;
   }
 
@@ -256,20 +285,7 @@ static bool restreamer_api_login(restreamer_api_t *api) {
   if (http_code < 200 || http_code >= 300) {
     dstr_printf(&api->last_error, "Login failed: HTTP %ld", http_code);
     free(response.memory);
-
-    /* Increment retry count and apply exponential backoff */
-    api->login_retry_count++;
-    if (api->login_retry_count < MAX_LOGIN_RETRIES) {
-      api->login_backoff_ms *= 2;
-      obs_log(LOG_WARNING,
-              "[obs-polyemesis] Login failed with HTTP %ld (attempt %d/%d), "
-              "backing off %d ms",
-              http_code, api->login_retry_count, MAX_LOGIN_RETRIES,
-              api->login_backoff_ms);
-    } else {
-      obs_log(LOG_ERROR, "[obs-polyemesis] Login failed after %d attempts",
-              MAX_LOGIN_RETRIES);
-    }
+    handle_login_failure(api, http_code);
     return false;
   }
 
@@ -425,13 +441,13 @@ bool restreamer_api_is_connected(restreamer_api_t *api) {
 }
 
 /* Forward declarations for helper functions */
-static void parse_process_fields(json_t *json_obj,
+static void parse_process_fields(const json_t *json_obj,
                                  restreamer_process_t *process);
-static void parse_log_entry_fields(json_t *json_obj,
+static void parse_log_entry_fields(const json_t *json_obj,
                                    restreamer_log_entry_t *entry);
-static void parse_session_fields(json_t *json_obj,
+static void parse_session_fields(const json_t *json_obj,
                                  restreamer_session_t *session);
-static void parse_fs_entry_fields(json_t *json_obj,
+static void parse_fs_entry_fields(const json_t *json_obj,
                                   restreamer_fs_entry_t *entry);
 static bool process_command_helper(restreamer_api_t *api,
                                    const char *process_id, const char *command);
@@ -525,7 +541,7 @@ static json_t *parse_json_response(restreamer_api_t *api,
 }
 
 /* Helper function to parse JSON object into restreamer_process_t */
-static void parse_process_fields(json_t *json_obj,
+static void parse_process_fields(const json_t *json_obj,
                                  restreamer_process_t *process) {
   if (!json_obj || !process) {
     return;
@@ -568,7 +584,7 @@ static void parse_process_fields(json_t *json_obj,
 }
 
 /* Helper function to parse JSON object into restreamer_log_entry_t */
-static void parse_log_entry_fields(json_t *json_obj,
+static void parse_log_entry_fields(const json_t *json_obj,
                                    restreamer_log_entry_t *entry) {
   if (!json_obj || !entry) {
     return;
@@ -591,7 +607,7 @@ static void parse_log_entry_fields(json_t *json_obj,
 }
 
 /* Helper function to parse JSON object into restreamer_session_t */
-static void parse_session_fields(json_t *json_obj,
+static void parse_session_fields(const json_t *json_obj,
                                  restreamer_session_t *session) {
   if (!json_obj || !session) {
     return;
@@ -624,7 +640,7 @@ static void parse_session_fields(json_t *json_obj,
 }
 
 /* Helper function to parse JSON object into restreamer_fs_entry_t */
-static void parse_fs_entry_fields(json_t *json_obj,
+static void parse_fs_entry_fields(const json_t *json_obj,
                                   restreamer_fs_entry_t *entry) {
   if (!json_obj || !entry) {
     return;
@@ -2597,22 +2613,22 @@ bool restreamer_api_get_info(restreamer_api_t *api,
   }
 
   /* Parse API info fields */
-  json_t *name_obj = json_object_get(response, "name");
+  const json_t *name_obj = json_object_get(response, "name");
   if (json_is_string(name_obj)) {
     info->name = bstrdup(json_string_value(name_obj));
   }
 
-  json_t *version_obj = json_object_get(response, "version");
+  const json_t *version_obj = json_object_get(response, "version");
   if (json_is_string(version_obj)) {
     info->version = bstrdup(json_string_value(version_obj));
   }
 
-  json_t *build_date_obj = json_object_get(response, "build_date");
+  const json_t *build_date_obj = json_object_get(response, "build_date");
   if (json_is_string(build_date_obj)) {
     info->build_date = bstrdup(json_string_value(build_date_obj));
   }
 
-  json_t *commit_obj = json_object_get(response, "commit");
+  const json_t *commit_obj = json_object_get(response, "commit");
   if (json_is_string(commit_obj)) {
     info->commit = bstrdup(json_string_value(commit_obj));
   }
@@ -2684,21 +2700,21 @@ bool restreamer_api_get_active_sessions(
   }
 
   /* Parse session summary fields */
-  json_t *session_count_obj = json_object_get(response, "session_count");
+  const json_t *session_count_obj = json_object_get(response, "session_count");
   if (json_is_integer(session_count_obj)) {
     sessions->session_count = (size_t)json_integer_value(session_count_obj);
   } else if (json_is_number(session_count_obj)) {
     sessions->session_count = (size_t)json_number_value(session_count_obj);
   }
 
-  json_t *rx_bytes_obj = json_object_get(response, "total_rx_bytes");
+  const json_t *rx_bytes_obj = json_object_get(response, "total_rx_bytes");
   if (json_is_integer(rx_bytes_obj)) {
     sessions->total_rx_bytes = (uint64_t)json_integer_value(rx_bytes_obj);
   } else if (json_is_number(rx_bytes_obj)) {
     sessions->total_rx_bytes = (uint64_t)json_number_value(rx_bytes_obj);
   }
 
-  json_t *tx_bytes_obj = json_object_get(response, "total_tx_bytes");
+  const json_t *tx_bytes_obj = json_object_get(response, "total_tx_bytes");
   if (json_is_integer(tx_bytes_obj)) {
     sessions->total_tx_bytes = (uint64_t)json_integer_value(tx_bytes_obj);
   } else if (json_is_number(tx_bytes_obj)) {
