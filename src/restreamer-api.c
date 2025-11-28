@@ -836,7 +836,7 @@ bool restreamer_api_create_process(restreamer_api_t *api, const char *reference,
                                    const char **output_urls,
                                    size_t output_count,
                                    const char *video_filter) {
-  if (!api || !reference || !input_url) {
+  if (!api || !reference || !input_url || !output_urls || output_count == 0) {
     return false;
   }
 
