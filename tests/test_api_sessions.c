@@ -661,6 +661,8 @@ static bool test_multiple_get_operations(void) {
     }
     TEST_ASSERT(result, "Should get sessions successfully in iteration");
     restreamer_api_free_session_list(&sessions);
+    /* Small delay between requests for platform compatibility */
+    sleep_ms(100);
   }
 
   /* Get logs multiple times */
@@ -675,6 +677,8 @@ static bool test_multiple_get_operations(void) {
     }
     TEST_ASSERT(result, "Should get logs successfully in iteration");
     restreamer_api_free_log_list(&logs);
+    /* Small delay between requests for platform compatibility */
+    sleep_ms(100);
   }
 
   test_passed = true;
