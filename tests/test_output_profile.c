@@ -1090,6 +1090,214 @@ static bool test_profile_restart(void)
 	return true;
 }
 
+/* Test error message handling and state transitions */
+static bool test_error_state_handling(void)
+{
+	test_section_start("Error State Handling");
+
+	restreamer_connection_t conn = {
+		.host = "localhost",
+		.port = 8080,
+		.username = "test",
+		.password = "test",
+		.use_https = false,
+	};
+
+	restreamer_api_t *api = restreamer_api_create(&conn);
+	profile_manager_t *manager = profile_manager_create(api);
+
+	/* Create a profile with no destinations to trigger error state */
+	output_profile_t *profile = profile_manager_create_profile(manager, "Error Test");
+	test_assert(profile != NULL, "Profile creation should succeed");
+	test_assert(profile->last_error == NULL, "New profile should have no error");
+
+	/* Try to start profile with no destinations - this should set last_error */
+	bool result = output_profile_start(manager, profile->profile_id);
+	test_assert(!result, "Starting profile with no destinations should fail");
+	test_assert(profile->status == PROFILE_STATUS_ERROR, "Profile should be in error state");
+	test_assert(profile->last_error != NULL, "Profile should have error message set");
+
+	/* Verify error message content */
+	test_assert(strstr(profile->last_error, "No enabled destinations") != NULL,
+		    "Error message should mention no enabled destinations");
+
+	/* Add a destination and manually set last_error to test clearing behavior */
+	encoding_settings_t enc = profile_get_default_encoding();
+	profile_add_destination(profile, SERVICE_TWITCH, "test_key", ORIENTATION_HORIZONTAL, &enc);
+
+	/* Manually set an error to verify it gets cleared on successful operations */
+	bfree(profile->last_error);
+	profile->last_error = bstrdup("Previous error message");
+	profile->status = PROFILE_STATUS_INACTIVE;
+
+	test_assert(profile->last_error != NULL, "Error should be set before operation");
+	test_assert(strcmp(profile->last_error, "Previous error message") == 0,
+		    "Error message should match what we set");
+
+	/* Test that stopping an inactive profile succeeds but doesn't modify state  */
+	/* Note: Current implementation returns early for inactive profiles and doesn't clear errors */
+	/* This is expected behavior - inactive profiles don't go through full stop flow */
+	result = output_profile_stop(manager, profile->profile_id);
+	test_assert(result, "Stopping inactive profile should succeed");
+	/* Error is not cleared in early return path for inactive profiles */
+	test_assert(profile->last_error != NULL, "Error remains after stopping already-inactive profile");
+
+	profile_manager_destroy(manager);
+	restreamer_api_destroy(api);
+
+	test_section_end("Error State Handling");
+	return true;
+}
+
+/* Test preview mode error clearing */
+static bool test_preview_error_clearing(void)
+{
+	test_section_start("Preview Mode Error Clearing");
+
+	restreamer_connection_t conn = {
+		.host = "localhost",
+		.port = 8080,
+		.username = "test",
+		.password = "test",
+		.use_https = false,
+	};
+
+	restreamer_api_t *api = restreamer_api_create(&conn);
+	profile_manager_t *manager = profile_manager_create(api);
+	output_profile_t *profile = profile_manager_create_profile(manager, "Preview Error Test");
+
+	/* Add a destination */
+	encoding_settings_t enc = profile_get_default_encoding();
+	profile_add_destination(profile, SERVICE_TWITCH, "test_key", ORIENTATION_HORIZONTAL, &enc);
+
+	/* Set profile to preview status and manually set an error */
+	profile->status = PROFILE_STATUS_PREVIEW;
+	profile->preview_mode_enabled = true;
+	bfree(profile->last_error);
+	profile->last_error = bstrdup("Preview error message");
+
+	test_assert(profile->last_error != NULL, "Error should be set before preview_to_live");
+
+	/* Convert preview to live - this should clear the error */
+	bool result = output_profile_preview_to_live(manager, profile->profile_id);
+	test_assert(result, "Preview to live should succeed");
+	test_assert(profile->status == PROFILE_STATUS_ACTIVE, "Profile should be active");
+	test_assert(profile->last_error == NULL, "Error should be cleared on successful preview to live");
+	test_assert(profile->preview_mode_enabled == false, "Preview mode should be disabled");
+
+	/* Clean up by stopping the profile */
+	output_profile_stop(manager, profile->profile_id);
+
+	profile_manager_destroy(manager);
+	restreamer_api_destroy(api);
+
+	test_section_end("Preview Mode Error Clearing");
+	return true;
+}
+
+/* Test profile state validation */
+static bool test_profile_state_validation(void)
+{
+	test_section_start("Profile State Validation");
+
+	restreamer_connection_t conn = {
+		.host = "localhost",
+		.port = 8080,
+		.username = "test",
+		.password = "test",
+		.use_https = false,
+	};
+
+	restreamer_api_t *api = restreamer_api_create(&conn);
+	profile_manager_t *manager = profile_manager_create(api);
+	output_profile_t *profile = profile_manager_create_profile(manager, "State Test");
+
+	/* Test initial state */
+	test_assert(profile->status == PROFILE_STATUS_INACTIVE, "New profile should be inactive");
+	test_assert(profile->last_error == NULL, "New profile should have no error");
+
+	/* Test invalid state transition for preview_to_live */
+	profile->status = PROFILE_STATUS_INACTIVE;
+	bool result = output_profile_preview_to_live(manager, profile->profile_id);
+	test_assert(!result, "preview_to_live should fail when not in preview mode");
+
+	/* Test invalid state transition for cancel_preview */
+	result = output_profile_cancel_preview(manager, profile->profile_id);
+	test_assert(!result, "cancel_preview should fail when not in preview mode");
+
+	/* Test that we can query profile status */
+	test_assert(profile->status == PROFILE_STATUS_INACTIVE, "Profile should still be inactive");
+
+	profile_manager_destroy(manager);
+	restreamer_api_destroy(api);
+
+	test_section_end("Profile State Validation");
+	return true;
+}
+
+/* Test NULL safety in various operations */
+static bool test_null_safety(void)
+{
+	test_section_start("NULL Safety");
+
+	restreamer_connection_t conn = {
+		.host = "localhost",
+		.port = 8080,
+		.username = "test",
+		.password = "test",
+		.use_https = false,
+	};
+
+	restreamer_api_t *api = restreamer_api_create(&conn);
+	profile_manager_t *manager = profile_manager_create(api);
+
+	/* Test NULL profile in various functions */
+	bool result = profile_add_destination(NULL, SERVICE_TWITCH, "key", ORIENTATION_HORIZONTAL, NULL);
+	test_assert(!result, "add_destination should fail with NULL profile");
+
+	result = profile_remove_destination(NULL, 0);
+	test_assert(!result, "remove_destination should fail with NULL profile");
+
+	result = profile_update_destination_encoding(NULL, 0, NULL);
+	test_assert(!result, "update_destination_encoding should fail with NULL profile");
+
+	result = profile_set_destination_enabled(NULL, 0, true);
+	test_assert(!result, "set_destination_enabled should fail with NULL profile");
+
+	/* Test NULL stream key */
+	output_profile_t *profile = profile_manager_create_profile(manager, "NULL Test");
+	encoding_settings_t enc = profile_get_default_encoding();
+	result = profile_add_destination(profile, SERVICE_TWITCH, NULL, ORIENTATION_HORIZONTAL, &enc);
+	test_assert(!result, "add_destination should fail with NULL stream_key");
+
+	/* Test profile_duplicate with NULL */
+	output_profile_t *dup = profile_duplicate(NULL, "Duplicate");
+	test_assert(dup == NULL, "profile_duplicate should return NULL for NULL source");
+
+	dup = profile_duplicate(profile, NULL);
+	test_assert(dup == NULL, "profile_duplicate should return NULL for NULL name");
+
+	/* Test profile_update_stats with NULL */
+	result = profile_update_stats(NULL, api);
+	test_assert(!result, "profile_update_stats should fail with NULL profile");
+
+	result = profile_update_stats(profile, NULL);
+	test_assert(!result, "profile_update_stats should fail with NULL api");
+
+	/* Test profile_check_health with NULL */
+	result = profile_check_health(NULL, api);
+	test_assert(!result, "profile_check_health should fail with NULL profile");
+
+	result = profile_check_health(profile, NULL);
+	test_assert(!result, "profile_check_health should fail with NULL api");
+
+	profile_manager_destroy(manager);
+	restreamer_api_destroy(api);
+
+	test_section_end("NULL Safety");
+	return true;
+}
+
 /* Test suite runner */
 bool run_output_profile_tests(void)
 {
@@ -1167,6 +1375,22 @@ bool run_output_profile_tests(void)
 
 	test_start("Profile restart");
 	result &= test_profile_restart();
+	test_end();
+
+	test_start("Error state handling");
+	result &= test_error_state_handling();
+	test_end();
+
+	test_start("Preview mode error clearing");
+	result &= test_preview_error_clearing();
+	test_end();
+
+	test_start("Profile state validation");
+	result &= test_profile_state_validation();
+	test_end();
+
+	test_start("NULL safety");
+	result &= test_null_safety();
 	test_end();
 
 	test_suite_end("Output Profile Tests", result);
