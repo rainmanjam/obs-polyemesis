@@ -83,6 +83,7 @@ static size_t write_callback(void *contents, size_t size, size_t nmemb,
   }
 
   mem->memory = ptr;
+  /* Security: memcpy is safe here - buffer size validated by realloc above */
   memcpy(&(mem->memory[mem->size]), contents, realsize);
   mem->size += realsize;
   mem->memory[mem->size] = 0;
@@ -506,7 +507,7 @@ bool restreamer_api_get_processes(restreamer_api_t *api,
   list->count = count;
 
   for (size_t i = 0; i < count; i++) {
-    json_t *process_obj = json_array_get(root, i);
+    const json_t *process_obj = json_array_get(root, i);
     restreamer_process_t *process = &list->processes[i];
     parse_process_fields(process_obj, process);
   }
@@ -784,7 +785,7 @@ bool restreamer_api_get_process_logs(restreamer_api_t *api,
   logs->count = count;
 
   for (size_t i = 0; i < count; i++) {
-    json_t *entry_obj = json_array_get(root, i);
+    const json_t *entry_obj = json_array_get(root, i);
     restreamer_log_entry_t *entry = &logs->entries[i];
     parse_log_entry_fields(entry_obj, entry);
   }
@@ -822,7 +823,7 @@ bool restreamer_api_get_sessions(restreamer_api_t *api,
   sessions->count = count;
 
   for (size_t i = 0; i < count; i++) {
-    json_t *session_obj = json_array_get(sessions_array, i);
+    const json_t *session_obj = json_array_get(sessions_array, i);
     restreamer_session_t *session = &sessions->sessions[i];
     parse_session_fields(session_obj, session);
   }
@@ -1671,7 +1672,12 @@ bool restreamer_api_probe_input(restreamer_api_t *api, const char *process_id,
 
     json_t *bitrate = json_object_get(format, "bit_rate");
     if (bitrate && json_is_string(bitrate)) {
-      info->bitrate = (uint32_t)atoi(json_string_value(bitrate));
+      /* Security: Use strtol instead of atoi for better error handling */
+      char *endptr;
+      long bitrate_val = strtol(json_string_value(bitrate), &endptr, 10);
+      if (endptr != json_string_value(bitrate) && bitrate_val >= 0) {
+        info->bitrate = (uint32_t)bitrate_val;
+      }
     }
   }
 
@@ -1713,12 +1719,22 @@ bool restreamer_api_probe_input(restreamer_api_t *api, const char *process_id,
 
       json_t *bitrate = json_object_get(stream, "bit_rate");
       if (bitrate && json_is_string(bitrate)) {
-        s->bitrate = (uint32_t)atoi(json_string_value(bitrate));
+        /* Security: Use strtol instead of atoi for better error handling */
+        char *endptr;
+        long bitrate_val = strtol(json_string_value(bitrate), &endptr, 10);
+        if (endptr != json_string_value(bitrate) && bitrate_val >= 0) {
+          s->bitrate = (uint32_t)bitrate_val;
+        }
       }
 
       json_t *sample_rate = json_object_get(stream, "sample_rate");
       if (sample_rate && json_is_string(sample_rate)) {
-        s->sample_rate = (uint32_t)atoi(json_string_value(sample_rate));
+        /* Security: Use strtol instead of atoi for better error handling */
+        char *endptr;
+        long sample_rate_val = strtol(json_string_value(sample_rate), &endptr, 10);
+        if (endptr != json_string_value(sample_rate) && sample_rate_val >= 0) {
+          s->sample_rate = (uint32_t)sample_rate_val;
+        }
       }
 
       json_t *channels = json_object_get(stream, "channels");
@@ -2337,7 +2353,7 @@ bool restreamer_api_list_files(restreamer_api_t *api, const char *storage,
     files->entries = bzalloc(sizeof(restreamer_fs_entry_t) * count);
 
     for (size_t i = 0; i < count; i++) {
-      json_t *entry = json_array_get(response, i);
+      const json_t *entry = json_array_get(response, i);
       restreamer_fs_entry_t *f = &files->entries[i];
       parse_fs_entry_fields(entry, f);
     }

@@ -109,7 +109,17 @@ bool parse_url_components(const char *url, char **host, int *port,
 
   // Extract port if present
   if (port_start && (!path_start || port_start < path_start)) {
-    *port = atoi(port_start + 1);
+    /* Security: Use strtol instead of atoi for better error handling */
+    char *endptr;
+    long port_val = strtol(port_start + 1, &endptr, 10);
+
+    /* Validate port is a valid number and in valid range */
+    if (endptr != port_start + 1 && port_val > 0 && port_val <= 65535) {
+      *port = (int)port_val;
+    } else {
+      /* Invalid port, use default */
+      *port = *use_https ? 443 : 80;
+    }
   } else {
     // Default ports
     *port = *use_https ? 443 : 80;
@@ -159,10 +169,11 @@ bool is_valid_port(int port) { return port > 0 && port <= 65535; }
 
 // Build Basic Auth header
 char *build_auth_header(const char *username, const char *password) {
-  // TODO: Implement base64 encoding when needed
-  // OBS doesn't provide base64_encode() function
-  // For now, authentication is handled by curl/http client directly
-  // This function is reserved for future use
+  // NOTE: This function is currently unimplemented as a placeholder.
+  // OBS does not provide a native base64 encoding function, and
+  // authentication is handled directly by the curl/http client.
+  // If base64 encoding becomes available or is needed in the future,
+  // this function should encode credentials in "Basic <base64>" format.
   (void)username;
   (void)password;
   return NULL;
