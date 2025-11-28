@@ -755,7 +755,7 @@ bool restreamer_api_get_process(restreamer_api_t *api, const char *process_id,
 bool restreamer_api_get_process_logs(restreamer_api_t *api,
                                      const char *process_id,
                                      restreamer_log_list_t *logs) {
-  if (!api || !process_id || !logs) {
+  if (!api || !process_id || !logs || process_id[0] == '\0') {
     return false;
   }
 
