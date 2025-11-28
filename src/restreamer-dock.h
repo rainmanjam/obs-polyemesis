@@ -70,6 +70,11 @@ private slots:
   void onProfileDeleteRequested(const char *profileId);
   void onProfileDuplicateRequested(const char *profileId);
 
+  /* Destination control signal handlers */
+  void onDestinationStartRequested(const char *profileId, size_t destIndex);
+  void onDestinationStopRequested(const char *profileId, size_t destIndex);
+  void onDestinationEditRequested(const char *profileId, size_t destIndex);
+
   /* Extended API slots */
   void onProbeInputClicked();
   void onViewMetricsClicked();
@@ -81,6 +86,10 @@ private slots:
 
   /* Bridge settings slots */
   void onSaveBridgeSettingsClicked();
+
+  /* Monitoring and Log viewer slots */
+  void showMonitoringDialog();
+  void showLogViewer();
 
 private slots:
   /* Dock state change handler */
@@ -120,6 +129,7 @@ private:
 
   /* Connection group */
   /* Connection status bar */
+  QLabel *connectionIndicator;
   QLabel *connectionStatusLabel;
   QPushButton *configureConnectionButton;
 

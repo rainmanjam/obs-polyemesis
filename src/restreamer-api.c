@@ -2549,3 +2549,197 @@ bool restreamer_api_reload_skills(restreamer_api_t *api) {
 
   return api_request_json(api, "/api/v3/skills/reload", NULL);
 }
+
+/* ========================================================================
+ * Server Info & Diagnostics API
+ * ======================================================================== */
+
+bool restreamer_api_ping(restreamer_api_t *api) {
+  if (!api) {
+    return false;
+  }
+
+  json_t *response = NULL;
+  bool result = api_request_json(api, "/ping", &response);
+
+  if (!result || !response) {
+    return false;
+  }
+
+  /* Check if response contains "pong" */
+  const char *pong = json_string_value(response);
+  bool is_pong = (pong && strcmp(pong, "pong") == 0);
+
+  json_decref(response);
+
+  if (!is_pong) {
+    dstr_copy(&api->last_error, "Server did not respond with 'pong'");
+    return false;
+  }
+
+  return true;
+}
+
+bool restreamer_api_get_info(restreamer_api_t *api,
+                             restreamer_api_info_t *info) {
+  if (!api || !info) {
+    return false;
+  }
+
+  /* Initialize output structure */
+  memset(info, 0, sizeof(restreamer_api_info_t));
+
+  json_t *response = NULL;
+  bool result = api_request_json(api, "/api", &response);
+
+  if (!result || !response) {
+    return false;
+  }
+
+  /* Parse API info fields */
+  json_t *name_obj = json_object_get(response, "name");
+  if (json_is_string(name_obj)) {
+    info->name = bstrdup(json_string_value(name_obj));
+  }
+
+  json_t *version_obj = json_object_get(response, "version");
+  if (json_is_string(version_obj)) {
+    info->version = bstrdup(json_string_value(version_obj));
+  }
+
+  json_t *build_date_obj = json_object_get(response, "build_date");
+  if (json_is_string(build_date_obj)) {
+    info->build_date = bstrdup(json_string_value(build_date_obj));
+  }
+
+  json_t *commit_obj = json_object_get(response, "commit");
+  if (json_is_string(commit_obj)) {
+    info->commit = bstrdup(json_string_value(commit_obj));
+  }
+
+  json_decref(response);
+  return true;
+}
+
+void restreamer_api_free_info(restreamer_api_info_t *info) {
+  if (!info) {
+    return;
+  }
+
+  bfree(info->name);
+  bfree(info->version);
+  bfree(info->build_date);
+  bfree(info->commit);
+
+  memset(info, 0, sizeof(restreamer_api_info_t));
+}
+
+bool restreamer_api_get_logs(restreamer_api_t *api, char **logs_text) {
+  if (!api || !logs_text) {
+    return false;
+  }
+
+  json_t *response = NULL;
+  bool result = api_request_json(api, "/api/v3/log", &response);
+
+  if (!result || !response) {
+    return false;
+  }
+
+  /* If response is a string, use it directly */
+  if (json_is_string(response)) {
+    *logs_text = bstrdup(json_string_value(response));
+    json_decref(response);
+    return true;
+  }
+
+  /* Otherwise serialize JSON to string */
+  char *json_str = json_dumps(response, JSON_INDENT(2));
+  json_decref(response);
+
+  if (!json_str) {
+    dstr_copy(&api->last_error, "Failed to serialize logs JSON");
+    return false;
+  }
+
+  *logs_text = bstrdup(json_str);
+  free(json_str);
+  return true;
+}
+
+bool restreamer_api_get_active_sessions(
+    restreamer_api_t *api, restreamer_active_sessions_t *sessions) {
+  if (!api || !sessions) {
+    return false;
+  }
+
+  /* Initialize output structure */
+  memset(sessions, 0, sizeof(restreamer_active_sessions_t));
+
+  json_t *response = NULL;
+  bool result = api_request_json(api, "/api/v3/session/active", &response);
+
+  if (!result || !response) {
+    return false;
+  }
+
+  /* Parse session summary fields */
+  json_t *session_count_obj = json_object_get(response, "session_count");
+  if (json_is_integer(session_count_obj)) {
+    sessions->session_count = (size_t)json_integer_value(session_count_obj);
+  } else if (json_is_number(session_count_obj)) {
+    sessions->session_count = (size_t)json_number_value(session_count_obj);
+  }
+
+  json_t *rx_bytes_obj = json_object_get(response, "total_rx_bytes");
+  if (json_is_integer(rx_bytes_obj)) {
+    sessions->total_rx_bytes = (uint64_t)json_integer_value(rx_bytes_obj);
+  } else if (json_is_number(rx_bytes_obj)) {
+    sessions->total_rx_bytes = (uint64_t)json_number_value(rx_bytes_obj);
+  }
+
+  json_t *tx_bytes_obj = json_object_get(response, "total_tx_bytes");
+  if (json_is_integer(tx_bytes_obj)) {
+    sessions->total_tx_bytes = (uint64_t)json_integer_value(tx_bytes_obj);
+  } else if (json_is_number(tx_bytes_obj)) {
+    sessions->total_tx_bytes = (uint64_t)json_number_value(tx_bytes_obj);
+  }
+
+  json_decref(response);
+  return true;
+}
+
+bool restreamer_api_get_process_config(restreamer_api_t *api,
+                                       const char *process_id,
+                                       char **config_json) {
+  if (!api || !process_id || !config_json) {
+    return false;
+  }
+
+  /* Build endpoint URL */
+  struct dstr endpoint;
+  dstr_init(&endpoint);
+  dstr_printf(&endpoint, "/api/v3/process/%s/config", process_id);
+
+  json_t *response = NULL;
+  bool result = api_request_json(api, endpoint.array, &response);
+
+  dstr_free(&endpoint);
+
+  if (!result || !response) {
+    return false;
+  }
+
+  /* Serialize JSON response to string */
+  char *json_str = json_dumps(response, JSON_INDENT(2));
+  json_decref(response);
+
+  if (!json_str) {
+    dstr_copy(&api->last_error, "Failed to serialize process config JSON");
+    return false;
+  }
+
+  *config_json = bstrdup(json_str);
+  free(json_str);
+  return true;
+}

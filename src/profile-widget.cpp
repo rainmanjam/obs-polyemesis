@@ -12,6 +12,7 @@
 #include <QMouseEvent>
 #include <QStandardPaths>
 #include <QStyle>
+#include <QTimer>
 #include <obs-module.h>
 
 extern "C" {
@@ -377,21 +378,45 @@ void ProfileWidget::onMenuClicked() {
 }
 
 void ProfileWidget::onDestinationStartRequested(size_t destIndex) {
+  if (!m_profile || destIndex >= m_profile->destination_count) {
+    obs_log(LOG_ERROR, "Invalid destination index: %zu", destIndex);
+    return;
+  }
+
   obs_log(LOG_INFO, "Start destination requested: profile=%s, index=%zu",
           m_profile->profile_id, destIndex);
-  // TODO: Implement destination start
+
+  /* Emit signal for dock to handle (dock has access to API and profile manager)
+   */
+  emit destinationStartRequested(m_profile->profile_id, destIndex);
 }
 
 void ProfileWidget::onDestinationStopRequested(size_t destIndex) {
+  if (!m_profile || destIndex >= m_profile->destination_count) {
+    obs_log(LOG_ERROR, "Invalid destination index: %zu", destIndex);
+    return;
+  }
+
   obs_log(LOG_INFO, "Stop destination requested: profile=%s, index=%zu",
           m_profile->profile_id, destIndex);
-  // TODO: Implement destination stop
+
+  /* Emit signal for dock to handle (dock has access to API and profile manager)
+   */
+  emit destinationStopRequested(m_profile->profile_id, destIndex);
 }
 
 void ProfileWidget::onDestinationEditRequested(size_t destIndex) {
+  if (!m_profile || destIndex >= m_profile->destination_count) {
+    obs_log(LOG_ERROR, "Invalid destination index: %zu", destIndex);
+    return;
+  }
+
   obs_log(LOG_INFO, "Edit destination requested: profile=%s, index=%zu",
           m_profile->profile_id, destIndex);
-  // TODO: Implement destination edit
+
+  /* Emit signal for dock to handle (dock has access to API and profile manager)
+   */
+  emit destinationEditRequested(m_profile->profile_id, destIndex);
 }
 
 void ProfileWidget::showContextMenu(const QPoint &pos) {
@@ -419,7 +444,21 @@ void ProfileWidget::showContextMenu(const QPoint &pos) {
   restartAction->setEnabled(isActive);
   connect(restartAction, &QAction::triggered, this, [this]() {
     emit stopRequested(m_profile->profile_id);
-    // TODO: Start after a delay
+
+    // Store profile ID for lambda capture (m_profile may change)
+    QString profileId = QString::fromUtf8(m_profile->profile_id);
+
+    // Start after a 2-second delay to ensure clean stop
+    QTimer::singleShot(2000, this, [this, profileId]() {
+      // Verify profile still exists and widget is valid
+      if (m_profile && QString::fromUtf8(m_profile->profile_id) == profileId) {
+        emit startRequested(m_profile->profile_id);
+        obs_log(LOG_INFO, "Profile restart: starting %s after delay",
+                profileId.toUtf8().constData());
+      }
+    });
+
+    obs_log(LOG_INFO, "Profile restart initiated: %s", m_profile->profile_id);
   });
 
   menu.addSeparator();

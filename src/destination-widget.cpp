@@ -5,7 +5,10 @@
 #include "destination-widget.h"
 #include "obs-theme-utils.h"
 
+#include <QApplication>
+#include <QClipboard>
 #include <QMenu>
+#include <QMessageBox>
 #include <QMouseEvent>
 #include <QStyle>
 #include <QVBoxLayout>
@@ -188,8 +191,43 @@ void DestinationWidget::updateStats() {
 
   /* Update dropped frames from dropped_frames field */
   uint32_t droppedFrames = m_destination->dropped_frames;
-  // TODO: Calculate percentage when we have total frames
+
+  /* Calculate percentage when we have total frames
+   * We estimate total frames from bytes sent and bitrate, or from time if
+   * available Note: In the future, profile_destination_t should add a
+   * total_frames field populated via profile_update_stats() from
+   * restreamer_api_get_process_state() */
   float droppedPercent = 0.0f;
+  QString droppedText;
+
+  /* Estimate total frames based on time and FPS if we have health check time */
+  if (m_destination->last_health_check > 0 &&
+      m_destination->encoding.fps_num > 0) {
+    time_t now = time(NULL);
+    int uptime = (int)difftime(now, m_destination->last_health_check);
+
+    /* Only calculate if we have reasonable uptime (at least started checking)
+     */
+    if (uptime >= 0) {
+      /* Approximate stream duration - use health check as proxy for start time
+       */
+      uint32_t estimatedTotalFrames = uptime * m_destination->encoding.fps_num;
+      if (estimatedTotalFrames > 0) {
+        droppedPercent = (droppedFrames * 100.0f) / estimatedTotalFrames;
+        droppedText = QString("%1 (%2%)")
+                          .arg(droppedFrames)
+                          .arg(droppedPercent, 0, 'f', 2);
+      } else {
+        droppedText = QString("%1 dropped").arg(droppedFrames);
+      }
+    } else {
+      droppedText = QString("%1 dropped").arg(droppedFrames);
+    }
+  } else {
+    /* Show raw count when we can't calculate percentage */
+    droppedText = QString("%1 dropped").arg(droppedFrames);
+  }
+
   QColor droppedColor;
   if (droppedPercent > 5.0f) {
     droppedColor = obs_theme_get_error_color();
@@ -198,13 +236,34 @@ void DestinationWidget::updateStats() {
   } else {
     droppedColor = obs_theme_get_success_color();
   }
-  m_droppedLabel->setText(QString("%1 dropped").arg(droppedFrames));
+
+  m_droppedLabel->setText(droppedText);
   m_droppedLabel->setStyleSheet(
       QString("font-size: 11px; color: %1;").arg(droppedColor.name()));
 
   /* Update duration */
-  // TODO: Get actual duration from statistics
+  /* Calculate actual duration from last_health_check as a proxy for start time
+   * Note: In the future, profile_destination_t should add a
+   * connection_start_time field that gets set when destination becomes
+   * connected, or we should use uptime from restreamer_api_get_process() */
   int duration = 0; // seconds
+
+  if (m_destination->last_health_check > 0) {
+    /* Use last_health_check as an approximation of stream start time */
+    time_t now = time(NULL);
+    duration = (int)difftime(now, m_destination->last_health_check);
+
+    /* Ensure duration is non-negative */
+    if (duration < 0) {
+      duration = 0;
+    }
+  } else if (m_destination->failover_active &&
+             m_destination->failover_start_time > 0) {
+    /* If in failover mode, use failover start time */
+    time_t now = time(NULL);
+    duration = (int)difftime(now, m_destination->failover_start_time);
+  }
+
   m_durationLabel->setText(formatDuration(duration));
   QColor mutedColor = obs_theme_get_muted_color();
   m_durationLabel->setStyleSheet(
@@ -336,14 +395,26 @@ void DestinationWidget::showContextMenu(const QPoint &pos) {
 
   QAction *copyUrlAction = menu.addAction("📋 Copy Stream URL");
   connect(copyUrlAction, &QAction::triggered, this, [this]() {
-    // TODO: Copy URL to clipboard
-    obs_log(LOG_INFO, "Copy URL for destination: %zu", m_destinationIndex);
+    if (m_destination->rtmp_url && strlen(m_destination->rtmp_url) > 0) {
+      QApplication::clipboard()->setText(m_destination->rtmp_url);
+      obs_log(LOG_INFO, "Copied URL to clipboard for destination: %zu",
+              m_destinationIndex);
+    } else {
+      obs_log(LOG_WARNING, "No URL available for destination: %zu",
+              m_destinationIndex);
+    }
   });
 
   QAction *copyKeyAction = menu.addAction("📋 Copy Stream Key");
   connect(copyKeyAction, &QAction::triggered, this, [this]() {
-    // TODO: Copy key to clipboard
-    obs_log(LOG_INFO, "Copy key for destination: %zu", m_destinationIndex);
+    if (m_destination->stream_key && strlen(m_destination->stream_key) > 0) {
+      QApplication::clipboard()->setText(m_destination->stream_key);
+      obs_log(LOG_INFO, "Copied stream key to clipboard for destination: %zu",
+              m_destinationIndex);
+    } else {
+      obs_log(LOG_WARNING, "No stream key available for destination: %zu",
+              m_destinationIndex);
+    }
   });
 
   menu.addSeparator();
@@ -360,7 +431,179 @@ void DestinationWidget::showContextMenu(const QPoint &pos) {
   QAction *testAction = menu.addAction("🔍 Test Stream Health");
   connect(testAction, &QAction::triggered, this, [this]() {
     obs_log(LOG_INFO, "Test health for destination: %zu", m_destinationIndex);
-    // TODO: Test stream health
+
+    /* Build health report */
+    QString health = "<h3>Stream Health Check</h3>";
+    health += QString("<p><b>Destination:</b> %1</p>")
+                  .arg(m_destination->service_name);
+    health += "<hr>";
+
+    /* Connection Status */
+    QString connectionStatus;
+    QColor connectionColor;
+    if (m_destination->connected && m_destination->enabled) {
+      connectionStatus = "✅ Connected";
+      connectionColor = obs_theme_get_success_color();
+    } else if (m_destination->enabled && !m_destination->connected) {
+      connectionStatus = "❌ Disconnected";
+      connectionColor = obs_theme_get_error_color();
+    } else {
+      connectionStatus = "⚫ Disabled";
+      connectionColor = obs_theme_get_muted_color();
+    }
+    health +=
+        QString("<p><b>Connection:</b> <span style='color:%1'>%2</span></p>")
+            .arg(connectionColor.name())
+            .arg(connectionStatus);
+
+    /* Bitrate Health */
+    int targetBitrate = m_destination->encoding.bitrate;
+    int currentBitrate = m_destination->current_bitrate;
+    float bitratePercent =
+        targetBitrate > 0 ? (currentBitrate * 100.0f / targetBitrate) : 0;
+
+    QString bitrateStatus;
+    QColor bitrateColor;
+    if (bitratePercent >= 80.0f || targetBitrate == 0) {
+      bitrateStatus = "✅ Healthy";
+      bitrateColor = obs_theme_get_success_color();
+    } else if (bitratePercent >= 50.0f) {
+      bitrateStatus = "⚠️ Warning";
+      bitrateColor = obs_theme_get_warning_color();
+    } else {
+      bitrateStatus = "❌ Unhealthy";
+      bitrateColor = obs_theme_get_error_color();
+    }
+
+    health += QString("<p><b>Bitrate:</b> %1 / %2 <span "
+                      "style='color:%3'>%4</span> (%5%)</p>")
+                  .arg(formatBitrate(currentBitrate))
+                  .arg(formatBitrate(targetBitrate))
+                  .arg(bitrateColor.name())
+                  .arg(bitrateStatus)
+                  .arg(bitratePercent, 0, 'f', 1);
+
+    /* Dropped Frames Health */
+    uint32_t droppedFrames = m_destination->dropped_frames;
+    float droppedPercent = 0.0f;
+
+    /* Estimate dropped percentage if possible */
+    if (m_destination->last_health_check > 0 &&
+        m_destination->encoding.fps_num > 0) {
+      time_t now = time(NULL);
+      int uptime = (int)difftime(now, m_destination->last_health_check);
+      if (uptime >= 0) {
+        uint32_t estimatedTotalFrames =
+            uptime * m_destination->encoding.fps_num;
+        if (estimatedTotalFrames > 0) {
+          droppedPercent = (droppedFrames * 100.0f) / estimatedTotalFrames;
+        }
+      }
+    }
+
+    QString droppedStatus;
+    QColor droppedColor;
+    if (droppedPercent > 5.0f) {
+      droppedStatus = "❌ Unhealthy";
+      droppedColor = obs_theme_get_error_color();
+    } else if (droppedPercent > 1.0f) {
+      droppedStatus = "⚠️ Warning";
+      droppedColor = obs_theme_get_warning_color();
+    } else {
+      droppedStatus = "✅ Healthy";
+      droppedColor = obs_theme_get_success_color();
+    }
+
+    if (droppedPercent > 0.0f) {
+      health += QString("<p><b>Dropped Frames:</b> %1 <span "
+                        "style='color:%2'>%3</span> (%4%)</p>")
+                    .arg(droppedFrames)
+                    .arg(droppedColor.name())
+                    .arg(droppedStatus)
+                    .arg(droppedPercent, 0, 'f', 2);
+    } else {
+      health += QString("<p><b>Dropped Frames:</b> %1 <span "
+                        "style='color:%2'>%3</span></p>")
+                    .arg(droppedFrames)
+                    .arg(droppedColor.name())
+                    .arg(droppedStatus);
+    }
+
+    /* Network Statistics */
+    health += "<hr>";
+    double bytesSentMB = m_destination->bytes_sent / (1024.0 * 1024.0);
+    health += QString("<p><b>Total Data Sent:</b> %1 MB</p>")
+                  .arg(bytesSentMB, 0, 'f', 2);
+
+    /* Health Monitoring Info */
+    if (m_destination->last_health_check > 0) {
+      time_t now = time(NULL);
+      int secondsSinceCheck =
+          (int)difftime(now, m_destination->last_health_check);
+      health += QString("<p><b>Last Health Check:</b> %1 seconds ago</p>")
+                    .arg(secondsSinceCheck);
+    }
+
+    if (m_destination->consecutive_failures > 0) {
+      health += QString("<p><b>Consecutive Failures:</b> <span "
+                        "style='color:%1'>%2</span></p>")
+                    .arg(obs_theme_get_warning_color().name())
+                    .arg(m_destination->consecutive_failures);
+    }
+
+    /* Auto-reconnect status */
+    QString autoReconnect =
+        m_destination->auto_reconnect_enabled ? "Enabled" : "Disabled";
+    health += QString("<p><b>Auto-Reconnect:</b> %1</p>").arg(autoReconnect);
+
+    /* Overall Health Assessment */
+    health += "<hr>";
+    QString overallStatus;
+    QColor overallColor;
+
+    bool hasIssues = false;
+    if (!m_destination->connected && m_destination->enabled) {
+      hasIssues = true;
+    }
+    if (bitratePercent < 80.0f && targetBitrate > 0) {
+      hasIssues = true;
+    }
+    if (droppedPercent > 1.0f) {
+      hasIssues = true;
+    }
+    if (m_destination->consecutive_failures > 0) {
+      hasIssues = true;
+    }
+
+    if (!m_destination->enabled) {
+      overallStatus = "⚫ Disabled";
+      overallColor = obs_theme_get_muted_color();
+    } else if (hasIssues) {
+      if (droppedPercent > 5.0f || bitratePercent < 50.0f ||
+          !m_destination->connected) {
+        overallStatus = "❌ Unhealthy";
+        overallColor = obs_theme_get_error_color();
+      } else {
+        overallStatus = "⚠️ Warning";
+        overallColor = obs_theme_get_warning_color();
+      }
+    } else {
+      overallStatus = "✅ Healthy";
+      overallColor = obs_theme_get_success_color();
+    }
+
+    health += QString("<p style='font-size:14px'><b>Overall Status:</b> <span "
+                      "style='color:%1'>%2</span></p>")
+                  .arg(overallColor.name())
+                  .arg(overallStatus);
+
+    /* Show health dialog */
+    QMessageBox msgBox(this);
+    msgBox.setWindowTitle("Stream Health");
+    msgBox.setTextFormat(Qt::RichText);
+    msgBox.setText(health);
+    msgBox.setIcon(QMessageBox::Information);
+    msgBox.exec();
   });
 
   menu.addSeparator();
