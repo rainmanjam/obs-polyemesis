@@ -1627,6 +1627,82 @@ void restreamer_api_free_process_state(restreamer_process_state_t *state) {
   memset(state, 0, sizeof(restreamer_process_state_t));
 }
 
+/* Helper function to parse a single stream from probe response */
+static void parse_stream_info(json_t *stream, restreamer_stream_info_t *s) {
+  if (!stream || !s) {
+    return;
+  }
+
+  json_t *codec_name = json_object_get(stream, "codec_name");
+  if (codec_name && json_is_string(codec_name)) {
+    s->codec_name = bstrdup(json_string_value(codec_name));
+  }
+
+  json_t *codec_long = json_object_get(stream, "codec_long_name");
+  if (codec_long && json_is_string(codec_long)) {
+    s->codec_long_name = bstrdup(json_string_value(codec_long));
+  }
+
+  json_t *codec_type = json_object_get(stream, "codec_type");
+  if (codec_type && json_is_string(codec_type)) {
+    s->codec_type = bstrdup(json_string_value(codec_type));
+  }
+
+  json_t *width = json_object_get(stream, "width");
+  if (width && json_is_integer(width)) {
+    s->width = (uint32_t)json_integer_value(width);
+  }
+
+  json_t *height = json_object_get(stream, "height");
+  if (height && json_is_integer(height)) {
+    s->height = (uint32_t)json_integer_value(height);
+  }
+
+  json_t *bitrate = json_object_get(stream, "bit_rate");
+  if (bitrate && json_is_string(bitrate)) {
+    /* Security: Use strtol instead of atoi for better error handling */
+    char *endptr;
+    const char *bitrate_str = json_string_value(bitrate);
+    long bitrate_val = strtol(bitrate_str, &endptr, 10);
+    if (endptr != bitrate_str && bitrate_val >= 0) {
+      s->bitrate = (uint32_t)bitrate_val;
+    }
+  }
+
+  json_t *sample_rate = json_object_get(stream, "sample_rate");
+  if (sample_rate && json_is_string(sample_rate)) {
+    /* Security: Use strtol instead of atoi for better error handling */
+    char *endptr;
+    const char *sample_rate_str = json_string_value(sample_rate);
+    long sample_rate_val = strtol(sample_rate_str, &endptr, 10);
+    if (endptr != sample_rate_str && sample_rate_val >= 0) {
+      s->sample_rate = (uint32_t)sample_rate_val;
+    }
+  }
+
+  json_t *channels = json_object_get(stream, "channels");
+  if (channels && json_is_integer(channels)) {
+    s->channels = (uint32_t)json_integer_value(channels);
+  }
+
+  json_t *pix_fmt = json_object_get(stream, "pix_fmt");
+  if (pix_fmt && json_is_string(pix_fmt)) {
+    s->pix_fmt = bstrdup(json_string_value(pix_fmt));
+  }
+
+  json_t *profile = json_object_get(stream, "profile");
+  if (profile && json_is_string(profile)) {
+    s->profile = bstrdup(json_string_value(profile));
+  }
+
+  /* Parse FPS from r_frame_rate */
+  json_t *fps = json_object_get(stream, "r_frame_rate");
+  if (fps && json_is_string(fps)) {
+    const char *fps_str = json_string_value(fps);
+    sscanf(fps_str, "%u/%u", &s->fps_num, &s->fps_den);
+  }
+}
+
 /* Input Probe API */
 bool restreamer_api_probe_input(restreamer_api_t *api, const char *process_id,
                                 restreamer_probe_info_t *info) {
@@ -1691,74 +1767,7 @@ bool restreamer_api_probe_input(restreamer_api_t *api, const char *process_id,
 
     for (size_t i = 0; i < stream_count; i++) {
       json_t *stream = json_array_get(streams, i);
-      restreamer_stream_info_t *s = &info->streams[i];
-
-      json_t *codec_name = json_object_get(stream, "codec_name");
-      if (codec_name && json_is_string(codec_name)) {
-        s->codec_name = bstrdup(json_string_value(codec_name));
-      }
-
-      json_t *codec_long = json_object_get(stream, "codec_long_name");
-      if (codec_long && json_is_string(codec_long)) {
-        s->codec_long_name = bstrdup(json_string_value(codec_long));
-      }
-
-      json_t *codec_type = json_object_get(stream, "codec_type");
-      if (codec_type && json_is_string(codec_type)) {
-        s->codec_type = bstrdup(json_string_value(codec_type));
-      }
-
-      json_t *width = json_object_get(stream, "width");
-      if (width && json_is_integer(width)) {
-        s->width = (uint32_t)json_integer_value(width);
-      }
-
-      json_t *height = json_object_get(stream, "height");
-      if (height && json_is_integer(height)) {
-        s->height = (uint32_t)json_integer_value(height);
-      }
-
-      json_t *bitrate = json_object_get(stream, "bit_rate");
-      if (bitrate && json_is_string(bitrate)) {
-        /* Security: Use strtol instead of atoi for better error handling */
-        char *endptr;
-        long bitrate_val = strtol(json_string_value(bitrate), &endptr, 10);
-        if (endptr != json_string_value(bitrate) && bitrate_val >= 0) {
-          s->bitrate = (uint32_t)bitrate_val;
-        }
-      }
-
-      json_t *sample_rate = json_object_get(stream, "sample_rate");
-      if (sample_rate && json_is_string(sample_rate)) {
-        /* Security: Use strtol instead of atoi for better error handling */
-        char *endptr;
-        long sample_rate_val = strtol(json_string_value(sample_rate), &endptr, 10);
-        if (endptr != json_string_value(sample_rate) && sample_rate_val >= 0) {
-          s->sample_rate = (uint32_t)sample_rate_val;
-        }
-      }
-
-      json_t *channels = json_object_get(stream, "channels");
-      if (channels && json_is_integer(channels)) {
-        s->channels = (uint32_t)json_integer_value(channels);
-      }
-
-      json_t *pix_fmt = json_object_get(stream, "pix_fmt");
-      if (pix_fmt && json_is_string(pix_fmt)) {
-        s->pix_fmt = bstrdup(json_string_value(pix_fmt));
-      }
-
-      json_t *profile = json_object_get(stream, "profile");
-      if (profile && json_is_string(profile)) {
-        s->profile = bstrdup(json_string_value(profile));
-      }
-
-      /* Parse FPS from r_frame_rate */
-      json_t *fps = json_object_get(stream, "r_frame_rate");
-      if (fps && json_is_string(fps)) {
-        const char *fps_str = json_string_value(fps);
-        sscanf(fps_str, "%u/%u", &s->fps_num, &s->fps_den);
-      }
+      parse_stream_info(stream, &info->streams[i]);
     }
   }
 
