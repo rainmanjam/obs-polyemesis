@@ -1627,79 +1627,57 @@ void restreamer_api_free_process_state(restreamer_process_state_t *state) {
   memset(state, 0, sizeof(restreamer_process_state_t));
 }
 
+/* Helper to safely get a string from JSON and duplicate it */
+static inline char *json_get_string_dup(const json_t *obj, const char *key) {
+  const json_t *val = json_object_get(obj, key);
+  return (val && json_is_string(val)) ? bstrdup(json_string_value(val)) : NULL;
+}
+
+/* Helper to safely get an integer from JSON */
+static inline uint32_t json_get_uint32(const json_t *obj, const char *key) {
+  const json_t *val = json_object_get(obj, key);
+  return (val && json_is_integer(val)) ? (uint32_t)json_integer_value(val) : 0;
+}
+
+/* Helper to safely parse a string number from JSON */
+static inline uint32_t json_get_string_as_uint32(const json_t *obj,
+                                                  const char *key) {
+  const json_t *val = json_object_get(obj, key);
+  if (!val || !json_is_string(val)) {
+    return 0;
+  }
+  char *endptr;
+  const char *str = json_string_value(val);
+  long num = strtol(str, &endptr, 10);
+  return (endptr != str && num >= 0) ? (uint32_t)num : 0;
+}
+
 /* Helper function to parse a single stream from probe response */
-static void parse_stream_info(json_t *stream, restreamer_stream_info_t *s) {
+static void parse_stream_info(const json_t *stream, restreamer_stream_info_t *s) {
   if (!stream || !s) {
     return;
   }
 
-  json_t *codec_name = json_object_get(stream, "codec_name");
-  if (codec_name && json_is_string(codec_name)) {
-    s->codec_name = bstrdup(json_string_value(codec_name));
-  }
+  /* Parse string fields */
+  s->codec_name = json_get_string_dup(stream, "codec_name");
+  s->codec_long_name = json_get_string_dup(stream, "codec_long_name");
+  s->codec_type = json_get_string_dup(stream, "codec_type");
+  s->pix_fmt = json_get_string_dup(stream, "pix_fmt");
+  s->profile = json_get_string_dup(stream, "profile");
 
-  json_t *codec_long = json_object_get(stream, "codec_long_name");
-  if (codec_long && json_is_string(codec_long)) {
-    s->codec_long_name = bstrdup(json_string_value(codec_long));
-  }
+  /* Parse integer fields */
+  s->width = json_get_uint32(stream, "width");
+  s->height = json_get_uint32(stream, "height");
+  s->channels = json_get_uint32(stream, "channels");
 
-  json_t *codec_type = json_object_get(stream, "codec_type");
-  if (codec_type && json_is_string(codec_type)) {
-    s->codec_type = bstrdup(json_string_value(codec_type));
-  }
-
-  json_t *width = json_object_get(stream, "width");
-  if (width && json_is_integer(width)) {
-    s->width = (uint32_t)json_integer_value(width);
-  }
-
-  json_t *height = json_object_get(stream, "height");
-  if (height && json_is_integer(height)) {
-    s->height = (uint32_t)json_integer_value(height);
-  }
-
-  json_t *bitrate = json_object_get(stream, "bit_rate");
-  if (bitrate && json_is_string(bitrate)) {
-    /* Security: Use strtol instead of atoi for better error handling */
-    char *endptr;
-    const char *bitrate_str = json_string_value(bitrate);
-    long bitrate_val = strtol(bitrate_str, &endptr, 10);
-    if (endptr != bitrate_str && bitrate_val >= 0) {
-      s->bitrate = (uint32_t)bitrate_val;
-    }
-  }
-
-  json_t *sample_rate = json_object_get(stream, "sample_rate");
-  if (sample_rate && json_is_string(sample_rate)) {
-    /* Security: Use strtol instead of atoi for better error handling */
-    char *endptr;
-    const char *sample_rate_str = json_string_value(sample_rate);
-    long sample_rate_val = strtol(sample_rate_str, &endptr, 10);
-    if (endptr != sample_rate_str && sample_rate_val >= 0) {
-      s->sample_rate = (uint32_t)sample_rate_val;
-    }
-  }
-
-  json_t *channels = json_object_get(stream, "channels");
-  if (channels && json_is_integer(channels)) {
-    s->channels = (uint32_t)json_integer_value(channels);
-  }
-
-  json_t *pix_fmt = json_object_get(stream, "pix_fmt");
-  if (pix_fmt && json_is_string(pix_fmt)) {
-    s->pix_fmt = bstrdup(json_string_value(pix_fmt));
-  }
-
-  json_t *profile = json_object_get(stream, "profile");
-  if (profile && json_is_string(profile)) {
-    s->profile = bstrdup(json_string_value(profile));
-  }
+  /* Parse string-encoded numbers */
+  s->bitrate = json_get_string_as_uint32(stream, "bit_rate");
+  s->sample_rate = json_get_string_as_uint32(stream, "sample_rate");
 
   /* Parse FPS from r_frame_rate */
-  json_t *fps = json_object_get(stream, "r_frame_rate");
+  const json_t *fps = json_object_get(stream, "r_frame_rate");
   if (fps && json_is_string(fps)) {
-    const char *fps_str = json_string_value(fps);
-    sscanf(fps_str, "%u/%u", &s->fps_num, &s->fps_den);
+    sscanf(json_string_value(fps), "%u/%u", &s->fps_num, &s->fps_den);
   }
 }
 
