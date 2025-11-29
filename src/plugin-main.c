@@ -69,53 +69,45 @@ static obs_hotkey_id hotkey_stop_all_channels;
 static obs_hotkey_id hotkey_start_horizontal;
 static obs_hotkey_id hotkey_start_vertical;
 
-/* Hotkey callbacks */
-static void hotkey_callback_start_all_channels(void *data, obs_hotkey_id id,
-                                               obs_hotkey_t *hotkey,
-                                               bool pressed) {
-  (void)data;
+/* Hotkey action types - used to reduce callback duplication */
+typedef enum {
+  HOTKEY_ACTION_START_ALL,
+  HOTKEY_ACTION_STOP_ALL,
+  HOTKEY_ACTION_START_HORIZONTAL,
+  HOTKEY_ACTION_START_VERTICAL
+} hotkey_action_t;
+
+/*
+ * Generic hotkey handler - reduces code duplication across hotkey callbacks.
+ * This helper function handles the common boilerplate (null checks, pressed
+ * state) and dispatches to the appropriate channel manager action based on
+ * the action type passed via the data pointer.
+ */
+static void hotkey_generic_handler(void *data, obs_hotkey_id id,
+                                   obs_hotkey_t *hotkey, bool pressed) {
   (void)id;
   (void)hotkey;
 
   if (!pressed)
     return;
 
+  hotkey_action_t action = (hotkey_action_t)(uintptr_t)data;
   channel_manager_t *pm = plugin_get_channel_manager();
-  if (pm) {
+  if (!pm)
+    return;
+
+  switch (action) {
+  case HOTKEY_ACTION_START_ALL:
     channel_manager_start_all(pm);
     obs_log(LOG_INFO, "Hotkey: Started all channels");
-  }
-}
+    break;
 
-static void hotkey_callback_stop_all_channels(void *data, obs_hotkey_id id,
-                                              obs_hotkey_t *hotkey,
-                                              bool pressed) {
-  (void)data;
-  (void)id;
-  (void)hotkey;
-
-  if (!pressed)
-    return;
-
-  channel_manager_t *pm = plugin_get_channel_manager();
-  if (pm) {
+  case HOTKEY_ACTION_STOP_ALL:
     channel_manager_stop_all(pm);
     obs_log(LOG_INFO, "Hotkey: Stopped all channels");
-  }
-}
+    break;
 
-static void hotkey_callback_start_horizontal(void *data, obs_hotkey_id id,
-                                             obs_hotkey_t *hotkey,
-                                             bool pressed) {
-  (void)data;
-  (void)id;
-  (void)hotkey;
-
-  if (!pressed)
-    return;
-
-  channel_manager_t *pm = plugin_get_channel_manager();
-  if (pm) {
+  case HOTKEY_ACTION_START_HORIZONTAL:
     /* Find and start horizontal profile */
     for (size_t i = 0; i < pm->channel_count; i++) {
       if (pm->channels[i] &&
@@ -125,20 +117,9 @@ static void hotkey_callback_start_horizontal(void *data, obs_hotkey_id id,
         break;
       }
     }
-  }
-}
+    break;
 
-static void hotkey_callback_start_vertical(void *data, obs_hotkey_id id,
-                                           obs_hotkey_t *hotkey, bool pressed) {
-  (void)data;
-  (void)id;
-  (void)hotkey;
-
-  if (!pressed)
-    return;
-
-  channel_manager_t *pm = plugin_get_channel_manager();
-  if (pm) {
+  case HOTKEY_ACTION_START_VERTICAL:
     /* Find and start vertical profile */
     for (size_t i = 0; i < pm->channel_count; i++) {
       if (pm->channels[i] &&
@@ -148,7 +129,40 @@ static void hotkey_callback_start_vertical(void *data, obs_hotkey_id id,
         break;
       }
     }
+    break;
   }
+}
+
+/* Hotkey callbacks - thin wrappers that pass action type to generic handler */
+static void hotkey_callback_start_all_channels(void *data, obs_hotkey_id id,
+                                               obs_hotkey_t *hotkey,
+                                               bool pressed) {
+  (void)data;
+  hotkey_generic_handler((void *)(uintptr_t)HOTKEY_ACTION_START_ALL, id, hotkey,
+                         pressed);
+}
+
+static void hotkey_callback_stop_all_channels(void *data, obs_hotkey_id id,
+                                              obs_hotkey_t *hotkey,
+                                              bool pressed) {
+  (void)data;
+  hotkey_generic_handler((void *)(uintptr_t)HOTKEY_ACTION_STOP_ALL, id, hotkey,
+                         pressed);
+}
+
+static void hotkey_callback_start_horizontal(void *data, obs_hotkey_id id,
+                                             obs_hotkey_t *hotkey,
+                                             bool pressed) {
+  (void)data;
+  hotkey_generic_handler((void *)(uintptr_t)HOTKEY_ACTION_START_HORIZONTAL, id,
+                         hotkey, pressed);
+}
+
+static void hotkey_callback_start_vertical(void *data, obs_hotkey_id id,
+                                           obs_hotkey_t *hotkey, bool pressed) {
+  (void)data;
+  hotkey_generic_handler((void *)(uintptr_t)HOTKEY_ACTION_START_VERTICAL, id,
+                         hotkey, pressed);
 }
 
 /* Tools menu callbacks */
