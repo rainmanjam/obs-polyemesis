@@ -1,10 +1,10 @@
 /*
- * OBS Polyemesis Plugin - Profile Edit Dialog
+ * OBS Polyemesis Plugin - Channel Edit Dialog
  */
 
 #pragma once
 
-#include "restreamer-output-profile.h"
+#include "restreamer-channel.h"
 #include <QCheckBox>
 #include <QComboBox>
 #include <QDialog>
@@ -14,16 +14,16 @@
 #include <QSpinBox>
 #include <QTabWidget>
 
-class ProfileEditDialog : public QDialog {
+class ChannelEditDialog : public QDialog {
   Q_OBJECT
 
 public:
-  explicit ProfileEditDialog(output_profile_t *profile,
+  explicit ChannelEditDialog(stream_channel_t *channel,
                              QWidget *parent = nullptr);
-  ~ProfileEditDialog();
+  ~ChannelEditDialog();
 
-  /* Get updated profile settings */
-  bool getProfileName(char **name) const;
+  /* Get updated channel settings */
+  bool getChannelName(char **name) const;
   stream_orientation_t getSourceOrientation() const;
   bool getAutoDetectOrientation() const;
   uint32_t getSourceWidth() const;
@@ -38,7 +38,7 @@ public:
   uint32_t getFailureThreshold() const;
 
 signals:
-  void profileUpdated();
+  void channelUpdated();
 
 private slots:
   void onSave();
@@ -50,11 +50,11 @@ private slots:
 
 private:
   void setupUI();
-  void loadProfileSettings();
+  void loadChannelSettings();
   void validateAndSave();
 
-  /* Profile being edited */
-  output_profile_t *m_profile;
+  /* Channel being edited */
+  stream_channel_t *m_channel;
 
   /* UI Elements - General Tab */
   QLineEdit *m_nameEdit;

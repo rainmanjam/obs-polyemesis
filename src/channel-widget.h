@@ -1,6 +1,6 @@
 /*
- * OBS Polyemesis Plugin - Profile Widget
- * Individual profile display with expandable destinations
+ * OBS Polyemesis Plugin - Channel Widget
+ * Individual channel display with expandable outputs
  */
 
 #pragma once
@@ -12,51 +12,51 @@
 #include <QVBoxLayout>
 #include <QWidget>
 
-#include "restreamer-output-profile.h"
+#include "restreamer-channel.h"
 
 /* Forward declarations */
-class DestinationWidget;
+class OutputWidget;
 
 /*
- * ProfileWidget - Displays a single streaming profile with destinations
+ * ChannelWidget - Displays a single streaming channel with outputs
  *
  * Features:
- * - Profile header with status indicator
+ * - Channel header with status indicator
  * - Aggregate status (all active, some active, errors)
- * - Expandable to show destination list
+ * - Expandable to show output list
  * - Start/stop/edit actions
  * - Right-click context menu
  * - Hover actions
  */
-class ProfileWidget : public QWidget {
+class ChannelWidget : public QWidget {
   Q_OBJECT
 
 public:
-  explicit ProfileWidget(output_profile_t *profile, QWidget *parent = nullptr);
-  ~ProfileWidget() override;
+  explicit ChannelWidget(stream_channel_t *channel, QWidget *parent = nullptr);
+  ~ChannelWidget() override;
 
   /* Get/set expanded state */
   bool isExpanded() const { return m_expanded; }
   void setExpanded(bool expanded);
 
-  /* Update widget from profile data */
-  void updateFromProfile();
+  /* Update widget from channel data */
+  void updateFromChannel();
 
-  /* Get profile ID */
-  const char *getProfileId() const;
+  /* Get channel ID */
+  const char *getChannelId() const;
 
 signals:
   /* Emitted when user requests actions */
-  void startRequested(const char *profileId);
-  void stopRequested(const char *profileId);
-  void editRequested(const char *profileId);
-  void deleteRequested(const char *profileId);
-  void duplicateRequested(const char *profileId);
+  void startRequested(const char *channelId);
+  void stopRequested(const char *channelId);
+  void editRequested(const char *channelId);
+  void deleteRequested(const char *channelId);
+  void duplicateRequested(const char *channelId);
 
-  /* Emitted when destination-specific actions are requested */
-  void destinationStartRequested(const char *profileId, size_t destIndex);
-  void destinationStopRequested(const char *profileId, size_t destIndex);
-  void destinationEditRequested(const char *profileId, size_t destIndex);
+  /* Emitted when output-specific actions are requested */
+  void outputStartRequested(const char *channelId, size_t outputIndex);
+  void outputStopRequested(const char *channelId, size_t outputIndex);
+  void outputEditRequested(const char *channelId, size_t outputIndex);
 
   /* Emitted when expanded state changes */
   void expandedChanged(bool expanded);
@@ -74,15 +74,15 @@ private slots:
   void onEditClicked();
   void onMenuClicked();
 
-  /* Destination widget signals */
-  void onDestinationStartRequested(size_t destIndex);
-  void onDestinationStopRequested(size_t destIndex);
-  void onDestinationEditRequested(size_t destIndex);
+  /* Output widget signals */
+  void onOutputStartRequested(size_t outputIndex);
+  void onOutputStopRequested(size_t outputIndex);
+  void onOutputEditRequested(size_t outputIndex);
 
 private:
   void setupUI();
   void updateHeader();
-  void updateDestinations();
+  void updateOutputs();
   void showContextMenu(const QPoint &pos);
 
   /* Helper functions */
@@ -91,8 +91,8 @@ private:
   QColor getStatusColor() const;
   QString getStatusIcon() const;
 
-  /* Profile data */
-  output_profile_t *m_profile;
+  /* Channel data */
+  stream_channel_t *m_channel;
 
   /* UI components */
   QVBoxLayout *m_mainLayout;
@@ -107,10 +107,10 @@ private:
   QPushButton *m_editButton;
   QPushButton *m_menuButton;
 
-  /* Content (destinations) */
+  /* Content (outputs) */
   QWidget *m_contentWidget;
   QVBoxLayout *m_contentLayout;
-  QList<DestinationWidget *> m_destinationWidgets;
+  QList<OutputWidget *> m_outputWidgets;
 
   /* State */
   bool m_expanded;

@@ -102,7 +102,7 @@ static bool test_create_api_client(void)
 }
 
 /* Test 3: Profile manager with real API */
-static bool test_profile_manager_with_api(void)
+static bool test_channel_manager_with_api(void)
 {
 	restreamer_connection_t connection = {
 		.host = "localhost",
@@ -112,25 +112,25 @@ static bool test_profile_manager_with_api(void)
 		.use_https = false
 	};
 	restreamer_api_t *api = restreamer_api_create(&connection);
-	profile_manager_t *manager = profile_manager_create(api);
+	channel_manager_t *manager = channel_manager_create(api);
 
 	ASSERT_NOT_NULL(manager, "Should create profile manager");
 
 	// Create profile
-	output_profile_t *profile = profile_manager_create_profile(
-		manager, "Integration Test Profile");
+	stream_channel_t *profile = channel_manager_create_channel(
+		manager, "Integration Test Channel");
 	ASSERT_NOT_NULL(profile, "Should create profile");
 
-	// Add destination
-	encoding_settings_t encoding = profile_get_default_encoding();
-	bool added = profile_add_destination(profile, SERVICE_YOUTUBE,
+	// Add output
+	encoding_settings_t encoding = channel_get_default_encoding();
+	bool added = channel_add_output(profile, SERVICE_YOUTUBE,
 					     "integration-test-key-12345",
 					     ORIENTATION_HORIZONTAL,
 					     &encoding);
-	ASSERT_TRUE(added, "Should add destination");
+	ASSERT_TRUE(added, "Should add output");
 
 	// Cleanup
-	profile_manager_destroy(manager);
+	channel_manager_destroy(manager);
 	restreamer_api_destroy(api);
 	return true;
 }
@@ -146,23 +146,23 @@ static bool test_health_check_integration(void)
 		.use_https = false
 	};
 	restreamer_api_t *api = restreamer_api_create(&connection);
-	profile_manager_t *manager = profile_manager_create(api);
-	output_profile_t *profile = profile_manager_create_profile(
+	channel_manager_t *manager = channel_manager_create(api);
+	stream_channel_t *profile = channel_manager_create_channel(
 		manager, "Health Check Test");
 
-	encoding_settings_t encoding = profile_get_default_encoding();
-	profile_add_destination(profile, SERVICE_YOUTUBE, "health-test-key",
+	encoding_settings_t encoding = channel_get_default_encoding();
+	channel_add_output(profile, SERVICE_YOUTUBE, "health-test-key",
 				ORIENTATION_HORIZONTAL, &encoding);
 
 	// Enable health monitoring (takes profile and enabled flag)
-	profile_set_health_monitoring(profile, true);
+	channel_set_health_monitoring(profile, true);
 
 	// Note: Health check may fail if stream is not actually running
 	// That's expected - we're just testing the integration path
-	bool result = profile_check_health(profile, api);
+	bool result = channel_check_health(profile, api);
 	(void)result; // Result can be true or false, both are acceptable
 
-	profile_manager_destroy(manager);
+	channel_manager_destroy(manager);
 	restreamer_api_destroy(api);
 	return true;
 }
@@ -182,15 +182,15 @@ static bool test_error_handling_invalid_api(void)
 	ASSERT_NOT_NULL(api,
 			"Should create API client even with invalid endpoint");
 
-	profile_manager_t *manager = profile_manager_create(api);
+	channel_manager_t *manager = channel_manager_create(api);
 	ASSERT_NOT_NULL(manager, "Should create manager");
 
 	// Operations may fail gracefully - that's expected
-	output_profile_t *profile =
-		profile_manager_create_profile(manager, "Error Test");
+	stream_channel_t *profile =
+		channel_manager_create_channel(manager, "Error Test");
 	(void)profile; // May be NULL, that's OK for this test
 
-	profile_manager_destroy(manager);
+	channel_manager_destroy(manager);
 	restreamer_api_destroy(api);
 	return true;
 }
@@ -199,7 +199,7 @@ BEGIN_TEST_SUITE("Integration Tests - Live Restreamer API")
 RUN_TEST(test_real_api_connection,
 	 "Connect to real Restreamer API (http://localhost:8080)");
 RUN_TEST(test_create_api_client, "Create API client instance");
-RUN_TEST(test_profile_manager_with_api,
+RUN_TEST(test_channel_manager_with_api,
 	 "Create profile manager with real API");
 RUN_TEST(test_health_check_integration, "Health check integration path");
 RUN_TEST(test_error_handling_invalid_api,

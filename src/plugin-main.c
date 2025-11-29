@@ -52,7 +52,7 @@ typedef struct obs_bridge obs_bridge_t;
 /* Dock widget (Qt) */
 extern void *restreamer_dock_create(void);
 extern void restreamer_dock_destroy(void *dock);
-extern profile_manager_t *restreamer_dock_get_profile_manager(void *dock);
+extern channel_manager_t *restreamer_dock_get_channel_manager(void *dock);
 extern restreamer_api_t *restreamer_dock_get_api_client(void *dock);
 extern obs_bridge_t *restreamer_dock_get_bridge(void *dock);
 
@@ -64,13 +64,13 @@ extern obs_bridge_t *restreamer_dock_get_bridge(void *dock);
 static void *dock_widget = NULL;
 
 /* Hotkey IDs */
-static obs_hotkey_id hotkey_start_all_profiles;
-static obs_hotkey_id hotkey_stop_all_profiles;
+static obs_hotkey_id hotkey_start_all_channels;
+static obs_hotkey_id hotkey_stop_all_channels;
 static obs_hotkey_id hotkey_start_horizontal;
 static obs_hotkey_id hotkey_start_vertical;
 
 /* Hotkey callbacks */
-static void hotkey_callback_start_all_profiles(void *data, obs_hotkey_id id,
+static void hotkey_callback_start_all_channels(void *data, obs_hotkey_id id,
                                                obs_hotkey_t *hotkey,
                                                bool pressed) {
   (void)data;
@@ -80,14 +80,14 @@ static void hotkey_callback_start_all_profiles(void *data, obs_hotkey_id id,
   if (!pressed)
     return;
 
-  profile_manager_t *pm = plugin_get_profile_manager();
+  channel_manager_t *pm = plugin_get_channel_manager();
   if (pm) {
-    profile_manager_start_all(pm);
-    obs_log(LOG_INFO, "Hotkey: Started all profiles");
+    channel_manager_start_all(pm);
+    obs_log(LOG_INFO, "Hotkey: Started all channels");
   }
 }
 
-static void hotkey_callback_stop_all_profiles(void *data, obs_hotkey_id id,
+static void hotkey_callback_stop_all_channels(void *data, obs_hotkey_id id,
                                               obs_hotkey_t *hotkey,
                                               bool pressed) {
   (void)data;
@@ -97,10 +97,10 @@ static void hotkey_callback_stop_all_profiles(void *data, obs_hotkey_id id,
   if (!pressed)
     return;
 
-  profile_manager_t *pm = plugin_get_profile_manager();
+  channel_manager_t *pm = plugin_get_channel_manager();
   if (pm) {
-    profile_manager_stop_all(pm);
-    obs_log(LOG_INFO, "Hotkey: Stopped all profiles");
+    channel_manager_stop_all(pm);
+    obs_log(LOG_INFO, "Hotkey: Stopped all channels");
   }
 }
 
@@ -114,14 +114,14 @@ static void hotkey_callback_start_horizontal(void *data, obs_hotkey_id id,
   if (!pressed)
     return;
 
-  profile_manager_t *pm = plugin_get_profile_manager();
+  channel_manager_t *pm = plugin_get_channel_manager();
   if (pm) {
     /* Find and start horizontal profile */
-    for (size_t i = 0; i < pm->profile_count; i++) {
-      if (pm->profiles[i] &&
-          strstr(pm->profiles[i]->profile_name, "Horizontal")) {
-        output_profile_start(pm, pm->profiles[i]->profile_id);
-        obs_log(LOG_INFO, "Hotkey: Started horizontal profile");
+    for (size_t i = 0; i < pm->channel_count; i++) {
+      if (pm->channels[i] &&
+          strstr(pm->channels[i]->channel_name, "Horizontal")) {
+        channel_start(pm, pm->channels[i]->channel_id);
+        obs_log(LOG_INFO, "Hotkey: Started horizontal channel");
         break;
       }
     }
@@ -137,14 +137,14 @@ static void hotkey_callback_start_vertical(void *data, obs_hotkey_id id,
   if (!pressed)
     return;
 
-  profile_manager_t *pm = plugin_get_profile_manager();
+  channel_manager_t *pm = plugin_get_channel_manager();
   if (pm) {
     /* Find and start vertical profile */
-    for (size_t i = 0; i < pm->profile_count; i++) {
-      if (pm->profiles[i] &&
-          strstr(pm->profiles[i]->profile_name, "Vertical")) {
-        output_profile_start(pm, pm->profiles[i]->profile_id);
-        obs_log(LOG_INFO, "Hotkey: Started vertical profile");
+    for (size_t i = 0; i < pm->channel_count; i++) {
+      if (pm->channels[i] &&
+          strstr(pm->channels[i]->channel_name, "Vertical")) {
+        channel_start(pm, pm->channels[i]->channel_id);
+        obs_log(LOG_INFO, "Hotkey: Started vertical channel");
         break;
       }
     }
@@ -154,19 +154,19 @@ static void hotkey_callback_start_vertical(void *data, obs_hotkey_id id,
 /* Tools menu callbacks */
 static void tools_menu_start_all_profiles(void *data) {
   (void)data;
-  profile_manager_t *pm = plugin_get_profile_manager();
+  channel_manager_t *pm = plugin_get_channel_manager();
   if (pm) {
-    profile_manager_start_all(pm);
-    obs_log(LOG_INFO, "Tools menu: Started all profiles");
+    channel_manager_start_all(pm);
+    obs_log(LOG_INFO, "Tools menu: Started all channels");
   }
 }
 
 static void tools_menu_stop_all_profiles(void *data) {
   (void)data;
-  profile_manager_t *pm = plugin_get_profile_manager();
+  channel_manager_t *pm = plugin_get_channel_manager();
   if (pm) {
-    profile_manager_stop_all(pm);
-    obs_log(LOG_INFO, "Tools menu: Stopped all profiles");
+    channel_manager_stop_all(pm);
+    obs_log(LOG_INFO, "Tools menu: Stopped all channels");
   }
 }
 
@@ -199,29 +199,29 @@ static void frontend_event_callback(enum obs_frontend_event event,
     obs_log(LOG_INFO, "Restreamer dock created");
 
     /* Register hotkeys */
-    hotkey_start_all_profiles = obs_hotkey_register_frontend(
-        "obs_polyemesis.start_all_profiles", "Polyemesis: Start All Profiles",
-        hotkey_callback_start_all_profiles, NULL);
+    hotkey_start_all_channels = obs_hotkey_register_frontend(
+        "obs_polyemesis.start_all_channels", "Polyemesis: Start All Channels",
+        hotkey_callback_start_all_channels, NULL);
 
-    hotkey_stop_all_profiles = obs_hotkey_register_frontend(
-        "obs_polyemesis.stop_all_profiles", "Polyemesis: Stop All Profiles",
-        hotkey_callback_stop_all_profiles, NULL);
+    hotkey_stop_all_channels = obs_hotkey_register_frontend(
+        "obs_polyemesis.stop_all_channels", "Polyemesis: Stop All Channels",
+        hotkey_callback_stop_all_channels, NULL);
 
     hotkey_start_horizontal =
         obs_hotkey_register_frontend("obs_polyemesis.start_horizontal",
-                                     "Polyemesis: Start Horizontal Profile",
+                                     "Polyemesis: Start Horizontal Channel",
                                      hotkey_callback_start_horizontal, NULL);
 
     hotkey_start_vertical = obs_hotkey_register_frontend(
-        "obs_polyemesis.start_vertical", "Polyemesis: Start Vertical Profile",
+        "obs_polyemesis.start_vertical", "Polyemesis: Start Vertical Channel",
         hotkey_callback_start_vertical, NULL);
 
     obs_log(LOG_INFO, "Registered Polyemesis hotkeys");
 
     /* Add tools menu items */
-    obs_frontend_add_tools_menu_item("Polyemesis: Start All Profiles",
+    obs_frontend_add_tools_menu_item("Polyemesis: Start All Channels",
                                      tools_menu_start_all_profiles, NULL);
-    obs_frontend_add_tools_menu_item("Polyemesis: Stop All Profiles",
+    obs_frontend_add_tools_menu_item("Polyemesis: Stop All Channels",
                                      tools_menu_stop_all_profiles, NULL);
     obs_frontend_add_tools_menu_item("Polyemesis: Open Settings",
                                      tools_menu_open_settings, NULL);
@@ -248,10 +248,10 @@ static void frontend_event_callback(enum obs_frontend_event event,
 #endif
 
 /* Global accessor functions */
-profile_manager_t *plugin_get_profile_manager(void) {
+channel_manager_t *plugin_get_channel_manager(void) {
 #ifdef ENABLE_QT
   if (dock_widget) {
-    return restreamer_dock_get_profile_manager(dock_widget);
+    return restreamer_dock_get_channel_manager(dock_widget);
   }
 #endif
   return NULL;

@@ -5,7 +5,7 @@ Copyright (C) 2024
 
 #include "obs-bridge.h"
 #include "restreamer-api.h"
-#include "restreamer-output-profile.h"
+#include "restreamer-channel.h"
 #include <obs-module.h>
 #include <plugin-support.h>
 #include <util/bmem.h>
@@ -33,7 +33,7 @@ struct obs_bridge {
 
   /* Integration */
   restreamer_api_t *api_client;
-  profile_manager_t *profile_manager;
+  channel_manager_t *channel_manager;
 
   /* State tracking */
   bool obs_streaming;
@@ -286,11 +286,11 @@ void obs_bridge_set_api_client(obs_bridge_t *bridge, restreamer_api_t *api) {
     bridge->api_client = api;
 }
 
-/* Set profile manager */
-void obs_bridge_set_profile_manager(obs_bridge_t *bridge,
-                                    profile_manager_t *pm) {
+/* Set channel manager */
+void obs_bridge_set_channel_manager(obs_bridge_t *bridge,
+                                    channel_manager_t *cm) {
   if (bridge)
-    bridge->profile_manager = pm;
+    bridge->channel_manager = cm;
 }
 
 /* Get status */

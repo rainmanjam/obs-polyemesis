@@ -1,8 +1,8 @@
 /*
- * OBS Polyemesis Plugin - Destination Widget Implementation
+ * OBS Polyemesis Plugin - Output Widget Implementation
  */
 
-#include "destination-widget.h"
+#include "output-widget.h"
 #include "obs-theme-utils.h"
 
 #include <QApplication>
@@ -18,26 +18,26 @@ extern "C" {
 #include <plugin-support.h>
 }
 
-DestinationWidget::DestinationWidget(profile_destination_t *destination,
-                                     size_t destIndex, const char *profileId,
+OutputWidget::OutputWidget(channel_output_t *output,
+                                     size_t outputIndex, const char *channelId,
                                      QWidget *parent)
     : QWidget(parent), m_detailsPanel(nullptr), m_detailsExpanded(false),
       m_hovered(false) {
-  /* Store profile ID, destination index, and pointer */
-  m_profileId = bstrdup(profileId);
-  m_destinationIndex = destIndex;
-  m_destination = destination; // Store pointer, not copy
+  /* Store channel ID, output index, and pointer */
+  m_channelId = bstrdup(channelId);
+  m_outputIndex = outputIndex;
+  m_output = output; // Store pointer, not copy
 
   setupUI();
-  updateFromDestination();
+  updateFromOutput();
 }
 
-DestinationWidget::~DestinationWidget() {
-  bfree(m_profileId);
-  /* m_destination is a pointer to external data, don't free it */
+OutputWidget::~OutputWidget() {
+  bfree(m_channelId);
+  /* m_output is a pointer to external data, don't free it */
 }
 
-void DestinationWidget::setupUI() {
+void OutputWidget::setupUI() {
   m_mainLayout = new QHBoxLayout(this);
   m_mainLayout->setContentsMargins(12, 8, 12, 8);
   m_mainLayout->setSpacing(12);
@@ -93,13 +93,13 @@ void DestinationWidget::setupUI() {
   m_startStopButton->setFixedSize(28, 24);
   m_startStopButton->setStyleSheet("font-size: 14px;");
   connect(m_startStopButton, &QPushButton::clicked, this,
-          &DestinationWidget::onStartStopClicked);
+          &OutputWidget::onStartStopClicked);
 
   m_settingsButton = new QPushButton("⚙️", this);
   m_settingsButton->setFixedSize(28, 24);
   m_settingsButton->setStyleSheet("font-size: 12px;");
   connect(m_settingsButton, &QPushButton::clicked, this,
-          &DestinationWidget::onSettingsClicked);
+          &OutputWidget::onSettingsClicked);
 
   m_actionsLayout->addWidget(m_startStopButton);
   m_actionsLayout->addWidget(m_settingsButton);
@@ -114,24 +114,24 @@ void DestinationWidget::setupUI() {
   m_mainLayout->addWidget(m_actionsWidget);
 
   /* Style */
-  setStyleSheet("DestinationWidget { "
+  setStyleSheet("OutputWidget { "
                 "  background-color: palette(window); "
                 "  border-bottom: 1px solid palette(mid); "
                 "} "
-                "DestinationWidget:hover { "
+                "OutputWidget:hover { "
                 "  background-color: palette(button); "
                 "}");
 
   setCursor(Qt::PointingHandCursor);
 }
 
-void DestinationWidget::updateFromDestination() {
+void OutputWidget::updateFromOutput() {
   /* Pointer is already updated by caller, just refresh UI */
   updateStatus();
   updateStats();
 }
 
-void DestinationWidget::updateStatus() {
+void OutputWidget::updateStatus() {
   /* Update status indicator */
   QString statusIcon = getStatusIcon();
   QColor statusColor = getStatusColor();
@@ -141,15 +141,15 @@ void DestinationWidget::updateStatus() {
       QString("font-size: 16px; color: %1;").arg(statusColor.name()));
 
   /* Update service name */
-  m_serviceLabel->setText(m_destination->service_name);
+  m_serviceLabel->setText(m_output->service_name);
 
   /* Update details - use encoding settings */
   QString resolution = QString("%1x%2")
-                           .arg(m_destination->encoding.width)
-                           .arg(m_destination->encoding.height);
-  QString bitrate = formatBitrate(m_destination->encoding.bitrate);
-  QString fps = m_destination->encoding.fps_num > 0
-                    ? QString("%1 FPS").arg(m_destination->encoding.fps_num)
+                           .arg(m_output->encoding.width)
+                           .arg(m_output->encoding.height);
+  QString bitrate = formatBitrate(m_output->encoding.bitrate);
+  QString fps = m_output->encoding.fps_num > 0
+                    ? QString("%1 FPS").arg(m_output->encoding.fps_num)
                     : "";
 
   QStringList details;
@@ -161,7 +161,7 @@ void DestinationWidget::updateStatus() {
   m_detailsLabel->setText(details.join(" • "));
 
   /* Update start/stop button - status based on connected && enabled */
-  bool isActive = (m_destination->connected && m_destination->enabled);
+  bool isActive = (m_output->connected && m_output->enabled);
   if (isActive) {
     m_startStopButton->setText("■");
     m_startStopButton->setProperty("danger", true);
@@ -173,9 +173,9 @@ void DestinationWidget::updateStatus() {
   m_startStopButton->style()->polish(m_startStopButton);
 }
 
-void DestinationWidget::updateStats() {
+void OutputWidget::updateStats() {
   /* Show stats only when active (connected and enabled) */
-  bool showStats = (m_destination->connected && m_destination->enabled);
+  bool showStats = (m_output->connected && m_output->enabled);
   m_statsWidget->setVisible(showStats);
 
   if (!showStats) {
@@ -183,14 +183,14 @@ void DestinationWidget::updateStats() {
   }
 
   /* Update bitrate from current_bitrate field */
-  int currentBitrate = m_destination->current_bitrate;
+  int currentBitrate = m_output->current_bitrate;
   QColor bitrateColor = obs_theme_get_success_color();
   m_bitrateLabel->setText(QString("↑ %1").arg(formatBitrate(currentBitrate)));
   m_bitrateLabel->setStyleSheet(
       QString("font-size: 11px; color: %1;").arg(bitrateColor.name()));
 
   /* Update dropped frames from dropped_frames field */
-  uint32_t droppedFrames = m_destination->dropped_frames;
+  uint32_t droppedFrames = m_output->dropped_frames;
 
   /* Calculate percentage when we have total frames
    * We estimate total frames from bytes sent and bitrate, or from time if
@@ -201,17 +201,17 @@ void DestinationWidget::updateStats() {
   QString droppedText;
 
   /* Estimate total frames based on time and FPS if we have health check time */
-  if (m_destination->last_health_check > 0 &&
-      m_destination->encoding.fps_num > 0) {
+  if (m_output->last_health_check > 0 &&
+      m_output->encoding.fps_num > 0) {
     time_t now = time(NULL);
-    int uptime = (int)difftime(now, m_destination->last_health_check);
+    int uptime = (int)difftime(now, m_output->last_health_check);
 
     /* Only calculate if we have reasonable uptime (at least started checking)
      */
     if (uptime >= 0) {
       /* Approximate stream duration - use health check as proxy for start time
        */
-      uint32_t estimatedTotalFrames = uptime * m_destination->encoding.fps_num;
+      uint32_t estimatedTotalFrames = uptime * m_output->encoding.fps_num;
       if (estimatedTotalFrames > 0) {
         droppedPercent = (droppedFrames * 100.0f) / estimatedTotalFrames;
         droppedText = QString("%1 (%2%)")
@@ -244,24 +244,24 @@ void DestinationWidget::updateStats() {
   /* Update duration */
   /* Calculate actual duration from last_health_check as a proxy for start time
    * Note: In the future, profile_destination_t should add a
-   * connection_start_time field that gets set when destination becomes
+   * connection_start_time field that gets set when output becomes
    * connected, or we should use uptime from restreamer_api_get_process() */
   int duration = 0; // seconds
 
-  if (m_destination->last_health_check > 0) {
+  if (m_output->last_health_check > 0) {
     /* Use last_health_check as an approximation of stream start time */
     time_t now = time(NULL);
-    duration = (int)difftime(now, m_destination->last_health_check);
+    duration = (int)difftime(now, m_output->last_health_check);
 
     /* Ensure duration is non-negative */
     if (duration < 0) {
       duration = 0;
     }
-  } else if (m_destination->failover_active &&
-             m_destination->failover_start_time > 0) {
+  } else if (m_output->failover_active &&
+             m_output->failover_start_time > 0) {
     /* If in failover mode, use failover start time */
     time_t now = time(NULL);
-    duration = (int)difftime(now, m_destination->failover_start_time);
+    duration = (int)difftime(now, m_output->failover_start_time);
   }
 
   m_durationLabel->setText(formatDuration(duration));
@@ -270,49 +270,49 @@ void DestinationWidget::updateStats() {
       QString("font-size: 11px; color: %1;").arg(mutedColor.name()));
 }
 
-QColor DestinationWidget::getStatusColor() const {
+QColor OutputWidget::getStatusColor() const {
   /* Status based on connected and enabled flags */
-  if (m_destination->connected && m_destination->enabled) {
+  if (m_output->connected && m_output->enabled) {
     return obs_theme_get_success_color();
-  } else if (m_destination->enabled && !m_destination->connected) {
+  } else if (m_output->enabled && !m_output->connected) {
     /* Enabled but not connected = error/trying to connect */
     return obs_theme_get_error_color();
   }
   return obs_theme_get_muted_color();
 }
 
-QString DestinationWidget::getStatusIcon() const {
+QString OutputWidget::getStatusIcon() const {
   /* Status based on connected and enabled flags */
-  if (m_destination->connected && m_destination->enabled) {
+  if (m_output->connected && m_output->enabled) {
     return "🟢"; // Active
-  } else if (m_destination->enabled && !m_destination->connected) {
+  } else if (m_output->enabled && !m_output->connected) {
     return "🔴"; // Error/trying to connect
-  } else if (!m_destination->enabled) {
+  } else if (!m_output->enabled) {
     return "⚫"; // Disabled
   }
   return "⚫";
 }
 
-QString DestinationWidget::getStatusText() const {
+QString OutputWidget::getStatusText() const {
   /* Status based on connected and enabled flags */
-  if (m_destination->connected && m_destination->enabled) {
+  if (m_output->connected && m_output->enabled) {
     return "Active";
-  } else if (m_destination->enabled && !m_destination->connected) {
+  } else if (m_output->enabled && !m_output->connected) {
     return "Error";
-  } else if (!m_destination->enabled) {
+  } else if (!m_output->enabled) {
     return "Disabled";
   }
   return "Stopped";
 }
 
-QString DestinationWidget::formatBitrate(int kbps) const {
+QString OutputWidget::formatBitrate(int kbps) const {
   if (kbps >= 1000) {
     return QString("%1 Mbps").arg(kbps / 1000.0, 0, 'f', 1);
   }
   return QString("%1 Kbps").arg(kbps);
 }
 
-QString DestinationWidget::formatDuration(int seconds) const {
+QString OutputWidget::formatDuration(int seconds) const {
   int hours = seconds / 3600;
   int minutes = (seconds % 3600) / 60;
   int secs = seconds % 60;
@@ -323,12 +323,12 @@ QString DestinationWidget::formatDuration(int seconds) const {
       .arg(secs, 2, 10, QChar('0'));
 }
 
-void DestinationWidget::contextMenuEvent(QContextMenuEvent *event) {
+void OutputWidget::contextMenuEvent(QContextMenuEvent *event) {
   showContextMenu(event->pos());
   event->accept();
 }
 
-void DestinationWidget::mouseDoubleClickEvent(QMouseEvent *event) {
+void OutputWidget::mouseDoubleClickEvent(QMouseEvent *event) {
   if (event->button() == Qt::LeftButton) {
     /* Toggle details on double-click */
     toggleDetailsPanel();
@@ -338,82 +338,82 @@ void DestinationWidget::mouseDoubleClickEvent(QMouseEvent *event) {
   }
 }
 
-void DestinationWidget::enterEvent(QEnterEvent *event) {
+void OutputWidget::enterEvent(QEnterEvent *event) {
   m_hovered = true;
   m_actionsWidget->setVisible(true);
   QWidget::enterEvent(event);
 }
 
-void DestinationWidget::leaveEvent(QEvent *event) {
+void OutputWidget::leaveEvent(QEvent *event) {
   m_hovered = false;
   m_actionsWidget->setVisible(false);
   QWidget::leaveEvent(event);
 }
 
-void DestinationWidget::onStartStopClicked() {
-  bool isActive = (m_destination->connected && m_destination->enabled);
+void OutputWidget::onStartStopClicked() {
+  bool isActive = (m_output->connected && m_output->enabled);
   if (isActive) {
-    emit stopRequested(m_destinationIndex);
+    emit stopRequested(m_outputIndex);
   } else {
-    emit startRequested(m_destinationIndex);
+    emit startRequested(m_outputIndex);
   }
 }
 
-void DestinationWidget::onSettingsClicked() {
-  emit editRequested(m_destinationIndex);
+void OutputWidget::onSettingsClicked() {
+  emit editRequested(m_outputIndex);
 }
 
-void DestinationWidget::onDetailsToggled() { toggleDetailsPanel(); }
+void OutputWidget::onDetailsToggled() { toggleDetailsPanel(); }
 
-void DestinationWidget::showContextMenu(const QPoint &pos) {
+void OutputWidget::showContextMenu(const QPoint &pos) {
   QMenu menu(this);
 
   /* Start/Stop actions */
-  bool isActive = (m_destination->connected && m_destination->enabled);
+  bool isActive = (m_output->connected && m_output->enabled);
 
   QAction *startAction = menu.addAction("▶ Start Stream");
   startAction->setEnabled(!isActive);
   connect(startAction, &QAction::triggered, this,
-          [this]() { emit startRequested(m_destinationIndex); });
+          [this]() { emit startRequested(m_outputIndex); });
 
   QAction *stopAction = menu.addAction("■ Stop Stream");
   stopAction->setEnabled(isActive);
   connect(stopAction, &QAction::triggered, this,
-          [this]() { emit stopRequested(m_destinationIndex); });
+          [this]() { emit stopRequested(m_outputIndex); });
 
   QAction *restartAction = menu.addAction("↻ Restart Stream");
   restartAction->setEnabled(isActive);
   connect(restartAction, &QAction::triggered, this,
-          [this]() { emit restartRequested(m_destinationIndex); });
+          [this]() { emit restartRequested(m_outputIndex); });
 
   menu.addSeparator();
 
   /* Edit actions */
-  QAction *editAction = menu.addAction("✎ Edit Destination...");
+  QAction *editAction = menu.addAction("✎ Edit Output...");
   connect(editAction, &QAction::triggered, this,
-          [this]() { emit editRequested(m_destinationIndex); });
+          [this]() { emit editRequested(m_outputIndex); });
 
   QAction *copyUrlAction = menu.addAction("📋 Copy Stream URL");
   connect(copyUrlAction, &QAction::triggered, this, [this]() {
-    if (m_destination->rtmp_url && strlen(m_destination->rtmp_url) > 0) {
-      QApplication::clipboard()->setText(m_destination->rtmp_url);
-      obs_log(LOG_INFO, "Copied URL to clipboard for destination: %zu",
-              m_destinationIndex);
+    if (m_output->rtmp_url && strlen(m_output->rtmp_url) > 0) {
+      QApplication::clipboard()->setText(m_output->rtmp_url);
+      obs_log(LOG_INFO, "Copied URL to clipboard for output: %zu",
+              m_outputIndex);
     } else {
-      obs_log(LOG_WARNING, "No URL available for destination: %zu",
-              m_destinationIndex);
+      obs_log(LOG_WARNING, "No URL available for output: %zu",
+              m_outputIndex);
     }
   });
 
   QAction *copyKeyAction = menu.addAction("📋 Copy Stream Key");
   connect(copyKeyAction, &QAction::triggered, this, [this]() {
-    if (m_destination->stream_key && strlen(m_destination->stream_key) > 0) {
-      QApplication::clipboard()->setText(m_destination->stream_key);
-      obs_log(LOG_INFO, "Copied stream key to clipboard for destination: %zu",
-              m_destinationIndex);
+    if (m_output->stream_key && strlen(m_output->stream_key) > 0) {
+      QApplication::clipboard()->setText(m_output->stream_key);
+      obs_log(LOG_INFO, "Copied stream key to clipboard for output: %zu",
+              m_outputIndex);
     } else {
-      obs_log(LOG_WARNING, "No stream key available for destination: %zu",
-              m_destinationIndex);
+      obs_log(LOG_WARNING, "No stream key available for output: %zu",
+              m_outputIndex);
     }
   });
 
@@ -422,29 +422,29 @@ void DestinationWidget::showContextMenu(const QPoint &pos) {
   /* Info actions */
   QAction *statsAction = menu.addAction("📊 View Stream Stats");
   connect(statsAction, &QAction::triggered, this,
-          [this]() { emit viewStatsRequested(m_destinationIndex); });
+          [this]() { emit viewStatsRequested(m_outputIndex); });
 
   QAction *logsAction = menu.addAction("📝 View Stream Logs");
   connect(logsAction, &QAction::triggered, this,
-          [this]() { emit viewLogsRequested(m_destinationIndex); });
+          [this]() { emit viewLogsRequested(m_outputIndex); });
 
   QAction *testAction = menu.addAction("🔍 Test Stream Health");
   connect(testAction, &QAction::triggered, this, [this]() {
-    obs_log(LOG_INFO, "Test health for destination: %zu", m_destinationIndex);
+    obs_log(LOG_INFO, "Test health for output: %zu", m_outputIndex);
 
     /* Build health report */
     QString health = "<h3>Stream Health Check</h3>";
-    health += QString("<p><b>Destination:</b> %1</p>")
-                  .arg(m_destination->service_name);
+    health += QString("<p><b>Output:</b> %1</p>")
+                  .arg(m_output->service_name);
     health += "<hr>";
 
     /* Connection Status */
     QString connectionStatus;
     QColor connectionColor;
-    if (m_destination->connected && m_destination->enabled) {
+    if (m_output->connected && m_output->enabled) {
       connectionStatus = "✅ Connected";
       connectionColor = obs_theme_get_success_color();
-    } else if (m_destination->enabled && !m_destination->connected) {
+    } else if (m_output->enabled && !m_output->connected) {
       connectionStatus = "❌ Disconnected";
       connectionColor = obs_theme_get_error_color();
     } else {
@@ -457,8 +457,8 @@ void DestinationWidget::showContextMenu(const QPoint &pos) {
             .arg(connectionStatus);
 
     /* Bitrate Health */
-    int targetBitrate = m_destination->encoding.bitrate;
-    int currentBitrate = m_destination->current_bitrate;
+    int targetBitrate = m_output->encoding.bitrate;
+    int currentBitrate = m_output->current_bitrate;
     float bitratePercent =
         targetBitrate > 0 ? (currentBitrate * 100.0f / targetBitrate) : 0;
 
@@ -484,17 +484,17 @@ void DestinationWidget::showContextMenu(const QPoint &pos) {
                   .arg(bitratePercent, 0, 'f', 1);
 
     /* Dropped Frames Health */
-    uint32_t droppedFrames = m_destination->dropped_frames;
+    uint32_t droppedFrames = m_output->dropped_frames;
     float droppedPercent = 0.0f;
 
     /* Estimate dropped percentage if possible */
-    if (m_destination->last_health_check > 0 &&
-        m_destination->encoding.fps_num > 0) {
+    if (m_output->last_health_check > 0 &&
+        m_output->encoding.fps_num > 0) {
       time_t now = time(NULL);
-      int uptime = (int)difftime(now, m_destination->last_health_check);
+      int uptime = (int)difftime(now, m_output->last_health_check);
       if (uptime >= 0) {
         uint32_t estimatedTotalFrames =
-            uptime * m_destination->encoding.fps_num;
+            uptime * m_output->encoding.fps_num;
         if (estimatedTotalFrames > 0) {
           droppedPercent = (droppedFrames * 100.0f) / estimatedTotalFrames;
         }
@@ -531,29 +531,29 @@ void DestinationWidget::showContextMenu(const QPoint &pos) {
 
     /* Network Statistics */
     health += "<hr>";
-    double bytesSentMB = m_destination->bytes_sent / (1024.0 * 1024.0);
+    double bytesSentMB = m_output->bytes_sent / (1024.0 * 1024.0);
     health += QString("<p><b>Total Data Sent:</b> %1 MB</p>")
                   .arg(bytesSentMB, 0, 'f', 2);
 
     /* Health Monitoring Info */
-    if (m_destination->last_health_check > 0) {
+    if (m_output->last_health_check > 0) {
       time_t now = time(NULL);
       int secondsSinceCheck =
-          (int)difftime(now, m_destination->last_health_check);
+          (int)difftime(now, m_output->last_health_check);
       health += QString("<p><b>Last Health Check:</b> %1 seconds ago</p>")
                     .arg(secondsSinceCheck);
     }
 
-    if (m_destination->consecutive_failures > 0) {
+    if (m_output->consecutive_failures > 0) {
       health += QString("<p><b>Consecutive Failures:</b> <span "
                         "style='color:%1'>%2</span></p>")
                     .arg(obs_theme_get_warning_color().name())
-                    .arg(m_destination->consecutive_failures);
+                    .arg(m_output->consecutive_failures);
     }
 
     /* Auto-reconnect status */
     QString autoReconnect =
-        m_destination->auto_reconnect_enabled ? "Enabled" : "Disabled";
+        m_output->auto_reconnect_enabled ? "Enabled" : "Disabled";
     health += QString("<p><b>Auto-Reconnect:</b> %1</p>").arg(autoReconnect);
 
     /* Overall Health Assessment */
@@ -562,7 +562,7 @@ void DestinationWidget::showContextMenu(const QPoint &pos) {
     QColor overallColor;
 
     bool hasIssues = false;
-    if (!m_destination->connected && m_destination->enabled) {
+    if (!m_output->connected && m_output->enabled) {
       hasIssues = true;
     }
     if (bitratePercent < 80.0f && targetBitrate > 0) {
@@ -571,16 +571,16 @@ void DestinationWidget::showContextMenu(const QPoint &pos) {
     if (droppedPercent > 1.0f) {
       hasIssues = true;
     }
-    if (m_destination->consecutive_failures > 0) {
+    if (m_output->consecutive_failures > 0) {
       hasIssues = true;
     }
 
-    if (!m_destination->enabled) {
+    if (!m_output->enabled) {
       overallStatus = "⚫ Disabled";
       overallColor = obs_theme_get_muted_color();
     } else if (hasIssues) {
       if (droppedPercent > 5.0f || bitratePercent < 50.0f ||
-          !m_destination->connected) {
+          !m_output->connected) {
         overallStatus = "❌ Unhealthy";
         overallColor = obs_theme_get_error_color();
       } else {
@@ -608,16 +608,16 @@ void DestinationWidget::showContextMenu(const QPoint &pos) {
 
   menu.addSeparator();
 
-  QAction *removeAction = menu.addAction("🗑️ Remove Destination");
+  QAction *removeAction = menu.addAction("🗑️ Remove Output");
   connect(removeAction, &QAction::triggered, this,
-          [this]() { emit removeRequested(m_destinationIndex); });
+          [this]() { emit removeRequested(m_outputIndex); });
 
   /* Show menu at global position */
   QPoint globalPos = mapToGlobal(pos);
   menu.exec(globalPos);
 }
 
-void DestinationWidget::toggleDetailsPanel() {
+void OutputWidget::toggleDetailsPanel() {
   if (!m_detailsPanel) {
     /* Create details panel */
     m_detailsPanel = new QWidget(this);
@@ -634,7 +634,7 @@ void DestinationWidget::toggleDetailsPanel() {
     networkTitle->setStyleSheet("font-size: 11px;");
     detailsLayout->addWidget(networkTitle);
 
-    double bytesSentMB = m_destination->bytes_sent / (1024.0 * 1024.0);
+    double bytesSentMB = m_output->bytes_sent / (1024.0 * 1024.0);
     QLabel *bytesLabel = new QLabel(
         QString("  Total Data Sent: %1 MB").arg(bytesSentMB, 0, 'f', 2), this);
     bytesLabel->setStyleSheet(mutedStyle);
@@ -642,13 +642,13 @@ void DestinationWidget::toggleDetailsPanel() {
 
     QLabel *currentBitrateLabel =
         new QLabel(QString("  Current Bitrate: %1 kbps")
-                       .arg(m_destination->current_bitrate),
+                       .arg(m_output->current_bitrate),
                    this);
     currentBitrateLabel->setStyleSheet(mutedStyle);
     detailsLayout->addWidget(currentBitrateLabel);
 
     QLabel *droppedLabel = new QLabel(
-        QString("  Dropped Frames: %1").arg(m_destination->dropped_frames),
+        QString("  Dropped Frames: %1").arg(m_output->dropped_frames),
         this);
     droppedLabel->setStyleSheet(mutedStyle);
     detailsLayout->addWidget(droppedLabel);
@@ -661,21 +661,21 @@ void DestinationWidget::toggleDetailsPanel() {
 
     QLabel *connectedLabel = new QLabel(
         QString("  Status: %1")
-            .arg(m_destination->connected ? "Connected" : "Disconnected"),
+            .arg(m_output->connected ? "Connected" : "Disconnected"),
         this);
     connectedLabel->setStyleSheet(mutedStyle);
     detailsLayout->addWidget(connectedLabel);
 
     QLabel *autoReconnectLabel =
         new QLabel(QString("  Auto-Reconnect: %1")
-                       .arg(m_destination->auto_reconnect_enabled ? "Enabled"
+                       .arg(m_output->auto_reconnect_enabled ? "Enabled"
                                                                   : "Disabled"),
                    this);
     autoReconnectLabel->setStyleSheet(mutedStyle);
     detailsLayout->addWidget(autoReconnectLabel);
 
     /* Health Monitoring */
-    if (m_destination->last_health_check > 0) {
+    if (m_output->last_health_check > 0) {
       detailsLayout->addSpacing(4);
       QLabel *healthTitle = new QLabel("<b>Health Monitoring</b>", this);
       healthTitle->setStyleSheet("font-size: 11px;");
@@ -683,7 +683,7 @@ void DestinationWidget::toggleDetailsPanel() {
 
       time_t now = time(NULL);
       int secondsSinceCheck =
-          (int)difftime(now, m_destination->last_health_check);
+          (int)difftime(now, m_output->last_health_check);
       QLabel *lastCheckLabel = new QLabel(
           QString("  Last Health Check: %1 seconds ago").arg(secondsSinceCheck),
           this);
@@ -692,39 +692,39 @@ void DestinationWidget::toggleDetailsPanel() {
 
       QLabel *failuresLabel =
           new QLabel(QString("  Consecutive Failures: %1")
-                         .arg(m_destination->consecutive_failures),
+                         .arg(m_output->consecutive_failures),
                      this);
       failuresLabel->setStyleSheet(mutedStyle);
       detailsLayout->addWidget(failuresLabel);
     }
 
     /* Failover Information */
-    if (m_destination->is_backup || m_destination->failover_active) {
+    if (m_output->is_backup || m_output->failover_active) {
       detailsLayout->addSpacing(4);
       QLabel *failoverTitle = new QLabel("<b>Failover</b>", this);
       failoverTitle->setStyleSheet("font-size: 11px;");
       detailsLayout->addWidget(failoverTitle);
 
-      if (m_destination->is_backup) {
+      if (m_output->is_backup) {
         QLabel *backupLabel =
-            new QLabel(QString("  Role: Backup for destination #%1")
-                           .arg(m_destination->primary_index),
+            new QLabel(QString("  Role: Backup for output #%1")
+                           .arg(m_output->primary_index),
                        this);
         backupLabel->setStyleSheet(mutedStyle);
         detailsLayout->addWidget(backupLabel);
-      } else if (m_destination->backup_index != (size_t)-1) {
+      } else if (m_output->backup_index != (size_t)-1) {
         QLabel *primaryLabel =
             new QLabel(QString("  Role: Primary (Backup: #%1)")
-                           .arg(m_destination->backup_index),
+                           .arg(m_output->backup_index),
                        this);
         primaryLabel->setStyleSheet(mutedStyle);
         detailsLayout->addWidget(primaryLabel);
       }
 
-      if (m_destination->failover_active) {
+      if (m_output->failover_active) {
         time_t now = time(NULL);
         int failoverDuration =
-            (int)difftime(now, m_destination->failover_start_time);
+            (int)difftime(now, m_output->failover_start_time);
         QLabel *failoverLabel = new QLabel(
             QString("  Failover Active: %1 seconds").arg(failoverDuration),
             this);
@@ -739,30 +739,30 @@ void DestinationWidget::toggleDetailsPanel() {
     encodingTitle->setStyleSheet("font-size: 11px;");
     detailsLayout->addWidget(encodingTitle);
 
-    if (m_destination->encoding.width > 0 &&
-        m_destination->encoding.height > 0) {
+    if (m_output->encoding.width > 0 &&
+        m_output->encoding.height > 0) {
       QLabel *resolutionLabel =
           new QLabel(QString("  Resolution: %1x%2")
-                         .arg(m_destination->encoding.width)
-                         .arg(m_destination->encoding.height),
+                         .arg(m_output->encoding.width)
+                         .arg(m_output->encoding.height),
                      this);
       resolutionLabel->setStyleSheet(mutedStyle);
       detailsLayout->addWidget(resolutionLabel);
     }
 
-    if (m_destination->encoding.bitrate > 0) {
+    if (m_output->encoding.bitrate > 0) {
       QLabel *targetBitrateLabel =
           new QLabel(QString("  Target Bitrate: %1 kbps")
-                         .arg(m_destination->encoding.bitrate),
+                         .arg(m_output->encoding.bitrate),
                      this);
       targetBitrateLabel->setStyleSheet(mutedStyle);
       detailsLayout->addWidget(targetBitrateLabel);
     }
 
-    if (m_destination->encoding.fps_num > 0) {
+    if (m_output->encoding.fps_num > 0) {
       double fps =
-          (double)m_destination->encoding.fps_num /
-          (m_destination->encoding.fps_den > 0 ? m_destination->encoding.fps_den
+          (double)m_output->encoding.fps_num /
+          (m_output->encoding.fps_den > 0 ? m_output->encoding.fps_den
                                                : 1);
       QLabel *fpsLabel =
           new QLabel(QString("  Frame Rate: %1 fps").arg(fps, 0, 'f', 2), this);
@@ -770,10 +770,10 @@ void DestinationWidget::toggleDetailsPanel() {
       detailsLayout->addWidget(fpsLabel);
     }
 
-    if (m_destination->encoding.audio_bitrate > 0) {
+    if (m_output->encoding.audio_bitrate > 0) {
       QLabel *audioBitrateLabel =
           new QLabel(QString("  Audio Bitrate: %1 kbps")
-                         .arg(m_destination->encoding.audio_bitrate),
+                         .arg(m_output->encoding.audio_bitrate),
                      this);
       audioBitrateLabel->setStyleSheet(mutedStyle);
       detailsLayout->addWidget(audioBitrateLabel);
