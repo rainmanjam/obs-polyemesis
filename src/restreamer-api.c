@@ -13,6 +13,13 @@
 #define MAX_LOGIN_RETRIES 3
 #define INITIAL_BACKOFF_MS 1000
 
+/* Testing support: Make internal functions visible when TESTING_MODE is defined */
+#ifdef TESTING_MODE
+#define STATIC_TESTABLE
+#else
+#define STATIC_TESTABLE static
+#endif
+
 struct restreamer_api {
   restreamer_connection_t connection;
   CURL *curl;
@@ -29,7 +36,7 @@ struct restreamer_api {
 
 /* Security: Securely clear memory that won't be optimized away by compiler.
  * Uses volatile pointer to prevent dead-store elimination. */
-static void secure_memzero(void *ptr, size_t len) {
+STATIC_TESTABLE void secure_memzero(void *ptr, size_t len) {
   volatile unsigned char *p = (volatile unsigned char *)ptr;
   while (len--) {
     *p++ = 0;
@@ -37,7 +44,7 @@ static void secure_memzero(void *ptr, size_t len) {
 }
 
 /* Security: Securely free sensitive string data by clearing memory first */
-static void secure_free(char *ptr) {
+STATIC_TESTABLE void secure_free(char *ptr) {
   if (ptr) {
     /* SECURITY: strlen is safe here - ptr is verified non-NULL by the if condition above */
     size_t len = strlen(ptr);
@@ -68,12 +75,12 @@ struct memory_struct {
 };
 
 /* Forward declaration for JSON parsing helper */
-static json_t *parse_json_response(restreamer_api_t *api,
-                                   struct memory_struct *response);
+STATIC_TESTABLE json_t *parse_json_response(restreamer_api_t *api,
+                                            struct memory_struct *response);
 
 // cppcheck-suppress constParameterCallback
-static size_t write_callback(void *contents, size_t size, size_t nmemb,
-                             void *userp) {
+STATIC_TESTABLE size_t write_callback(void *contents, size_t size, size_t nmemb,
+                                      void *userp) {
   size_t realsize = size * nmemb;
   struct memory_struct *mem = (struct memory_struct *)userp;
 
@@ -165,7 +172,7 @@ void restreamer_api_destroy(restreamer_api_t *api) {
 }
 
 /* Helper: Handle login failure with exponential backoff */
-static void handle_login_failure(restreamer_api_t *api, long http_code) {
+STATIC_TESTABLE void handle_login_failure(restreamer_api_t *api, long http_code) {
   api->login_retry_count++;
   api->last_login_attempt = time(NULL);
 
@@ -190,7 +197,7 @@ static void handle_login_failure(restreamer_api_t *api, long http_code) {
 }
 
 /* Helper: Check if login is throttled by backoff */
-static bool is_login_throttled(restreamer_api_t *api) {
+STATIC_TESTABLE bool is_login_throttled(restreamer_api_t *api) {
   if (api->login_retry_count > 0 && api->last_login_attempt > 0) {
     time_t elapsed = time(NULL) - api->last_login_attempt;
     time_t backoff_seconds = api->login_backoff_ms / 1000;
@@ -522,8 +529,8 @@ bool restreamer_api_get_processes(restreamer_api_t *api,
  * ======================================================================== */
 
 /* Helper function to parse JSON response and handle errors */
-static json_t *parse_json_response(restreamer_api_t *api,
-                                   struct memory_struct *response) {
+STATIC_TESTABLE json_t *parse_json_response(restreamer_api_t *api,
+                                            struct memory_struct *response) {
   if (!api || !response || !response->memory) {
     return NULL;
   }
@@ -1628,20 +1635,20 @@ void restreamer_api_free_process_state(restreamer_process_state_t *state) {
 }
 
 /* Helper to safely get a string from JSON and duplicate it */
-static inline char *json_get_string_dup(const json_t *obj, const char *key) {
+STATIC_TESTABLE char *json_get_string_dup(const json_t *obj, const char *key) {
   const json_t *val = json_object_get(obj, key);
   return (val && json_is_string(val)) ? bstrdup(json_string_value(val)) : NULL;
 }
 
 /* Helper to safely get an integer from JSON */
-static inline uint32_t json_get_uint32(const json_t *obj, const char *key) {
+STATIC_TESTABLE uint32_t json_get_uint32(const json_t *obj, const char *key) {
   const json_t *val = json_object_get(obj, key);
   return (val && json_is_integer(val)) ? (uint32_t)json_integer_value(val) : 0;
 }
 
 /* Helper to safely parse a string number from JSON */
-static inline uint32_t json_get_string_as_uint32(const json_t *obj,
-                                                  const char *key) {
+STATIC_TESTABLE uint32_t json_get_string_as_uint32(const json_t *obj,
+                                                   const char *key) {
   const json_t *val = json_object_get(obj, key);
   if (!val || !json_is_string(val)) {
     return 0;
