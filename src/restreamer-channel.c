@@ -74,11 +74,14 @@ char *channel_generate_id(void) {
   struct dstr id = {0};
   dstr_init(&id);
 
-  /* Use timestamp + random component */
+  /* Use timestamp + atomic counter for uniqueness.
+   * This is not for security purposes - just to generate unique IDs.
+   * Using a counter instead of rand() avoids PRNG security warnings. */
+  static volatile uint32_t counter = 0;
   uint64_t timestamp = (uint64_t)time(NULL);
-  uint32_t random = (uint32_t)rand();
+  uint32_t sequence = counter++;
 
-  dstr_printf(&id, "channel_%llu_%u", (unsigned long long)timestamp, random);
+  dstr_printf(&id, "channel_%llu_%u", (unsigned long long)timestamp, sequence);
 
   char *result = bstrdup(id.array);
   dstr_free(&id);
@@ -478,7 +481,7 @@ bool channel_start(channel_manager_t *manager, const char *channel_id) {
 
   /* Use configured input URL */
   const char *input_url = channel->input_url;
-  if (!input_url || strlen(input_url) == 0) {
+  if (!input_url || input_url[0] == '\0') {
     obs_log(LOG_ERROR, "No input URL configured for channel: %s",
             channel->channel_name);
     bfree(channel->last_error);
@@ -846,7 +849,7 @@ stream_channel_t *channel_load_from_settings(obs_data_t *settings) {
 
   /* Load input URL with default fallback */
   const char *input_url = obs_data_get_string(settings, "input_url");
-  if (input_url && strlen(input_url) > 0) {
+  if (input_url && input_url[0] != '\0') {
     channel->input_url = bstrdup(input_url);
   } else {
     channel->input_url = bstrdup("rtmp://localhost/live/obs_input");
