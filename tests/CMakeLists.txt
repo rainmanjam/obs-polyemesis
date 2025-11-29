@@ -22,6 +22,10 @@ add_executable(
   test_api_process_state.c
   test_api_dynamic_output.c
   test_api_edge_cases.c
+  test_api_endpoints.c
+  test_api_parsing.c
+  test_api_helpers.c
+  test_profile_coverage.c
   test_api_coverage_improvements.c
   test_api_coverage_gaps.c
   # TODO: Fix these tests to match actual API (API v3 functions don't exist)
@@ -110,8 +114,12 @@ add_test(NAME api_sessions_tests COMMAND $<TARGET_FILE:obs-polyemesis-tests> --t
 add_test(NAME api_process_state_tests COMMAND $<TARGET_FILE:obs-polyemesis-tests> --test-suite=api-process-state)
 add_test(NAME api_dynamic_output_tests COMMAND $<TARGET_FILE:obs-polyemesis-tests> --test-suite=api-dynamic-output)
 add_test(NAME api_edge_case_tests COMMAND $<TARGET_FILE:obs-polyemesis-tests> --test-suite=api-edge-cases)
+add_test(NAME api_endpoint_tests COMMAND $<TARGET_FILE:obs-polyemesis-tests> --test-suite=api-endpoints)
+add_test(NAME api_parsing_tests COMMAND $<TARGET_FILE:obs-polyemesis-tests> --test-suite=api-parsing)
 add_test(NAME api_coverage_improvements_tests COMMAND $<TARGET_FILE:obs-polyemesis-tests> --test-suite=api-coverage-improvements)
 add_test(NAME api_coverage_gaps_tests COMMAND $<TARGET_FILE:obs-polyemesis-tests> --test-suite=api-coverage-gaps)
+add_test(NAME api_helpers_tests COMMAND $<TARGET_FILE:obs-polyemesis-tests> --test-suite=api-helpers)
+add_test(NAME profile_coverage_tests COMMAND $<TARGET_FILE:obs-polyemesis-tests> --test-suite=profile-coverage)
 # TODO: Re-enable once tests are fixed to match actual API
 # add_test(NAME api_auth_tests COMMAND $<TARGET_FILE:obs-polyemesis-tests> --test-suite=api-auth)
 # add_test(NAME api_error_handling_tests COMMAND $<TARGET_FILE:obs-polyemesis-tests> --test-suite=api-errors)
@@ -141,8 +149,12 @@ set_tests_properties(
   api_process_state_tests
   api_dynamic_output_tests
   api_edge_case_tests
+  api_endpoint_tests
+  api_parsing_tests
   api_coverage_improvements_tests
   api_coverage_gaps_tests
+  api_helpers_tests
+  profile_coverage_tests
   # TODO: Re-enable once tests are fixed
   # api_auth_tests
   # api_error_handling_tests

@@ -156,6 +156,18 @@ extern int run_api_skills_tests(void);
 /* Edge case and NULL parameter tests (returns bool: true=success, false=failure) */
 extern bool run_api_edge_case_tests(void);
 
+/* API endpoint tests (returns bool: true=success, false=failure) */
+extern bool run_api_endpoint_tests(void);
+
+/* API parsing and free function tests (returns bool: true=success, false=failure) */
+extern bool run_api_parsing_tests(void);
+
+/* API helper function tests (returns bool: true=success, false=failure) */
+extern bool run_api_helper_tests(void);
+
+/* Profile coverage tests (returns bool: true=success, false=failure) */
+extern bool run_profile_coverage_tests(void);
+
 /* TODO: Add these test files if needed
 extern int run_api_coverage_gaps_tests(void);
 extern int test_api_coverage_improvements(void);
@@ -360,6 +372,22 @@ int main(int argc, char **argv) {
 
   if (!suite_filter || strcmp(suite_filter, "api-edge-cases") == 0) {
     run_test_suite("API Edge Cases and NULL Parameter Tests", run_api_edge_case_tests);
+  }
+
+  if (!suite_filter || strcmp(suite_filter, "api-endpoints") == 0) {
+    run_test_suite("API Endpoint Tests", run_api_endpoint_tests);
+  }
+
+  if (!suite_filter || strcmp(suite_filter, "api-parsing") == 0) {
+    run_test_suite("API Parsing and Free Functions Tests", run_api_parsing_tests);
+  }
+
+  if (!suite_filter || strcmp(suite_filter, "api-helpers") == 0) {
+    run_test_suite("API Helper Functions Tests", run_api_helper_tests);
+  }
+
+  if (!suite_filter || strcmp(suite_filter, "profile-coverage") == 0) {
+    run_test_suite("Profile Coverage Tests", run_profile_coverage_tests);
   }
 
   /* TODO: Add these test suites if test files are created
