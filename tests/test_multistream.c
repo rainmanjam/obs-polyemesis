@@ -495,6 +495,243 @@ static bool test_custom_service(void) {
   return true;
 }
 
+/* Test: Remove destination */
+static bool test_remove_destination(void) {
+  printf("  Testing remove destination...\n");
+
+  multistream_config_t *config = restreamer_multistream_create();
+  TEST_ASSERT(config != NULL, "Config should be created");
+
+  /* Add 3 destinations */
+  restreamer_multistream_add_destination(config, SERVICE_TWITCH, "key_1", ORIENTATION_HORIZONTAL);
+  restreamer_multistream_add_destination(config, SERVICE_YOUTUBE, "key_2", ORIENTATION_HORIZONTAL);
+  restreamer_multistream_add_destination(config, SERVICE_FACEBOOK, "key_3", ORIENTATION_HORIZONTAL);
+  TEST_ASSERT_EQUAL(3, config->destination_count, "Should have 3 destinations");
+
+  /* Remove middle destination (index 1) */
+  restreamer_multistream_remove_destination(config, 1);
+  TEST_ASSERT_EQUAL(2, config->destination_count, "Should have 2 destinations after removal");
+
+  /* Verify shift - first should still be Twitch */
+  TEST_ASSERT_EQUAL(SERVICE_TWITCH, config->destinations[0].service, "First should be Twitch");
+
+  /* Verify shift - second should now be Facebook (was at index 2) */
+  TEST_ASSERT_EQUAL(SERVICE_FACEBOOK, config->destinations[1].service, "Second should be Facebook");
+
+  /* Remove first destination */
+  restreamer_multistream_remove_destination(config, 0);
+  TEST_ASSERT_EQUAL(1, config->destination_count, "Should have 1 destination");
+  TEST_ASSERT_EQUAL(SERVICE_FACEBOOK, config->destinations[0].service, "Should be Facebook");
+
+  /* Remove last destination */
+  restreamer_multistream_remove_destination(config, 0);
+  TEST_ASSERT_EQUAL(0, config->destination_count, "Should have 0 destinations");
+  TEST_ASSERT(config->destinations == NULL, "Destinations array should be NULL");
+
+  restreamer_multistream_destroy(config);
+
+  printf("  ✓ Remove destination\n");
+  return true;
+}
+
+/* Test: Remove destination edge cases */
+static bool test_remove_destination_edge_cases(void) {
+  printf("  Testing remove destination edge cases...\n");
+
+  multistream_config_t *config = restreamer_multistream_create();
+  TEST_ASSERT(config != NULL, "Config should be created");
+
+  /* Try removing from empty config - should not crash */
+  restreamer_multistream_remove_destination(config, 0);
+  TEST_ASSERT_EQUAL(0, config->destination_count, "Should still have 0 destinations");
+
+  /* Add one and try invalid index */
+  restreamer_multistream_add_destination(config, SERVICE_TWITCH, "key", ORIENTATION_HORIZONTAL);
+  restreamer_multistream_remove_destination(config, 5); /* Invalid index */
+  TEST_ASSERT_EQUAL(1, config->destination_count, "Should still have 1 destination");
+
+  /* Try NULL config - should not crash */
+  restreamer_multistream_remove_destination(NULL, 0);
+
+  restreamer_multistream_destroy(config);
+
+  printf("  ✓ Remove destination edge cases\n");
+  return true;
+}
+
+/* Test: Build video filter */
+static bool test_build_video_filter(void) {
+  printf("  Testing build video filter...\n");
+
+  char *filter;
+
+  /* Same orientation - no filter needed */
+  filter = restreamer_multistream_build_video_filter(ORIENTATION_HORIZONTAL, ORIENTATION_HORIZONTAL);
+  TEST_ASSERT(filter == NULL, "Same orientation should return NULL");
+
+  filter = restreamer_multistream_build_video_filter(ORIENTATION_VERTICAL, ORIENTATION_VERTICAL);
+  TEST_ASSERT(filter == NULL, "Same orientation should return NULL");
+
+  /* Landscape to Portrait */
+  filter = restreamer_multistream_build_video_filter(ORIENTATION_HORIZONTAL, ORIENTATION_VERTICAL);
+  TEST_ASSERT(filter != NULL, "Landscape to Portrait should return filter");
+  TEST_ASSERT(strstr(filter, "crop") != NULL, "Filter should include crop");
+  TEST_ASSERT(strstr(filter, "1080:1920") != NULL, "Filter should target portrait resolution");
+  bfree(filter);
+
+  /* Portrait to Landscape */
+  filter = restreamer_multistream_build_video_filter(ORIENTATION_VERTICAL, ORIENTATION_HORIZONTAL);
+  TEST_ASSERT(filter != NULL, "Portrait to Landscape should return filter");
+  TEST_ASSERT(strstr(filter, "crop") != NULL, "Filter should include crop");
+  TEST_ASSERT(strstr(filter, "1920:1080") != NULL, "Filter should target landscape resolution");
+  bfree(filter);
+
+  /* Square to Landscape */
+  filter = restreamer_multistream_build_video_filter(ORIENTATION_SQUARE, ORIENTATION_HORIZONTAL);
+  TEST_ASSERT(filter != NULL, "Square to Landscape should return filter");
+  TEST_ASSERT(strstr(filter, "scale") != NULL, "Filter should include scale");
+  bfree(filter);
+
+  /* Square to Portrait */
+  filter = restreamer_multistream_build_video_filter(ORIENTATION_SQUARE, ORIENTATION_VERTICAL);
+  TEST_ASSERT(filter != NULL, "Square to Portrait should return filter");
+  TEST_ASSERT(strstr(filter, "scale") != NULL, "Filter should include scale");
+  bfree(filter);
+
+  /* Any to Square */
+  filter = restreamer_multistream_build_video_filter(ORIENTATION_HORIZONTAL, ORIENTATION_SQUARE);
+  TEST_ASSERT(filter != NULL, "Landscape to Square should return filter");
+  TEST_ASSERT(strstr(filter, "1080:1080") != NULL, "Filter should target square resolution");
+  bfree(filter);
+
+  filter = restreamer_multistream_build_video_filter(ORIENTATION_VERTICAL, ORIENTATION_SQUARE);
+  TEST_ASSERT(filter != NULL, "Portrait to Square should return filter");
+  bfree(filter);
+
+  printf("  ✓ Build video filter\n");
+  return true;
+}
+
+/* Test: Zero dimensions orientation */
+static bool test_zero_dimensions(void) {
+  printf("  Testing zero dimensions orientation...\n");
+
+  /* Zero width */
+  stream_orientation_t orientation = restreamer_multistream_detect_orientation(0, 1080);
+  TEST_ASSERT_EQUAL(ORIENTATION_AUTO, orientation, "Zero width should return AUTO");
+
+  /* Zero height */
+  orientation = restreamer_multistream_detect_orientation(1920, 0);
+  TEST_ASSERT_EQUAL(ORIENTATION_AUTO, orientation, "Zero height should return AUTO");
+
+  /* Both zero */
+  orientation = restreamer_multistream_detect_orientation(0, 0);
+  TEST_ASSERT_EQUAL(ORIENTATION_AUTO, orientation, "Both zero should return AUTO");
+
+  printf("  ✓ Zero dimensions orientation\n");
+  return true;
+}
+
+/* Test: Near-square aspect ratio */
+static bool test_near_square_aspect(void) {
+  printf("  Testing near-square aspect ratio...\n");
+
+  /* Exactly 5% tolerance - should be square */
+  stream_orientation_t orientation = restreamer_multistream_detect_orientation(1050, 1000);
+  TEST_ASSERT_EQUAL(ORIENTATION_SQUARE, orientation, "1050x1000 should be square (5% tolerance)");
+
+  /* Just over 5% - should be horizontal */
+  orientation = restreamer_multistream_detect_orientation(1060, 1000);
+  TEST_ASSERT_EQUAL(ORIENTATION_HORIZONTAL, orientation, "1060x1000 should be horizontal");
+
+  /* Just under 5% - should be square */
+  orientation = restreamer_multistream_detect_orientation(1040, 1000);
+  TEST_ASSERT_EQUAL(ORIENTATION_SQUARE, orientation, "1040x1000 should be square");
+
+  printf("  ✓ Near-square aspect ratio\n");
+  return true;
+}
+
+/* Test: X/Twitter service */
+static bool test_x_twitter_service(void) {
+  printf("  Testing X/Twitter service...\n");
+
+  multistream_config_t *config = restreamer_multistream_create();
+  TEST_ASSERT(config != NULL, "Config should be created");
+
+  /* Get X/Twitter service name */
+  const char *name = restreamer_multistream_get_service_name(SERVICE_X_TWITTER);
+  TEST_ASSERT(name != NULL, "Service name should exist");
+  TEST_ASSERT_STR_EQUAL("X (Twitter)", name, "X name should match");
+
+  /* Get X/Twitter URL */
+  const char *url = restreamer_multistream_get_service_url(SERVICE_X_TWITTER, ORIENTATION_HORIZONTAL);
+  TEST_ASSERT(url != NULL, "URL should exist");
+  TEST_ASSERT(strstr(url, "pscp.tv") != NULL || strstr(url, "x") != NULL, "URL should be X/Twitter");
+
+  /* Add X/Twitter destination */
+  bool result = restreamer_multistream_add_destination(config, SERVICE_X_TWITTER, "x_key", ORIENTATION_HORIZONTAL);
+  TEST_ASSERT(result, "Should add X/Twitter destination");
+
+  restreamer_multistream_destroy(config);
+
+  printf("  ✓ X/Twitter service\n");
+  return true;
+}
+
+/* Test: Kick service */
+static bool test_kick_service(void) {
+  printf("  Testing Kick service...\n");
+
+  /* Get Kick service name */
+  const char *name = restreamer_multistream_get_service_name(SERVICE_KICK);
+  TEST_ASSERT_STR_EQUAL("Kick", name, "Kick name should match");
+
+  /* Get Kick URL */
+  const char *url = restreamer_multistream_get_service_url(SERVICE_KICK, ORIENTATION_HORIZONTAL);
+  TEST_ASSERT(url != NULL, "URL should exist");
+  TEST_ASSERT_STR_EQUAL("rtmp://stream.kick.com/app", url, "Kick URL should match");
+
+  printf("  ✓ Kick service\n");
+  return true;
+}
+
+/* Test: Facebook service */
+static bool test_facebook_service(void) {
+  printf("  Testing Facebook service...\n");
+
+  /* Get Facebook service name */
+  const char *name = restreamer_multistream_get_service_name(SERVICE_FACEBOOK);
+  TEST_ASSERT_STR_EQUAL("Facebook", name, "Facebook name should match");
+
+  /* Get Facebook URL (RTMPS) */
+  const char *url = restreamer_multistream_get_service_url(SERVICE_FACEBOOK, ORIENTATION_HORIZONTAL);
+  TEST_ASSERT(url != NULL, "URL should exist");
+  TEST_ASSERT(strstr(url, "rtmps://") != NULL, "Facebook should use RTMPS");
+  TEST_ASSERT(strstr(url, "facebook.com") != NULL, "URL should be Facebook");
+
+  printf("  ✓ Facebook service\n");
+  return true;
+}
+
+/* Test: Instagram service */
+static bool test_instagram_service(void) {
+  printf("  Testing Instagram service...\n");
+
+  /* Get Instagram service name */
+  const char *name = restreamer_multistream_get_service_name(SERVICE_INSTAGRAM);
+  TEST_ASSERT_STR_EQUAL("Instagram", name, "Instagram name should match");
+
+  /* Get Instagram URL (RTMPS) */
+  const char *url = restreamer_multistream_get_service_url(SERVICE_INSTAGRAM, ORIENTATION_VERTICAL);
+  TEST_ASSERT(url != NULL, "URL should exist");
+  TEST_ASSERT(strstr(url, "rtmps://") != NULL, "Instagram should use RTMPS");
+  TEST_ASSERT(strstr(url, "instagram.com") != NULL, "URL should be Instagram");
+
+  printf("  ✓ Instagram service\n");
+  return true;
+}
+
 /* Run all multistream tests */
 bool run_multistream_tests(void) {
   bool all_passed = true;
@@ -518,6 +755,17 @@ bool run_multistream_tests(void) {
   all_passed &= test_process_reference();
   all_passed &= test_large_configuration();
   all_passed &= test_custom_service();
+
+  /* Additional coverage tests */
+  all_passed &= test_remove_destination();
+  all_passed &= test_remove_destination_edge_cases();
+  all_passed &= test_build_video_filter();
+  all_passed &= test_zero_dimensions();
+  all_passed &= test_near_square_aspect();
+  all_passed &= test_x_twitter_service();
+  all_passed &= test_kick_service();
+  all_passed &= test_facebook_service();
+  all_passed &= test_instagram_service();
 
   return all_passed;
 }

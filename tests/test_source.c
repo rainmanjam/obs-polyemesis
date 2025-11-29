@@ -821,65 +821,9 @@ bool run_source_tests(void)
 	result &= test_source_edge_cases();
 	test_end();
 
-	/* New comprehensive tests - DISABLED: cause crashes due to OBS dependencies
-	 * These tests require full OBS environment initialization and cannot run in unit test framework
-	 * TODO: Enable when integration testing infrastructure is available
-	test_start("Source create/destroy actual");
-	result &= test_source_create_destroy_actual();
-	test_end();
-
-	test_start("Source create custom actual");
-	result &= test_source_create_custom_actual();
-	test_end();
-
-	test_start("Source with process ID");
-	result &= test_source_with_process_id();
-	test_end();
-
-	test_start("Source with stream URL");
-	result &= test_source_with_stream_url();
-	test_end();
-
-	test_start("Source empty process and URL");
-	result &= test_source_empty_process_and_url();
-	test_end();
-
-	test_start("Source update to global");
-	result &= test_source_update_to_global();
-	test_end();
-
-	test_start("Source update to custom");
-	result &= test_source_update_to_custom();
-	test_end();
-
-	test_start("Source update empty process");
-	result &= test_source_update_empty_process();
-	test_end();
-
-	test_start("Refresh processes button");
-	result &= test_refresh_processes_button();
-	test_end();
-
-	test_start("Source properties detailed");
-	result &= test_source_properties_detailed();
-	test_end();
-
-	test_start("Source video render NULL");
-	result &= test_source_video_render_null();
-	test_end();
-
-	test_start("Source dimensions NULL");
-	result &= test_source_dimensions_null();
-	test_end();
-
-	test_start("Source multiple cycles");
-	result &= test_source_multiple_cycles();
-	test_end();
-
-	test_start("Source defaults detailed");
-	result &= test_source_defaults_detailed();
-	test_end();
-	*/
+	/* Note: Additional tests are disabled - they cause segfaults because
+	 * restreamer_source_create requires a real obs_source_t, not NULL.
+	 * OBS stubs don't provide enough mock functionality for these tests. */
 
 	test_suite_end("Source Plugin Tests", result);
 	return result;
