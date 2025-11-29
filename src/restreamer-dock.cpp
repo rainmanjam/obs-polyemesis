@@ -354,8 +354,8 @@ void RestreamerDock::setupUI() {
   /* ===== Connection Status Bar ===== */
   QWidget *connectionBar = new QWidget();
   QHBoxLayout *connectionBarLayout = new QHBoxLayout(connectionBar);
-  connectionBarLayout->setContentsMargins(16, 12, 16, 12);
-  connectionBarLayout->setSpacing(8);
+  connectionBarLayout->setContentsMargins(12, 6, 12, 6);
+  connectionBarLayout->setSpacing(6);
 
   /* Connection status indicator (colored dot) */
   connectionIndicator = new QLabel("●");
@@ -376,16 +376,16 @@ void RestreamerDock::setupUI() {
   connect(configureConnectionButton, &QPushButton::clicked, this,
           &RestreamerDock::onConfigureConnectionClicked);
 
-  connectionBarLayout->addWidget(connectionIndicator);
   connectionBarLayout->addWidget(connectionStatusLabel);
+  connectionBarLayout->addWidget(connectionIndicator);
   connectionBarLayout->addStretch();
   connectionBarLayout->addWidget(configureConnectionButton);
 
   /* Style the connection bar */
   connectionBar->setStyleSheet("QWidget { "
                                "  background-color: #1e1e2e; "
-                               "  border-radius: 8px; "
-                               "  margin: 8px; "
+                               "  border-radius: 6px; "
+                               "  margin: 4px 8px 2px 8px; "
                                "}");
 
   verticalLayout->addWidget(connectionBar);
@@ -748,6 +748,7 @@ void RestreamerDock::setupUI() {
   /* Set the layout for this widget (QWidget uses setLayout, not setWidget) */
   setLayout(mainLayout);
   setMinimumWidth(400);
+  setMinimumHeight(350);
 
   /* Custom stylesheets removed for v0.9.0 - now using OBS native QPalette
    * theming This allows the plugin to automatically match all 6 OBS themes
