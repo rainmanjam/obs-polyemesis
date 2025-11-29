@@ -37,7 +37,8 @@ char *build_api_endpoint(const char *base_url, const char *endpoint);
  * @param use_https Output: true if HTTPS, false if HTTP
  * @return true on success, false on parse error
  */
-bool parse_url_components(const char *url, char **host, int *port, bool *use_https);
+bool parse_url_components(const char *url, char **host, int *port,
+                          bool *use_https);
 
 /**
  * Sanitizes URL input by removing trailing slashes and whitespace

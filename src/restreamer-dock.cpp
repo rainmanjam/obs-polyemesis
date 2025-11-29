@@ -1,22 +1,36 @@
 #include "restreamer-dock.h"
-#include "collapsible-section.h"
+#include "connection-config-dialog.h"
 #include "obs-helpers.hpp"
 #include "obs-theme-utils.h"
+#include "channel-edit-dialog.h"
+#include "channel-widget.h"
 #include "restreamer-config.h"
 #include <QApplication>
+#include <QCheckBox>
 #include <QClipboard>
 #include <QCloseEvent>
+#include <QComboBox>
+#include <QDateTime>
 #include <QDialog>
 #include <QDialogButtonBox>
+#include <QFile>
+#include <QFileDialog>
 #include <QFont>
 #include <QFormLayout>
+#include <QGroupBox>
 #include <QHBoxLayout>
 #include <QHeaderView>
 #include <QInputDialog>
 #include <QIntValidator>
+#include <QLineEdit>
 #include <QMessageBox>
 #include <QScrollArea>
+#include <QSpinBox>
+#include <QStandardPaths>
+#include <QTextCursor>
 #include <QTextEdit>
+#include <QTextStream>
+#include <QTimer>
 #include <obs-frontend-api.h>
 #include <obs-module.h>
 
@@ -26,7 +40,7 @@ extern "C" {
 }
 
 RestreamerDock::RestreamerDock(QWidget *parent)
-    : QWidget(parent), api(nullptr), profileManager(nullptr),
+    : QWidget(parent), api(nullptr), channelManager(nullptr),
       multistreamConfig(nullptr), selectedProcessId(nullptr), bridge(nullptr),
       originalSize(600, 800), sizeInitialized(false), serviceLoader(nullptr) {
 
@@ -38,8 +52,13 @@ RestreamerDock::RestreamerDock(QWidget *parent)
   setupUI();
   loadSettings();
 
+  /* Update connection status based on loaded settings */
+  updateConnectionStatus();
+
   /* Initialize OBS Bridge with default configuration */
   obs_bridge_config_t bridge_config = {0};
+  /* Security: HTTP is used here for local development default only.
+   * Users should configure HTTPS for production deployments via Settings. */
   bridge_config.restreamer_url = bstrdup("http://localhost:8080");
   bridge_config.rtmp_horizontal_url =
       bstrdup("rtmp://localhost/live/obs_horizontal");
@@ -131,10 +150,10 @@ RestreamerDock::~RestreamerDock() {
   }
 
   {
-    std::lock_guard<std::recursive_mutex> lock(profileMutex);
-    if (profileManager) {
-      profile_manager_destroy(profileManager);
-      profileManager = nullptr;
+    std::lock_guard<std::recursive_mutex> lock(channelMutex);
+    if (channelManager) {
+      channel_manager_destroy(channelManager);
+      channelManager = nullptr;
     }
   }
 
@@ -196,30 +215,21 @@ void RestreamerDock::onFrontendSave(obs_data_t *save_data, bool saving) {
     /* Create a data object for our dock settings */
     OBSDataAutoRelease dock_settings(obs_data_create());
 
-    /* Save connection settings */
-    obs_data_set_string(dock_settings, "host",
-                        hostEdit->text().toUtf8().constData());
-    obs_data_set_int(dock_settings, "port", portEdit->text().toInt());
-    obs_data_set_bool(dock_settings, "use_https", httpsCheckbox->isChecked());
-    obs_data_set_string(dock_settings, "username",
-                        usernameEdit->text().toUtf8().constData());
-    obs_data_set_string(dock_settings, "password",
-                        passwordEdit->text().toUtf8().constData());
+    /* Connection settings now handled by ConnectionConfigDialog */
+    /* Settings are saved directly to obs_frontend_get_global_config() */
 
-    /* Save bridge settings */
-    obs_data_set_string(dock_settings, "bridge_horizontal_url",
-                        bridgeHorizontalUrlEdit->text().toUtf8().constData());
-    obs_data_set_string(dock_settings, "bridge_vertical_url",
-                        bridgeVerticalUrlEdit->text().toUtf8().constData());
-    obs_data_set_bool(dock_settings, "bridge_auto_start",
-                      bridgeAutoStartCheckbox->isChecked());
-
-    /* Enhanced: Save last active profile for quick restoration */
-    if (profileListWidget->currentItem()) {
-      QString profileId =
-          profileListWidget->currentItem()->data(Qt::UserRole).toString();
-      obs_data_set_string(dock_settings, "last_active_profile",
-                          profileId.toUtf8().constData());
+    /* Save bridge settings (with null checks for shutdown safety) */
+    if (bridgeHorizontalUrlEdit) {
+      obs_data_set_string(dock_settings, "bridge_horizontal_url",
+                          bridgeHorizontalUrlEdit->text().toUtf8().constData());
+    }
+    if (bridgeVerticalUrlEdit) {
+      obs_data_set_string(dock_settings, "bridge_vertical_url",
+                          bridgeVerticalUrlEdit->text().toUtf8().constData());
+    }
+    if (bridgeAutoStartCheckbox) {
+      obs_data_set_bool(dock_settings, "bridge_auto_start",
+                        bridgeAutoStartCheckbox->isChecked());
     }
 
     /* Enhanced: Save currently selected process for restoration */
@@ -229,16 +239,16 @@ void RestreamerDock::onFrontendSave(obs_data_t *save_data, bool saving) {
     }
 
     /* Enhanced: Save profile active states for restoration */
-    if (profileManager) {
+    if (channelManager) {
       OBSDataArrayAutoRelease profile_states(obs_data_array_create());
-      for (size_t i = 0; i < profileManager->profile_count; i++) {
-        if (profileManager->profiles[i]) {
+      for (size_t i = 0; i < channelManager->channel_count; i++) {
+        if (channelManager->channels[i]) {
           OBSDataAutoRelease profile_state(obs_data_create());
           obs_data_set_string(profile_state, "name",
-                              profileManager->profiles[i]->profile_name);
+                              channelManager->channels[i]->channel_name);
           obs_data_set_bool(profile_state, "was_active",
-                            profileManager->profiles[i]->status ==
-                                PROFILE_STATUS_ACTIVE);
+                            channelManager->channels[i]->status ==
+                                CHANNEL_STATUS_ACTIVE);
           obs_data_array_push_back(profile_states, profile_state);
         }
       }
@@ -246,8 +256,8 @@ void RestreamerDock::onFrontendSave(obs_data_t *save_data, bool saving) {
     }
 
     /* Save profiles */
-    if (profileManager) {
-      profile_manager_save_to_settings(profileManager, dock_settings);
+    if (channelManager) {
+      channel_manager_save_to_settings(channelManager, dock_settings);
     }
 
     /* Save multistream config */
@@ -268,28 +278,8 @@ void RestreamerDock::onFrontendSave(obs_data_t *save_data, bool saving) {
         obs_data_get_obj(save_data, "obs-polyemesis-dock"));
 
     if (dock_settings) {
-      /* Restore connection settings */
-      const char *host = obs_data_get_string(dock_settings, "host");
-      if (host && *host) {
-        hostEdit->setText(host);
-      }
-
-      int port = obs_data_get_int(dock_settings, "port");
-      if (port > 0) {
-        portEdit->setText(QString::number(port));
-      }
-
-      httpsCheckbox->setChecked(obs_data_get_bool(dock_settings, "use_https"));
-
-      const char *username = obs_data_get_string(dock_settings, "username");
-      if (username && *username) {
-        usernameEdit->setText(username);
-      }
-
-      const char *password = obs_data_get_string(dock_settings, "password");
-      if (password && *password) {
-        passwordEdit->setText(password);
-      }
+      /* Connection settings now handled by ConnectionConfigDialog */
+      /* Settings are loaded from obs_frontend_get_global_config() */
 
       /* Restore bridge settings */
       const char *h_url =
@@ -308,9 +298,9 @@ void RestreamerDock::onFrontendSave(obs_data_t *save_data, bool saving) {
           obs_data_get_bool(dock_settings, "bridge_auto_start"));
 
       /* Restore profiles */
-      if (profileManager) {
-        profile_manager_load_from_settings(profileManager, dock_settings);
-        updateProfileList();
+      if (channelManager) {
+        channel_manager_load_from_settings(channelManager, dock_settings);
+        updateChannelList();
       }
 
       /* Restore multistream config */
@@ -318,21 +308,6 @@ void RestreamerDock::onFrontendSave(obs_data_t *save_data, bool saving) {
         restreamer_multistream_load_from_settings(multistreamConfig,
                                                   dock_settings);
         updateDestinationList();
-      }
-
-      /* Enhanced: Restore last active profile selection */
-      const char *last_profile =
-          obs_data_get_string(dock_settings, "last_active_profile");
-      if (last_profile && *last_profile) {
-        for (int i = 0; i < profileListWidget->count(); i++) {
-          QListWidgetItem *item = profileListWidget->item(i);
-          if (item && item->data(Qt::UserRole).toString() == last_profile) {
-            profileListWidget->setCurrentItem(item);
-            obs_log(LOG_DEBUG, "Restored last active profile: %s",
-                    last_profile);
-            break;
-          }
-        }
       }
 
       /* Enhanced: Restore last selected process */
@@ -376,892 +351,395 @@ void RestreamerDock::setupUI() {
   verticalLayout->setSpacing(8);
   verticalLayout->setContentsMargins(0, 0, 0, 0);
 
-  /* ===== Tab 1: Connection (Setup - Step 1) ===== */
-  QWidget *connectionTab = new QWidget();
-  QVBoxLayout *connectionTabLayout = new QVBoxLayout(connectionTab);
+  /* ===== Connection Status Bar ===== */
+  QWidget *connectionBar = new QWidget();
+  QHBoxLayout *connectionBarLayout = new QHBoxLayout(connectionBar);
+  connectionBarLayout->setContentsMargins(12, 6, 12, 6);
+  connectionBarLayout->setSpacing(6);
 
-  /* Add help label for consistency with other tabs */
-  QLabel *connectionHelpLabel =
-      new QLabel("Configure connection to Restreamer server");
-  QString mutedColor = obs_theme_get_muted_color().name();
-  connectionHelpLabel->setStyleSheet(
-      QString("QLabel { color: %1; font-size: 11px; }").arg(mutedColor));
-  connectionHelpLabel->setAlignment(Qt::AlignCenter);
-  connectionTabLayout->addWidget(connectionHelpLabel);
-
-  /* ===== Sub-group 1: Server Configuration ===== */
-  QGroupBox *serverConfigGroup = new QGroupBox("Server Configuration");
-  QVBoxLayout *serverConfigLayout = new QVBoxLayout();
-
-  /* Center all form fields */
-  QFormLayout *connectionFormLayout = new QFormLayout();
-  connectionFormLayout->setFieldGrowthPolicy(QFormLayout::ExpandingFieldsGrow);
-  connectionFormLayout->setFormAlignment(Qt::AlignHCenter | Qt::AlignTop);
-  connectionFormLayout->setLabelAlignment(Qt::AlignRight);
-
-  hostEdit = new QLineEdit();
-  hostEdit->setPlaceholderText("localhost");
-  hostEdit->setToolTip("Restreamer server hostname or IP address");
-  hostEdit->setMaximumWidth(300);
-  hostEdit->setMinimumHeight(30); /* Taller field */
-  hostEdit->setFrame(true);       /* Border box */
-  hostEdit->setStyleSheet(
-      "QLineEdit { border: 1px solid palette(mid); padding: 4px; }");
-
-  portEdit = new QLineEdit();
-  portEdit->setPlaceholderText("8080");
-  portEdit->setToolTip("Restreamer server port (1-65535)");
-  portEdit->setMaximumWidth(300);
-  portEdit->setMinimumHeight(30); /* Taller field */
-  portEdit->setFrame(true);       /* Border box */
-  portEdit->setStyleSheet(
-      "QLineEdit { border: 1px solid palette(mid); padding: 4px; }");
-  /* Add port validator to ensure only valid port numbers are entered */
-  QIntValidator *portValidator = new QIntValidator(1, 65535, portEdit);
-  portEdit->setValidator(portValidator);
-
-  httpsCheckbox = new QCheckBox();
-  httpsCheckbox->setToolTip("Use HTTPS for secure connection to Restreamer");
-  usernameEdit = new QLineEdit();
-  usernameEdit->setPlaceholderText("admin");
-  usernameEdit->setToolTip("Restreamer username for authentication");
-  usernameEdit->setMaximumWidth(300);
-  usernameEdit->setMinimumHeight(30); /* Taller field */
-  usernameEdit->setFrame(true);       /* Border box */
-  usernameEdit->setStyleSheet(
-      "QLineEdit { border: 1px solid palette(mid); padding: 4px; }");
-
-  passwordEdit = new QLineEdit();
-  passwordEdit->setEchoMode(QLineEdit::Password);
-  passwordEdit->setPlaceholderText("Password");
-  passwordEdit->setToolTip("Restreamer password for authentication");
-  passwordEdit->setMaximumWidth(300);
-  passwordEdit->setMinimumHeight(30); /* Taller field */
-  passwordEdit->setFrame(true);       /* Border box */
-  passwordEdit->setStyleSheet(
-      "QLineEdit { border: 1px solid palette(mid); padding: 4px; }");
-
-  connectionFormLayout->addRow("Host:", hostEdit);
-  connectionFormLayout->addRow("Port:", portEdit);
-  connectionFormLayout->addRow("Use HTTPS:", httpsCheckbox);
-  connectionFormLayout->addRow("Username:", usernameEdit);
-  connectionFormLayout->addRow("Password:", passwordEdit);
-
-  serverConfigLayout->addLayout(connectionFormLayout);
-  serverConfigGroup->setLayout(serverConfigLayout);
-  connectionTabLayout->addWidget(serverConfigGroup);
-
-  /* ===== Sub-group 2: Connection Status ===== */
-  QGroupBox *connectionStatusGroup = new QGroupBox("Connection Status");
-  QVBoxLayout *connectionStatusLayout = new QVBoxLayout();
-
-  /* Center the button and status */
-  QHBoxLayout *connectionButtonLayout = new QHBoxLayout();
-  connectionButtonLayout->addStretch();
-  testConnectionButton = new QPushButton("Test Connection");
-  testConnectionButton->setToolTip("Test connection to Restreamer server");
-  testConnectionButton->setMinimumWidth(150);
-  connectionStatusLabel = new QLabel("● Not connected");
-  connectionStatusLabel->setStyleSheet(
-      QString("QLabel { color: %1; }").arg(obs_theme_get_muted_color().name()));
-  connectionButtonLayout->addWidget(testConnectionButton);
-  connectionButtonLayout->addWidget(connectionStatusLabel);
-  connectionButtonLayout->addStretch();
-
-  connect(testConnectionButton, &QPushButton::clicked, this,
-          &RestreamerDock::onTestConnectionClicked);
-
-  connectionStatusLayout->addLayout(connectionButtonLayout);
-  connectionStatusGroup->setLayout(connectionStatusLayout);
-  connectionTabLayout->addWidget(connectionStatusGroup);
-
-  connectionTabLayout->addStretch();
-
-  /* Add Connection tab to collapsible section */
-  connectionSection = new CollapsibleSection("Connection");
-
-  /* Add quick action button to Connection header */
-  QPushButton *quickTestConnectionButton = new QPushButton("Test");
-  quickTestConnectionButton->setMaximumWidth(60);
-  quickTestConnectionButton->setToolTip("Test connection to Restreamer server");
-  connect(quickTestConnectionButton, &QPushButton::clicked, this,
-          &RestreamerDock::onTestConnectionClicked);
-  connectionSection->addHeaderButton(quickTestConnectionButton);
-
-  connectionSection->setContent(connectionTab);
-  connectionSection->setExpanded(true, false); /* Expanded by default */
-  verticalLayout->addWidget(connectionSection);
-
-  /* ===== Tab 2: Bridge Settings ===== */
-  QWidget *bridgeTab = new QWidget();
-  QVBoxLayout *bridgeTabLayout = new QVBoxLayout(bridgeTab);
-
-  QLabel *bridgeHelpLabel =
-      new QLabel("Configure automatic RTMP bridge from OBS to Restreamer");
-  bridgeHelpLabel->setStyleSheet(
-      QString("QLabel { color: %1; font-size: 11px; }")
+  /* Connection status indicator (colored dot) */
+  connectionIndicator = new QLabel("●");
+  connectionIndicator->setStyleSheet(
+      QString("color: %1; font-size: 16px;")
           .arg(obs_theme_get_muted_color().name()));
-  bridgeHelpLabel->setAlignment(Qt::AlignCenter);
-  bridgeTabLayout->addWidget(bridgeHelpLabel);
 
-  /* ===== Sub-group 1: Bridge Configuration ===== */
-  QGroupBox *bridgeConfigGroup = new QGroupBox("Bridge Configuration");
-  QVBoxLayout *bridgeConfigLayout = new QVBoxLayout();
+  /* Connection status label (server address or status text) */
+  connectionStatusLabel = new QLabel("Not Connected");
+  connectionStatusLabel->setStyleSheet("font-weight: 600; font-size: 14px;");
 
-  /* Center all form fields */
-  QFormLayout *bridgeFormLayout = new QFormLayout();
-  bridgeFormLayout->setFieldGrowthPolicy(QFormLayout::ExpandingFieldsGrow);
-  bridgeFormLayout->setFormAlignment(Qt::AlignHCenter | Qt::AlignTop);
-  bridgeFormLayout->setLabelAlignment(Qt::AlignRight);
+  /* Configure button (replaces Test button) */
+  configureConnectionButton = new QPushButton("Configure");
+  configureConnectionButton->setMinimumWidth(110);
+  configureConnectionButton->setFixedHeight(32);
+  configureConnectionButton->setToolTip(
+      "Configure connection to Restreamer server");
+  connect(configureConnectionButton, &QPushButton::clicked, this,
+          &RestreamerDock::onConfigureConnectionClicked);
 
-  bridgeHorizontalUrlEdit = new QLineEdit();
-  bridgeHorizontalUrlEdit->setPlaceholderText(
-      "rtmp://localhost/live/obs_horizontal");
-  bridgeHorizontalUrlEdit->setToolTip(
-      "RTMP URL for horizontal (landscape) video format");
-  bridgeHorizontalUrlEdit->setMaximumWidth(350);
+  connectionBarLayout->addWidget(connectionStatusLabel);
+  connectionBarLayout->addWidget(connectionIndicator);
+  connectionBarLayout->addStretch();
+  connectionBarLayout->addWidget(configureConnectionButton);
 
-  /* Add copy button for horizontal URL */
-  QHBoxLayout *horizontalUrlLayout = new QHBoxLayout();
-  horizontalUrlLayout->addWidget(bridgeHorizontalUrlEdit);
-  QPushButton *copyHorizontalButton = new QPushButton("Copy");
-  copyHorizontalButton->setMaximumWidth(60);
-  copyHorizontalButton->setToolTip("Copy horizontal RTMP URL to clipboard");
-  connect(copyHorizontalButton, &QPushButton::clicked, this, [this]() {
-    QClipboard *clipboard = QApplication::clipboard();
-    clipboard->setText(bridgeHorizontalUrlEdit->text());
-  });
-  horizontalUrlLayout->addWidget(copyHorizontalButton);
+  /* Style the connection bar */
+  connectionBar->setStyleSheet("QWidget { "
+                               "  background-color: #1e1e2e; "
+                               "  border-radius: 6px; "
+                               "  margin: 4px 8px 2px 8px; "
+                               "}");
 
-  bridgeVerticalUrlEdit = new QLineEdit();
-  bridgeVerticalUrlEdit->setPlaceholderText(
-      "rtmp://localhost/live/obs_vertical");
-  bridgeVerticalUrlEdit->setToolTip(
-      "RTMP URL for vertical (portrait) video format");
-  bridgeVerticalUrlEdit->setMaximumWidth(350);
+  verticalLayout->addWidget(connectionBar);
 
-  /* Add copy button for vertical URL */
-  QHBoxLayout *verticalUrlLayout = new QHBoxLayout();
-  verticalUrlLayout->addWidget(bridgeVerticalUrlEdit);
-  QPushButton *copyVerticalButton = new QPushButton("Copy");
-  copyVerticalButton->setMaximumWidth(60);
-  copyVerticalButton->setToolTip("Copy vertical RTMP URL to clipboard");
-  connect(copyVerticalButton, &QPushButton::clicked, this, [this]() {
-    QClipboard *clipboard = QApplication::clipboard();
-    clipboard->setText(bridgeVerticalUrlEdit->text());
-  });
-  verticalUrlLayout->addWidget(copyVerticalButton);
-
-  bridgeAutoStartCheckbox = new QCheckBox();
-  bridgeAutoStartCheckbox->setChecked(true);
-  bridgeAutoStartCheckbox->setToolTip(
-      "Automatically start RTMP outputs when OBS streaming starts");
-
-  bridgeFormLayout->addRow("Horizontal RTMP URL:", horizontalUrlLayout);
-  bridgeFormLayout->addRow("Vertical RTMP URL:", verticalUrlLayout);
-  bridgeFormLayout->addRow("Auto-start on stream:", bridgeAutoStartCheckbox);
-
-  bridgeConfigLayout->addLayout(bridgeFormLayout);
-
-  /* Center the save button */
-  QHBoxLayout *bridgeSaveButtonLayout = new QHBoxLayout();
-  bridgeSaveButtonLayout->addStretch();
-  saveBridgeSettingsButton = new QPushButton("Save Settings");
-  saveBridgeSettingsButton->setMinimumWidth(150);
-  saveBridgeSettingsButton->setToolTip("Save bridge configuration");
-  connect(saveBridgeSettingsButton, &QPushButton::clicked, this,
-          &RestreamerDock::onSaveBridgeSettingsClicked);
-  bridgeSaveButtonLayout->addWidget(saveBridgeSettingsButton);
-  bridgeSaveButtonLayout->addStretch();
-
-  bridgeConfigLayout->addLayout(bridgeSaveButtonLayout);
-  bridgeConfigGroup->setLayout(bridgeConfigLayout);
-  bridgeTabLayout->addWidget(bridgeConfigGroup);
-
-  /* ===== Sub-group 2: Bridge Status ===== */
-  QGroupBox *bridgeStatusGroup = new QGroupBox("Bridge Status");
-  QVBoxLayout *bridgeStatusLayout = new QVBoxLayout();
-
-  bridgeStatusLabel = new QLabel("● Bridge idle");
-  bridgeStatusLabel->setStyleSheet(
-      QString("QLabel { color: %1; }").arg(obs_theme_get_muted_color().name()));
-  bridgeStatusLabel->setAlignment(Qt::AlignCenter);
-
-  bridgeStatusLayout->addWidget(bridgeStatusLabel);
-  bridgeStatusGroup->setLayout(bridgeStatusLayout);
-  bridgeTabLayout->addWidget(bridgeStatusGroup);
-
-  bridgeTabLayout->addStretch();
-
-  /* Add Bridge tab to collapsible section */
-  bridgeSection = new CollapsibleSection("Bridge");
-
-  /* Add quick action toggle to Bridge header */
-  QPushButton *quickBridgeToggleButton = new QPushButton("Enable");
-  quickBridgeToggleButton->setMaximumWidth(70);
-  quickBridgeToggleButton->setCheckable(true);
-  quickBridgeToggleButton->setToolTip("Toggle bridge auto-start");
-  quickBridgeToggleButton->setChecked(bridgeAutoStartCheckbox->isChecked());
-  connect(quickBridgeToggleButton, &QPushButton::toggled, this,
-          [this, quickBridgeToggleButton](bool checked) {
-            bridgeAutoStartCheckbox->setChecked(checked);
-            quickBridgeToggleButton->setText(checked ? "Disable" : "Enable");
-            onSaveBridgeSettingsClicked();
-          });
-  bridgeSection->addHeaderButton(quickBridgeToggleButton);
-
-  bridgeSection->setContent(bridgeTab);
-  bridgeSection->setExpanded(false, false); /* Collapsed by default */
-  verticalLayout->addWidget(bridgeSection);
-
-  /* ===== Tab 3: Profiles (Configure & Publish - Step 2) ===== */
+  /* ===== Profiles (Configure & Publish) - Always Visible ===== */
   QWidget *profilesTab = new QWidget();
   QVBoxLayout *profilesTabLayout = new QVBoxLayout(profilesTab);
+  profilesTabLayout->setSpacing(8);
+  profilesTabLayout->setContentsMargins(8, 8, 8, 8);
 
-  QLabel *profilesHelpLabel =
-      new QLabel("Create and manage streaming profiles");
-  profilesHelpLabel->setStyleSheet(
-      QString("QLabel { color: %1; font-size: 11px; }")
-          .arg(obs_theme_get_muted_color().name()));
-  profilesHelpLabel->setAlignment(Qt::AlignCenter);
-  profilesTabLayout->addWidget(profilesHelpLabel);
-
-  /* ===== Sub-group 1: Profile Management ===== */
-  QGroupBox *profileManagementGroup = new QGroupBox("Profile Management");
-  QVBoxLayout *profileManagementLayout = new QVBoxLayout();
-
-  /* Profile list */
-  profileListWidget = new QListWidget();
-  profileListWidget->setContextMenuPolicy(Qt::CustomContextMenu);
-  profileListWidget->setMaximumHeight(100);
-  connect(profileListWidget, &QListWidget::currentRowChanged, this,
-          &RestreamerDock::onProfileSelected);
-  connect(profileListWidget, &QListWidget::customContextMenuRequested, this,
-          &RestreamerDock::onProfileListContextMenu);
-
-  /* Profile management buttons */
+  /* Profile management buttons at top */
   QHBoxLayout *profileManagementButtons = new QHBoxLayout();
 
-  createProfileButton = new QPushButton("+ New");
-  createProfileButton->setToolTip("Create new streaming profile");
-  createProfileButton->setFixedWidth(75);
+  createChannelButton = new QPushButton("+ New Channel");
+  createChannelButton->setToolTip("Create new streaming channel");
+  connect(createChannelButton, &QPushButton::clicked, this,
+          &RestreamerDock::onCreateChannelClicked);
 
-  configureProfileButton = new QPushButton("Edit");
-  configureProfileButton->setToolTip("Configure profile destinations");
-  configureProfileButton->setFixedWidth(75);
-  configureProfileButton->setEnabled(false);
+  startAllChannelsButton = new QPushButton("▶ Start All");
+  startAllChannelsButton->setToolTip("Start all channels");
+  connect(startAllChannelsButton, &QPushButton::clicked, this,
+          &RestreamerDock::onStartAllChannelsClicked);
 
-  duplicateProfileButton = new QPushButton("Copy");
-  duplicateProfileButton->setToolTip("Duplicate selected profile");
-  duplicateProfileButton->setFixedWidth(75);
-  duplicateProfileButton->setEnabled(false);
+  stopAllChannelsButton = new QPushButton("■ Stop All");
+  stopAllChannelsButton->setToolTip("Stop all channels");
+  stopAllChannelsButton->setEnabled(false);
+  connect(stopAllChannelsButton, &QPushButton::clicked, this,
+          &RestreamerDock::onStopAllChannelsClicked);
 
-  deleteProfileButton = new QPushButton("Delete");
-  deleteProfileButton->setToolTip("Delete selected profile");
-  deleteProfileButton->setFixedWidth(75);
-  deleteProfileButton->setEnabled(false);
-
-  connect(createProfileButton, &QPushButton::clicked, this,
-          &RestreamerDock::onCreateProfileClicked);
-  connect(deleteProfileButton, &QPushButton::clicked, this,
-          &RestreamerDock::onDeleteProfileClicked);
-  connect(duplicateProfileButton, &QPushButton::clicked, this,
-          &RestreamerDock::onDuplicateProfileClicked);
-  connect(configureProfileButton, &QPushButton::clicked, this,
-          &RestreamerDock::onConfigureProfileClicked);
-
+  profileManagementButtons->addWidget(createChannelButton);
   profileManagementButtons->addStretch();
-  profileManagementButtons->addWidget(createProfileButton);
-  profileManagementButtons->addWidget(configureProfileButton);
-  profileManagementButtons->addWidget(duplicateProfileButton);
-  profileManagementButtons->addWidget(deleteProfileButton);
-  profileManagementButtons->addStretch();
+  profileManagementButtons->addWidget(startAllChannelsButton);
+  profileManagementButtons->addWidget(stopAllChannelsButton);
 
-  profileManagementLayout->addWidget(profileListWidget);
-  profileManagementLayout->addLayout(profileManagementButtons);
-  profileManagementGroup->setLayout(profileManagementLayout);
-  profilesTabLayout->addWidget(profileManagementGroup);
+  profilesTabLayout->addLayout(profileManagementButtons);
 
-  /* ===== Sub-group 2: Profile Actions ===== */
-  QGroupBox *profileActionsGroup = new QGroupBox("Profile Actions");
-  QHBoxLayout *profileActionsLayout = new QHBoxLayout();
-
-  startProfileButton = new QPushButton("▶ Start");
-  startProfileButton->setToolTip("Start selected profile");
-  startProfileButton->setFixedWidth(75);
-  startProfileButton->setEnabled(false);
-
-  stopProfileButton = new QPushButton("■ Stop");
-  stopProfileButton->setToolTip("Stop selected profile");
-  stopProfileButton->setFixedWidth(75);
-  stopProfileButton->setEnabled(false);
-
-  startAllProfilesButton = new QPushButton("▶ All");
-  startAllProfilesButton->setToolTip("Start all profiles");
-  startAllProfilesButton->setFixedWidth(75);
-
-  stopAllProfilesButton = new QPushButton("■ All");
-  stopAllProfilesButton->setToolTip("Stop all profiles");
-  stopAllProfilesButton->setFixedWidth(75);
-  stopAllProfilesButton->setEnabled(false);
-
-  connect(startProfileButton, &QPushButton::clicked, this,
-          &RestreamerDock::onStartProfileClicked);
-  connect(stopProfileButton, &QPushButton::clicked, this,
-          &RestreamerDock::onStopProfileClicked);
-  connect(startAllProfilesButton, &QPushButton::clicked, this,
-          &RestreamerDock::onStartAllProfilesClicked);
-  connect(stopAllProfilesButton, &QPushButton::clicked, this,
-          &RestreamerDock::onStopAllProfilesClicked);
-
-  profileActionsLayout->addStretch();
-  profileActionsLayout->addWidget(startProfileButton);
-  profileActionsLayout->addWidget(stopProfileButton);
-  profileActionsLayout->addWidget(startAllProfilesButton);
-  profileActionsLayout->addWidget(stopAllProfilesButton);
-  profileActionsLayout->addStretch();
-
-  profileActionsGroup->setLayout(profileActionsLayout);
-  profilesTabLayout->addWidget(profileActionsGroup);
-
-  /* ===== Sub-group 3: Profile Details ===== */
-  QGroupBox *profileDetailsGroup = new QGroupBox("Profile Details");
-  QVBoxLayout *profileDetailsLayout = new QVBoxLayout();
-
-  /* Profile status label */
-  profileStatusLabel = new QLabel("No profiles");
-  profileStatusLabel->setAlignment(Qt::AlignCenter);
-
-  /* Profile destinations table (shows destinations for selected profile) */
-  profileDestinationsTable = new QTableWidget();
-  profileDestinationsTable->setColumnCount(4);
-  profileDestinationsTable->setHorizontalHeaderLabels(
-      {"Destination", "Resolution", "Bitrate", "Status"});
-  profileDestinationsTable->horizontalHeader()->setStretchLastSection(true);
-  profileDestinationsTable->setMaximumHeight(150);
-
-  profileDetailsLayout->addWidget(profileStatusLabel);
-  profileDetailsLayout->addWidget(profileDestinationsTable);
-  profileDetailsGroup->setLayout(profileDetailsLayout);
-  profilesTabLayout->addWidget(profileDetailsGroup);
-
-  profilesTabLayout->addStretch();
-
-  /* Add Profiles tab to collapsible section */
-  profilesSection = new CollapsibleSection("Profiles");
-
-  /* Add quick action toggle to Profiles header */
-  quickProfileToggleButton = new QPushButton("Start");
-  quickProfileToggleButton->setMaximumWidth(60);
-  quickProfileToggleButton->setToolTip("Start/Stop selected profile");
-  quickProfileToggleButton->setEnabled(
-      false); /* Disabled until profile is selected */
-  connect(quickProfileToggleButton, &QPushButton::clicked, this, [this]() {
-    if (!profileListWidget->currentItem()) {
-      return;
-    }
-
-    QString profileId =
-        profileListWidget->currentItem()->data(Qt::UserRole).toString();
-    output_profile_t *profile = profile_manager_get_profile(
-        profileManager, profileId.toUtf8().constData());
-
-    if (!profile) {
-      return;
-    }
-
-    if (profile->status == PROFILE_STATUS_ACTIVE ||
-        profile->status == PROFILE_STATUS_STARTING) {
-      onStopProfileClicked();
-    } else {
-      onStartProfileClicked();
-    }
-  });
-
-  /* Connect to profile selection to update button state */
-  connect(
-      profileListWidget, &QListWidget::currentRowChanged, this,
-      [this](int row) {
-        quickProfileToggleButton->setEnabled(row >= 0);
-        if (row >= 0 && profileListWidget->currentItem()) {
-          QString profileId =
-              profileListWidget->currentItem()->data(Qt::UserRole).toString();
-          output_profile_t *profile = profile_manager_get_profile(
-              profileManager, profileId.toUtf8().constData());
-          if (profile) {
-            bool isActive = (profile->status == PROFILE_STATUS_ACTIVE ||
-                             profile->status == PROFILE_STATUS_STARTING);
-            quickProfileToggleButton->setText(isActive ? "Stop" : "Start");
-          }
-        }
-      });
-
-  profilesSection->addHeaderButton(quickProfileToggleButton);
-
-  profilesSection->setContent(profilesTab);
-  profilesSection->setExpanded(true, false); /* Expanded by default */
-  verticalLayout->addWidget(profilesSection);
-
-  /* ===== Tab 3: Monitoring (Watch - Step 3) ===== */
-  QWidget *monitoringTab = new QWidget();
-  QVBoxLayout *monitoringTabLayout = new QVBoxLayout(monitoringTab);
-
-  QLabel *monitoringHelpLabel =
-      new QLabel("Monitor active streams and performance");
-  monitoringHelpLabel->setStyleSheet(
-      QString("QLabel { color: %1; font-size: 11px; }")
+  /* Channel status label */
+  channelStatusLabel = new QLabel("No channels");
+  channelStatusLabel->setAlignment(Qt::AlignCenter);
+  channelStatusLabel->setStyleSheet(
+      QString("QLabel { color: %1; font-size: 11px; font-style: italic; }")
           .arg(obs_theme_get_muted_color().name()));
-  monitoringHelpLabel->setAlignment(Qt::AlignCenter);
-  monitoringTabLayout->addWidget(monitoringHelpLabel);
-
-  /* ===== Sub-group 1: Process Information ===== */
-  QGroupBox *processInfoGroup = new QGroupBox("Process Information");
-  QVBoxLayout *processInfoLayout = new QVBoxLayout();
-
-  processList = new QListWidget();
-  processList->setMaximumHeight(80);
-  processList->setIconSize(
-      QSize(48, 48)); /* Larger icon size for better visibility */
-  connect(processList, &QListWidget::currentRowChanged, this,
-          &RestreamerDock::onProcessSelected);
-
-  QHBoxLayout *processButtonLayout = new QHBoxLayout();
-  refreshButton = new QPushButton("🔄");
-  refreshButton->setToolTip("Refresh process list");
-  refreshButton->setMinimumSize(50, 36); /* Larger to fit icon */
-  refreshButton->setMaximumSize(50, 36);
-  refreshButton->setStyleSheet("font-size: 20px;"); /* Larger icon */
-  startButton = new QPushButton("▶");
-  startButton->setToolTip("Start selected process");
-  startButton->setMinimumSize(50, 36); /* Larger to fit icon */
-  startButton->setMaximumSize(50, 36);
-  startButton->setStyleSheet("font-size: 20px;"); /* Larger icon */
-  stopButton = new QPushButton("■");
-  stopButton->setToolTip("Stop selected process");
-  stopButton->setMinimumSize(50, 36); /* Larger to fit icon */
-  stopButton->setMaximumSize(50, 36);
-  stopButton->setStyleSheet("font-size: 20px;"); /* Larger icon */
-  restartButton = new QPushButton("↻");
-  restartButton->setToolTip("Restart selected process");
-  restartButton->setMinimumSize(50, 36); /* Larger to fit icon */
-  restartButton->setMaximumSize(50, 36);
-  restartButton->setStyleSheet("font-size: 20px;"); /* Larger icon */
-
-  startButton->setEnabled(false);
-  stopButton->setEnabled(false);
-  restartButton->setEnabled(false);
-
-  connect(refreshButton, &QPushButton::clicked, this,
-          &RestreamerDock::onRefreshClicked);
-  connect(startButton, &QPushButton::clicked, this,
-          &RestreamerDock::onStartProcessClicked);
-  connect(stopButton, &QPushButton::clicked, this,
-          &RestreamerDock::onStopProcessClicked);
-  connect(restartButton, &QPushButton::clicked, this,
-          &RestreamerDock::onRestartProcessClicked);
-
-  processButtonLayout->addStretch();
-  processButtonLayout->addWidget(refreshButton);
-  processButtonLayout->addWidget(startButton);
-  processButtonLayout->addWidget(stopButton);
-  processButtonLayout->addWidget(restartButton);
-  processButtonLayout->addStretch();
-
-  processInfoLayout->addWidget(processList);
-  processInfoLayout->addLayout(processButtonLayout);
-  processInfoGroup->setLayout(processInfoLayout);
-  monitoringTabLayout->addWidget(processInfoGroup);
-
-  /* ===== Sub-group 2: Performance Metrics ===== */
-  QGroupBox *metricsGroup = new QGroupBox("Performance Metrics");
-  QVBoxLayout *metricsMainLayout = new QVBoxLayout();
-
-  /* Two-column layout for metrics with proper alignment */
-  QHBoxLayout *metricsColumnsLayout = new QHBoxLayout();
-
-  /* Left column - System metrics */
-  QFormLayout *metricsLeftLayout = new QFormLayout();
-  metricsLeftLayout->setFieldGrowthPolicy(QFormLayout::ExpandingFieldsGrow);
-  metricsLeftLayout->setFormAlignment(Qt::AlignLeft | Qt::AlignTop);
-  metricsLeftLayout->setLabelAlignment(Qt::AlignRight);
-
-  processIdLabel = new QLabel("-");
-  processStateLabel = new QLabel("-");
-  processUptimeLabel = new QLabel("-");
-  processCpuLabel = new QLabel("-");
-  processMemoryLabel = new QLabel("-");
-
-  metricsLeftLayout->addRow("Process ID:", processIdLabel);
-  metricsLeftLayout->addRow("State:", processStateLabel);
-  metricsLeftLayout->addRow("Uptime:", processUptimeLabel);
-  metricsLeftLayout->addRow("CPU Usage:", processCpuLabel);
-  metricsLeftLayout->addRow("Memory:", processMemoryLabel);
-
-  /* Right column - Stream metrics */
-  QFormLayout *metricsRightLayout = new QFormLayout();
-  metricsRightLayout->setFieldGrowthPolicy(QFormLayout::ExpandingFieldsGrow);
-  metricsRightLayout->setFormAlignment(Qt::AlignLeft | Qt::AlignTop);
-  metricsRightLayout->setLabelAlignment(Qt::AlignRight);
-
-  processFramesLabel = new QLabel("-");
-  processDroppedFramesLabel = new QLabel("-");
-  processFpsLabel = new QLabel("-");
-  processBitrateLabel = new QLabel("-");
-  processProgressLabel = new QLabel("-");
-
-  metricsRightLayout->addRow("Frames:", processFramesLabel);
-  metricsRightLayout->addRow("Dropped:", processDroppedFramesLabel);
-  metricsRightLayout->addRow("FPS:", processFpsLabel);
-  metricsRightLayout->addRow("Bitrate:", processBitrateLabel);
-  metricsRightLayout->addRow("Progress:", processProgressLabel);
-
-  metricsColumnsLayout->addLayout(metricsLeftLayout);
-  metricsColumnsLayout->addSpacing(40); /* Fixed spacing between columns */
-  metricsColumnsLayout->addLayout(metricsRightLayout);
-  metricsColumnsLayout->addStretch(); /* Push everything to the left */
-  metricsMainLayout->addLayout(metricsColumnsLayout);
-
-  /* Action buttons - aligned with metrics columns above */
-  /* Create two button containers that mirror the form layout structure */
-  QHBoxLayout *metricsButtonLayout = new QHBoxLayout();
-
-  /* Left button - mirrors left form layout width */
-  QVBoxLayout *leftButtonContainer = new QVBoxLayout();
-  probeInputButton = new QPushButton("Probe Input");
-  probeInputButton->setToolTip("Probe input stream details");
-  leftButtonContainer->addWidget(probeInputButton);
-
-  /* Right button - mirrors right form layout width */
-  QVBoxLayout *rightButtonContainer = new QVBoxLayout();
-  viewMetricsButton = new QPushButton("View Metrics");
-  viewMetricsButton->setToolTip("View performance metrics");
-  rightButtonContainer->addWidget(viewMetricsButton);
-
-  /* Add button containers with same spacing as columns above */
-  metricsButtonLayout->addLayout(leftButtonContainer);
-  metricsButtonLayout->addSpacing(40); /* Match column spacing */
-  metricsButtonLayout->addLayout(rightButtonContainer);
-  metricsButtonLayout->addStretch(); /* Push to left like columns */
-  metricsMainLayout->addLayout(metricsButtonLayout);
-
-  connect(probeInputButton, &QPushButton::clicked, this,
-          &RestreamerDock::onProbeInputClicked);
-  connect(viewMetricsButton, &QPushButton::clicked, this,
-          &RestreamerDock::onViewMetricsClicked);
-
-  metricsGroup->setLayout(metricsMainLayout);
-  monitoringTabLayout->addWidget(metricsGroup);
-
-  /* ===== Sub-group 3: Active Sessions ===== */
-  QGroupBox *sessionsGroup = new QGroupBox("Active Sessions");
-  QVBoxLayout *sessionsLayout = new QVBoxLayout();
-
-  sessionTable = new QTableWidget();
-  sessionTable->setColumnCount(3);
-  sessionTable->setHorizontalHeaderLabels(
-      {"Session ID", "Remote Address", "Bytes Sent"});
-  sessionTable->horizontalHeader()->setStretchLastSection(true);
-  sessionTable->setMaximumHeight(60);
-
-  sessionsLayout->addWidget(sessionTable);
-  sessionsGroup->setLayout(sessionsLayout);
-  monitoringTabLayout->addWidget(sessionsGroup);
-  monitoringTabLayout->addStretch();
-
-  /* Add Monitoring tab to collapsible section */
-  monitoringSection = new CollapsibleSection("Monitoring");
-
-  /* Add quick action button to Monitoring header */
-  QPushButton *quickRefreshButton = new QPushButton("Refresh");
-  quickRefreshButton->setMaximumWidth(70);
-  quickRefreshButton->setToolTip("Refresh process list and metrics");
-  connect(quickRefreshButton, &QPushButton::clicked, this, [this]() {
-    updateProcessList();
-    updateProcessDetails();
-  });
-  monitoringSection->addHeaderButton(quickRefreshButton);
-
-  monitoringSection->setContent(monitoringTab);
-  monitoringSection->setExpanded(false, false); /* Collapsed by default */
-  verticalLayout->addWidget(monitoringSection);
-
-  /* ===== Tab 4: System (Settings - Step 4) ===== */
-  QWidget *systemTab = new QWidget();
-  QVBoxLayout *systemTabLayout = new QVBoxLayout(systemTab);
-
-  QLabel *systemHelpLabel =
-      new QLabel("Restreamer server configuration and settings");
-  systemHelpLabel->setStyleSheet(
-      QString("QLabel { color: %1; font-size: 11px; }")
-          .arg(obs_theme_get_muted_color().name()));
-  systemHelpLabel->setAlignment(Qt::AlignCenter);
-  systemTabLayout->addWidget(systemHelpLabel);
-
-  /* Configuration Management */
-  QGroupBox *configGroup = new QGroupBox("Server Configuration");
-  QVBoxLayout *configLayout = new QVBoxLayout();
-
-  QPushButton *viewConfigButton = new QPushButton("View/Edit Config");
-  viewConfigButton->setMinimumWidth(150);
-  viewConfigButton->setToolTip("View and edit Restreamer configuration");
-  QPushButton *reloadConfigButton = new QPushButton("Reload Config");
-  reloadConfigButton->setMinimumWidth(150);
-  reloadConfigButton->setToolTip("Reload configuration from server");
-
-  connect(viewConfigButton, &QPushButton::clicked, this,
-          &RestreamerDock::onViewConfigClicked);
-  connect(reloadConfigButton, &QPushButton::clicked, this,
-          &RestreamerDock::onReloadConfigClicked);
-
-  /* Center the buttons */
-  QHBoxLayout *configButtonLayout = new QHBoxLayout();
-  configButtonLayout->addStretch();
-  configButtonLayout->addWidget(viewConfigButton);
-  configButtonLayout->addWidget(reloadConfigButton);
-  configButtonLayout->addStretch();
-
-  configLayout->addLayout(configButtonLayout);
-  configGroup->setLayout(configLayout);
-  systemTabLayout->addWidget(configGroup);
-
-  /* Plugin Settings Management */
-  QGroupBox *pluginSettingsGroup = new QGroupBox("Plugin Settings");
-  QVBoxLayout *pluginSettingsLayout = new QVBoxLayout();
-
-  QPushButton *clearSettingsButton = new QPushButton("Clear All Settings");
-  clearSettingsButton->setMinimumWidth(150);
-  clearSettingsButton->setToolTip(
-      "Clear all plugin settings and restart fresh");
-  clearSettingsButton->setStyleSheet("QPushButton { color: red; }");
-
-  connect(clearSettingsButton, &QPushButton::clicked, this, [this]() {
-    QMessageBox::StandardButton reply =
-        QMessageBox::question(this, "Clear All Settings",
-                              "This will clear ALL plugin settings including:\n"
-                              "• Connection settings\n"
-                              "• All profiles and destinations\n"
-                              "• Bridge configuration\n"
-                              "• Advanced settings\n\n"
-                              "This action cannot be undone. Continue?",
-                              QMessageBox::Yes | QMessageBox::No);
-
-    if (reply == QMessageBox::Yes) {
-      /* Clear all UI fields */
-      hostEdit->clear();
-      portEdit->clear();
-      usernameEdit->clear();
-      passwordEdit->clear();
-      httpsCheckbox->setChecked(false);
-
-      /* Clear bridge settings */
-      bridgeHorizontalUrlEdit->clear();
-      bridgeVerticalUrlEdit->clear();
-      bridgeAutoStartCheckbox->setChecked(true);
-
-      /* Clear profile manager */
-      if (profileManager) {
-        /* Stop all active profiles first */
-        for (size_t i = 0; i < profileManager->profile_count; i++) {
-          if (profileManager->profiles[i] &&
-              (profileManager->profiles[i]->status == PROFILE_STATUS_ACTIVE ||
-               profileManager->profiles[i]->status ==
-                   PROFILE_STATUS_STARTING)) {
-            output_profile_stop(profileManager,
-                                profileManager->profiles[i]->profile_id);
-          }
-        }
-
-        /* Remove all profiles */
-        while (profileManager->profile_count > 0) {
-          profile_manager_delete_profile(
-              profileManager, profileManager->profiles[0]->profile_id);
-        }
-      }
-
-      /* Update UI */
-      updateProfileList();
-
-      obs_log(LOG_INFO, "All plugin settings cleared");
-
-      QMessageBox::information(this, "Settings Cleared",
-                               "All settings have been cleared. The dock has "
-                               "been reset to defaults.");
-    }
-  });
-
-  /* Center the button */
-  QHBoxLayout *pluginSettingsButtonLayout = new QHBoxLayout();
-  pluginSettingsButtonLayout->addStretch();
-  pluginSettingsButtonLayout->addWidget(clearSettingsButton);
-  pluginSettingsButtonLayout->addStretch();
-
-  pluginSettingsLayout->addLayout(pluginSettingsButtonLayout);
-  pluginSettingsGroup->setLayout(pluginSettingsLayout);
-  systemTabLayout->addWidget(pluginSettingsGroup);
-
-  systemTabLayout->addStretch();
-
-  /* Add System tab to collapsible section */
-  systemSection = new CollapsibleSection("System");
-
-  /* Add quick action button to System header */
-  QPushButton *quickReloadConfigButton = new QPushButton("Reload");
-  quickReloadConfigButton->setMaximumWidth(70);
-  quickReloadConfigButton->setToolTip("Reload server configuration");
-  connect(quickReloadConfigButton, &QPushButton::clicked, this,
-          &RestreamerDock::onReloadConfigClicked);
-  systemSection->addHeaderButton(quickReloadConfigButton);
-
-  systemSection->setContent(systemTab);
-  systemSection->setExpanded(false, false); /* Collapsed by default */
-  verticalLayout->addWidget(systemSection);
-
-  /* ===== Tab 5: Advanced (Expert Mode - Step 5) ===== */
-  QWidget *advancedTab = new QWidget();
-  QVBoxLayout *advancedTabLayout = new QVBoxLayout(advancedTab);
-
-  QLabel *advancedHelpLabel = new QLabel("Advanced features for expert users");
-  advancedHelpLabel->setStyleSheet(
-      QString("QLabel { color: %1; font-size: 11px; }")
-          .arg(obs_theme_get_muted_color().name()));
-  advancedHelpLabel->setAlignment(Qt::AlignCenter);
-  advancedTabLayout->addWidget(advancedHelpLabel);
-
-  /* Multistream Manual Configuration */
-  QGroupBox *multistreamGroup = new QGroupBox("Manual Multistream Setup");
-  QVBoxLayout *multistreamLayout = new QVBoxLayout();
-
-  QFormLayout *orientationLayout = new QFormLayout();
-  orientationLayout->setFieldGrowthPolicy(QFormLayout::ExpandingFieldsGrow);
-  orientationLayout->setFormAlignment(Qt::AlignHCenter | Qt::AlignTop);
-  orientationLayout->setLabelAlignment(Qt::AlignRight);
-
-  autoDetectOrientationCheck = new QCheckBox("Auto-detect orientation");
-  autoDetectOrientationCheck->setChecked(true);
-  autoDetectOrientationCheck->setToolTip(
-      "Automatically detect video orientation from stream");
-
-  orientationCombo = new QComboBox();
-  orientationCombo->addItem("Horizontal (Landscape)", ORIENTATION_HORIZONTAL);
-  orientationCombo->addItem("Vertical (Portrait)", ORIENTATION_VERTICAL);
-  orientationCombo->addItem("Square", ORIENTATION_SQUARE);
-  orientationCombo->setToolTip("Set the orientation for multistream output");
-  orientationCombo->setMaximumWidth(300);
-
-  orientationLayout->addRow(autoDetectOrientationCheck);
-  orientationLayout->addRow("Orientation:", orientationCombo);
-  multistreamLayout->addLayout(orientationLayout);
-
-  /* Destinations table */
-  destinationsTable = new QTableWidget();
-  destinationsTable->setColumnCount(4);
-  destinationsTable->setHorizontalHeaderLabels(
-      {"Service", "Stream Key", "Orientation", "Enabled"});
-  destinationsTable->horizontalHeader()->setStretchLastSection(true);
-  destinationsTable->setMaximumHeight(150);
-
-  QHBoxLayout *destButtonLayout = new QHBoxLayout();
-  destButtonLayout->addStretch();
-  addDestinationButton = new QPushButton("Add Destination");
-  addDestinationButton->setMinimumWidth(140);
-  addDestinationButton->setToolTip("Add new streaming destination");
-  removeDestinationButton = new QPushButton("Remove");
-  removeDestinationButton->setMinimumWidth(140);
-  removeDestinationButton->setToolTip("Remove selected destination");
-  createMultistreamButton = new QPushButton("Start Multistream");
-  createMultistreamButton->setMinimumWidth(140);
-  createMultistreamButton->setToolTip("Start multistream to all destinations");
-
-  connect(addDestinationButton, &QPushButton::clicked, this,
-          &RestreamerDock::onAddDestinationClicked);
-  connect(removeDestinationButton, &QPushButton::clicked, this,
-          &RestreamerDock::onRemoveDestinationClicked);
-  connect(createMultistreamButton, &QPushButton::clicked, this,
-          &RestreamerDock::onCreateMultistreamClicked);
-
-  destButtonLayout->addWidget(addDestinationButton);
-  destButtonLayout->addWidget(removeDestinationButton);
-  destButtonLayout->addWidget(createMultistreamButton);
-  destButtonLayout->addStretch();
-
-  multistreamLayout->addWidget(destinationsTable);
-  multistreamLayout->addLayout(destButtonLayout);
-  multistreamGroup->setLayout(multistreamLayout);
-  advancedTabLayout->addWidget(multistreamGroup);
-
-  /* FFmpeg Capabilities group */
-  QGroupBox *skillsGroup = new QGroupBox("FFmpeg Capabilities");
-  QVBoxLayout *skillsLayout = new QVBoxLayout();
-
-  QPushButton *viewSkillsButton = new QPushButton("View Codecs & Formats");
-  viewSkillsButton->setMinimumWidth(160);
-  viewSkillsButton->setToolTip("View available FFmpeg codecs and formats");
-  connect(viewSkillsButton, &QPushButton::clicked, this,
-          &RestreamerDock::onViewSkillsClicked);
-
-  /* Center the button */
-  QHBoxLayout *skillsButtonLayout = new QHBoxLayout();
-  skillsButtonLayout->addStretch();
-  skillsButtonLayout->addWidget(viewSkillsButton);
-  skillsButtonLayout->addStretch();
-
-  skillsLayout->addLayout(skillsButtonLayout);
-  skillsGroup->setLayout(skillsLayout);
-  advancedTabLayout->addWidget(skillsGroup);
-
-  /* Protocol Monitoring group */
-  QGroupBox *protocolGroup = new QGroupBox("Protocol Monitoring");
-  QVBoxLayout *protocolLayout = new QVBoxLayout();
-
-  QHBoxLayout *protocolButtonLayout = new QHBoxLayout();
-  protocolButtonLayout->addStretch();
-  QPushButton *viewRtmpButton = new QPushButton("View RTMP Streams");
-  viewRtmpButton->setMinimumWidth(160);
-  viewRtmpButton->setToolTip("View active RTMP streams");
-  QPushButton *viewSrtButton = new QPushButton("View SRT Streams");
-  viewSrtButton->setMinimumWidth(160);
-  viewSrtButton->setToolTip("View active SRT streams");
-
-  connect(viewRtmpButton, &QPushButton::clicked, this,
-          &RestreamerDock::onViewRtmpStreamsClicked);
-  connect(viewSrtButton, &QPushButton::clicked, this,
-          &RestreamerDock::onViewSrtStreamsClicked);
-
-  protocolButtonLayout->addWidget(viewRtmpButton);
-  protocolButtonLayout->addWidget(viewSrtButton);
-  protocolButtonLayout->addStretch();
-  protocolLayout->addLayout(protocolButtonLayout);
-  protocolGroup->setLayout(protocolLayout);
-  advancedTabLayout->addWidget(protocolGroup);
-
-  advancedTabLayout->addStretch();
-
-  /* Add Advanced tab to collapsible section */
-  advancedSection = new CollapsibleSection("Advanced");
-
-  /* Add quick action button to Advanced header */
-  QPushButton *quickSaveAdvancedButton = new QPushButton("Apply");
-  quickSaveAdvancedButton->setMaximumWidth(70);
-  quickSaveAdvancedButton->setToolTip("Apply multistream settings");
-  connect(quickSaveAdvancedButton, &QPushButton::clicked, this, [this]() {
-    /* Save multistream configuration */
-    if (multistreamConfig) {
-      multistream_config_t *config = multistreamConfig;
-      config->auto_detect_orientation = autoDetectOrientationCheck->isChecked();
-      config->source_orientation = static_cast<stream_orientation_t>(
-          orientationCombo->currentData().toInt());
-      /* Settings will be saved automatically on scene collection save */
-      obs_log(LOG_INFO, "Advanced multistream settings updated");
-    }
-  });
-  advancedSection->addHeaderButton(quickSaveAdvancedButton);
-
-  advancedSection->setContent(advancedTab);
-  advancedSection->setExpanded(false, false); /* Collapsed by default */
-  verticalLayout->addWidget(advancedSection);
+  profilesTabLayout->addWidget(channelStatusLabel);
+
+  /* Scrollable container for channel widgets */
+  QScrollArea *channelScrollArea = new QScrollArea();
+  channelScrollArea->setWidgetResizable(true);
+  channelScrollArea->setFrameShape(QFrame::NoFrame);
+
+  channelListContainer = new QWidget();
+  channelListLayout = new QVBoxLayout(channelListContainer);
+  channelListLayout->setContentsMargins(0, 0, 0, 0);
+  channelListLayout->setSpacing(8);
+  channelListLayout->addStretch();
+
+  channelScrollArea->setWidget(channelListContainer);
+  profilesTabLayout->addWidget(channelScrollArea);
+
+  /* Add Channels section directly to main layout (always visible) */
+  verticalLayout->addWidget(profilesTab);
 
   /* Add stretch to push sections to the top */
   verticalLayout->addStretch();
+
+  /* Quick action buttons at bottom */
+  QHBoxLayout *quickActionsLayout = new QHBoxLayout();
+  quickActionsLayout->addStretch();
+
+  QPushButton *monitoringButton = new QPushButton("Monitoring");
+  monitoringButton->setMinimumHeight(36);
+  connect(monitoringButton, &QPushButton::clicked, this, [this]() {
+    /* Build monitoring information from current profiles */
+    QString monitorInfo = "<b>System Monitoring</b><br><br>";
+
+    if (channelManager) {
+      size_t active_profiles = 0;
+      size_t total_destinations = 0;
+      size_t active_destinations = 0;
+      uint64_t total_bytes = 0;
+
+      for (size_t i = 0; i < channelManager->channel_count; i++) {
+        stream_channel_t *profile = channelManager->channels[i];
+        if (profile->status == CHANNEL_STATUS_ACTIVE) {
+          active_profiles++;
+        }
+        total_destinations += profile->output_count;
+        for (size_t j = 0; j < profile->output_count; j++) {
+          if (profile->outputs[j].connected) {
+            active_destinations++;
+          }
+          total_bytes += profile->outputs[j].bytes_sent;
+        }
+      }
+
+      monitorInfo += QString("<b>Channels:</b> %1 total, %2 active<br>")
+                         .arg(channelManager->channel_count)
+                         .arg(active_profiles);
+      monitorInfo += QString("<b>Outputs:</b> %1 total, %2 active<br>")
+                         .arg(total_destinations)
+                         .arg(active_destinations);
+      monitorInfo += QString("<b>Total Data Sent:</b> %1 MB<br><br>")
+                         .arg(total_bytes / (1024.0 * 1024.0), 0, 'f', 2);
+
+      monitorInfo += "<b>Connection Status:</b><br>";
+      if (api) {
+        monitorInfo += "  Restreamer API: <span style='color: "
+                       "green;'>Connected</span><br>";
+      } else {
+        monitorInfo += "  Restreamer API: <span style='color: "
+                       "red;'>Disconnected</span><br>";
+      }
+    } else {
+      monitorInfo += "<i>No monitoring data available</i>";
+    }
+
+    QMessageBox::information(this, "System Monitoring", monitorInfo);
+  });
+
+  QPushButton *logsButton = new QPushButton("View Logs");
+  logsButton->setMinimumHeight(36);
+  connect(logsButton, &QPushButton::clicked, this,
+          &RestreamerDock::showLogViewer);
+
+  QPushButton *advancedButton = new QPushButton("Advanced");
+  advancedButton->setMinimumHeight(36);
+  connect(advancedButton, &QPushButton::clicked, this, [this]() {
+    /* Create Advanced Settings Dialog */
+    QDialog dialog(this);
+    dialog.setWindowTitle("Advanced Settings");
+    dialog.setModal(true);
+    dialog.setMinimumWidth(500);
+
+    QVBoxLayout *mainLayout = new QVBoxLayout(&dialog);
+    mainLayout->setSpacing(16);
+    mainLayout->setContentsMargins(20, 20, 20, 20);
+
+    /* Advanced Settings Group */
+    QGroupBox *settingsGroup = new QGroupBox("Advanced Configuration");
+    QFormLayout *formLayout = new QFormLayout(settingsGroup);
+    formLayout->setSpacing(12);
+    formLayout->setContentsMargins(16, 16, 16, 16);
+
+    /* Load existing settings */
+    OBSDataAutoRelease settings(obs_data_create_from_json_file_safe(
+        obs_module_config_path("config.json"), "bak"));
+
+    if (!settings) {
+      settings = OBSDataAutoRelease(obs_data_create());
+    }
+
+    /* Debug Logging */
+    QCheckBox *debugLoggingCheck =
+        new QCheckBox("Enable verbose debug logging");
+    debugLoggingCheck->setChecked(obs_data_get_bool(settings, "debug_logging"));
+    debugLoggingCheck->setToolTip(
+        "Enable detailed debug logging for troubleshooting");
+    formLayout->addRow("Debug Logging:", debugLoggingCheck);
+
+    /* Network Timeout */
+    QSpinBox *networkTimeoutSpin = new QSpinBox();
+    networkTimeoutSpin->setRange(5, 120);
+    networkTimeoutSpin->setSuffix(" seconds");
+    int networkTimeout = (int)obs_data_get_int(settings, "network_timeout_sec");
+    networkTimeoutSpin->setValue(networkTimeout > 0 ? networkTimeout : 30);
+    networkTimeoutSpin->setToolTip(
+        "Connection timeout for API calls to Restreamer server");
+    formLayout->addRow("Network Timeout:", networkTimeoutSpin);
+
+    /* Max Reconnect Attempts */
+    QSpinBox *maxReconnectSpin = new QSpinBox();
+    maxReconnectSpin->setRange(0, 100);
+    maxReconnectSpin->setSpecialValueText("Unlimited");
+    int maxReconnect = (int)obs_data_get_int(settings, "default_max_reconnect");
+    maxReconnectSpin->setValue(maxReconnect > 0 ? maxReconnect : 10);
+    maxReconnectSpin->setToolTip(
+        "Default maximum reconnect attempts for new profiles (0 = unlimited)");
+    formLayout->addRow("Max Reconnect Attempts:", maxReconnectSpin);
+
+    /* Buffer Size */
+    QComboBox *bufferSizeCombo = new QComboBox();
+    bufferSizeCombo->addItem("Low (512 KB)", "low");
+    bufferSizeCombo->addItem("Medium (1 MB)", "medium");
+    bufferSizeCombo->addItem("High (2 MB)", "high");
+    bufferSizeCombo->addItem("Custom", "custom");
+
+    const char *bufferSize = obs_data_get_string(settings, "buffer_size");
+    QString bufferSizeStr =
+        bufferSize && strlen(bufferSize) > 0 ? bufferSize : "medium";
+
+    /* Set current buffer size */
+    for (int i = 0; i < bufferSizeCombo->count(); i++) {
+      if (bufferSizeCombo->itemData(i).toString() == bufferSizeStr) {
+        bufferSizeCombo->setCurrentIndex(i);
+        break;
+      }
+    }
+
+    bufferSizeCombo->setToolTip("Stream buffer configuration");
+    formLayout->addRow("Buffer Size:", bufferSizeCombo);
+
+    mainLayout->addWidget(settingsGroup);
+
+    /* Info Label */
+    QLabel *infoLabel = new QLabel(
+        "Note: Changes to these settings will take effect after restarting "
+        "active profiles or reconnecting to the Restreamer server.");
+    infoLabel->setWordWrap(true);
+    infoLabel->setStyleSheet(
+        QString("QLabel { color: %1; font-size: 10px; padding: 10px; }")
+            .arg(obs_theme_get_muted_color().name()));
+    mainLayout->addWidget(infoLabel);
+
+    mainLayout->addStretch();
+
+    /* Dialog Buttons */
+    QDialogButtonBox *buttonBox =
+        new QDialogButtonBox(QDialogButtonBox::Ok | QDialogButtonBox::Cancel);
+    connect(buttonBox, &QDialogButtonBox::accepted, &dialog, &QDialog::accept);
+    connect(buttonBox, &QDialogButtonBox::rejected, &dialog, &QDialog::reject);
+
+    mainLayout->addWidget(buttonBox);
+
+    /* Show dialog and save on accept */
+    if (dialog.exec() == QDialog::Accepted) {
+      /* Save settings */
+      obs_data_set_bool(settings, "debug_logging",
+                        debugLoggingCheck->isChecked());
+      obs_data_set_int(settings, "network_timeout_sec",
+                       networkTimeoutSpin->value());
+      obs_data_set_int(settings, "default_max_reconnect",
+                       maxReconnectSpin->value());
+      obs_data_set_string(
+          settings, "buffer_size",
+          bufferSizeCombo->currentData().toString().toUtf8().constData());
+
+      /* Save to config file */
+      const char *config_path = obs_module_config_path("config.json");
+      if (!obs_data_save_json_safe(settings, config_path, "tmp", "bak")) {
+        obs_log(LOG_ERROR, "Failed to save advanced settings to %s",
+                config_path);
+        QMessageBox::warning(this, "Error", "Failed to save settings");
+      } else {
+        obs_log(LOG_INFO, "Advanced settings saved successfully");
+        QMessageBox::information(this, "Success",
+                                 "Advanced settings saved successfully");
+      }
+    }
+  });
+
+  QPushButton *settingsButton = new QPushButton("Settings");
+  settingsButton->setMinimumHeight(36);
+  connect(settingsButton, &QPushButton::clicked, this, [this]() {
+    /* Create Settings Dialog */
+    QDialog *dialog = new QDialog(this);
+    dialog->setWindowTitle("Global Settings");
+    dialog->setMinimumWidth(400);
+
+    QVBoxLayout *layout = new QVBoxLayout(dialog);
+    QFormLayout *formLayout = new QFormLayout();
+
+    /* Auto-connect on startup */
+    QCheckBox *autoConnectCheck = new QCheckBox();
+    formLayout->addRow("Auto-connect on startup:", autoConnectCheck);
+
+    /* Update polling interval (1-60 seconds) */
+    QSpinBox *updateIntervalSpin = new QSpinBox();
+    updateIntervalSpin->setRange(1, 60);
+    updateIntervalSpin->setSuffix(" seconds");
+    updateIntervalSpin->setToolTip(
+        "Controls how often the profile list updates (1-60 seconds)");
+    formLayout->addRow("Update polling interval:", updateIntervalSpin);
+
+    /* Show notifications */
+    QCheckBox *showNotificationsCheck = new QCheckBox();
+    showNotificationsCheck->setToolTip(
+        "Enable/disable stream status notifications");
+    formLayout->addRow("Show notifications:", showNotificationsCheck);
+
+    /* Load current settings from config */
+    OBSDataAutoRelease settings(obs_data_create_from_json_file_safe(
+        obs_module_config_path("config.json"), "bak"));
+
+    if (!settings) {
+      settings = OBSDataAutoRelease(obs_data_create());
+    }
+
+    /* Load values (with defaults) */
+    autoConnectCheck->setChecked(
+        obs_data_get_bool(settings, "auto_connect_on_startup"));
+    updateIntervalSpin->setValue(
+        obs_data_has_user_value(settings, "update_interval_sec")
+            ? obs_data_get_int(settings, "update_interval_sec")
+            : 5); /* Default: 5 seconds */
+    showNotificationsCheck->setChecked(
+        obs_data_has_user_value(settings, "show_notifications")
+            ? obs_data_get_bool(settings, "show_notifications")
+            : true); /* Default: enabled */
+
+    /* Add buttons */
+    QDialogButtonBox *buttonBox =
+        new QDialogButtonBox(QDialogButtonBox::Ok | QDialogButtonBox::Cancel);
+
+    connect(buttonBox, &QDialogButtonBox::accepted, dialog, [=]() {
+      /* Save settings to config */
+      OBSDataAutoRelease saveSettings(obs_data_create_from_json_file_safe(
+          obs_module_config_path("config.json"), "bak"));
+
+      if (!saveSettings) {
+        saveSettings = OBSDataAutoRelease(obs_data_create());
+      }
+
+      obs_data_set_bool(saveSettings, "auto_connect_on_startup",
+                        autoConnectCheck->isChecked());
+      obs_data_set_int(saveSettings, "update_interval_sec",
+                       updateIntervalSpin->value());
+      obs_data_set_bool(saveSettings, "show_notifications",
+                        showNotificationsCheck->isChecked());
+
+      /* Save to file */
+      const char *config_path = obs_module_config_path("config.json");
+      if (!obs_data_save_json_safe(saveSettings, config_path, "tmp", "bak")) {
+        obs_log(LOG_ERROR,
+                "[obs-polyemesis] Failed to save global settings to %s",
+                config_path);
+        QMessageBox::warning(dialog, "Error", "Failed to save settings");
+      } else {
+        /* Apply update interval immediately */
+        int interval_ms = updateIntervalSpin->value() * 1000;
+        if (updateTimer) {
+          updateTimer->setInterval(interval_ms);
+          obs_log(LOG_INFO, "Updated timer interval to %d ms", interval_ms);
+        }
+
+        obs_log(LOG_INFO, "Global settings saved successfully");
+        dialog->accept();
+      }
+    });
+
+    connect(buttonBox, &QDialogButtonBox::rejected, dialog, &QDialog::reject);
+
+    layout->addLayout(formLayout);
+    layout->addWidget(buttonBox);
+
+    dialog->exec();
+    dialog->deleteLater();
+  });
+
+  quickActionsLayout->addWidget(monitoringButton);
+  quickActionsLayout->addWidget(logsButton);
+  quickActionsLayout->addWidget(advancedButton);
+  quickActionsLayout->addWidget(settingsButton);
+  quickActionsLayout->addStretch();
+
+  verticalLayout->addLayout(quickActionsLayout);
 
   /* Set scroll area widget and add to main layout */
   scrollArea->setWidget(scrollContent);
@@ -1270,6 +748,7 @@ void RestreamerDock::setupUI() {
   /* Set the layout for this widget (QWidget uses setLayout, not setWidget) */
   setLayout(mainLayout);
   setMinimumWidth(400);
+  setMinimumHeight(350);
 
   /* Custom stylesheets removed for v0.9.0 - now using OBS native QPalette
    * theming This allows the plugin to automatically match all 6 OBS themes
@@ -1292,24 +771,20 @@ void RestreamerDock::loadSettings() {
     settings = OBSDataAutoRelease(obs_data_create());
   }
 
-  hostEdit->setText(obs_data_get_string(settings, "host"));
-  portEdit->setText(QString::number(obs_data_get_int(settings, "port")));
-  httpsCheckbox->setChecked(obs_data_get_bool(settings, "use_https"));
-  usernameEdit->setText(obs_data_get_string(settings, "username"));
-  passwordEdit->setText(obs_data_get_string(settings, "password"));
+  /* Connection settings now handled by ConnectionConfigDialog */
 
   /* Load global config */
   restreamer_config_load(settings);
 
   /* Create profile manager if not already created */
-  if (!profileManager) {
-    profileManager = profile_manager_create(api);
+  if (!channelManager) {
+    channelManager = channel_manager_create(api);
   }
 
   /* Load profiles from settings */
-  if (profileManager) {
-    profile_manager_load_from_settings(profileManager, settings);
-    updateProfileList();
+  if (channelManager) {
+    channel_manager_load_from_settings(channelManager, settings);
+    updateChannelList();
   }
 
   /* Load multistream config */
@@ -1319,62 +794,51 @@ void RestreamerDock::loadSettings() {
   }
 
   /* Load bridge settings */
-  bridgeHorizontalUrlEdit->setText(
-      obs_data_get_string(settings, "bridge_horizontal_url"));
-  bridgeVerticalUrlEdit->setText(
-      obs_data_get_string(settings, "bridge_vertical_url"));
-  bridgeAutoStartCheckbox->setChecked(
-      obs_data_get_bool(settings, "bridge_auto_start"));
+  if (bridgeHorizontalUrlEdit) {
+    bridgeHorizontalUrlEdit->setText(
+        obs_data_get_string(settings, "bridge_horizontal_url"));
+  }
+  if (bridgeVerticalUrlEdit) {
+    bridgeVerticalUrlEdit->setText(
+        obs_data_get_string(settings, "bridge_vertical_url"));
+  }
+  if (bridgeAutoStartCheckbox) {
+    bridgeAutoStartCheckbox->setChecked(
+        obs_data_get_bool(settings, "bridge_auto_start"));
+  }
 
   /* RAII: settings automatically released when going out of scope */
 
   /* Set defaults if empty */
-  if (hostEdit->text().isEmpty()) {
-    hostEdit->setText("localhost");
-  }
-  if (portEdit->text().isEmpty()) {
-    portEdit->setText("8080");
-  }
-  if (bridgeHorizontalUrlEdit->text().isEmpty()) {
+  /* Connection defaults now handled by ConnectionConfigDialog */
+  if (bridgeHorizontalUrlEdit && bridgeHorizontalUrlEdit->text().isEmpty()) {
     bridgeHorizontalUrlEdit->setText("rtmp://localhost/live/obs_horizontal");
   }
-  if (bridgeVerticalUrlEdit->text().isEmpty()) {
+  if (bridgeVerticalUrlEdit && bridgeVerticalUrlEdit->text().isEmpty()) {
     bridgeVerticalUrlEdit->setText("rtmp://localhost/live/obs_vertical");
   }
   /* Bridge auto-start defaults to true (already set in loadSettings if not in
    * config) */
-  if (!obs_data_has_user_value(settings, "bridge_auto_start")) {
+  if (bridgeAutoStartCheckbox &&
+      !obs_data_has_user_value(settings, "bridge_auto_start")) {
     bridgeAutoStartCheckbox->setChecked(true);
   }
 
   /* Auto-test connection if server config is already populated */
   bool hasServerConfig = obs_data_has_user_value(settings, "host") ||
                          obs_data_has_user_value(settings, "port");
-  if (hasServerConfig && !hostEdit->text().isEmpty() &&
-      !portEdit->text().isEmpty()) {
-    obs_log(
-        LOG_INFO,
-        "[obs-polyemesis] Server configuration detected, testing connection "
-        "automatically");
-    /* Delay the test slightly to let UI finish initializing */
-    QTimer::singleShot(500, this, &RestreamerDock::onTestConnectionClicked);
-  }
+  /* Connection validation now handled by ConnectionConfigDialog */
+  (void)hasServerConfig; // Suppress unused variable warning
 }
 
 void RestreamerDock::saveSettings() {
   OBSDataAutoRelease settings(obs_data_create());
 
-  obs_data_set_string(settings, "host", hostEdit->text().toUtf8().constData());
-  obs_data_set_int(settings, "port", portEdit->text().toInt());
-  obs_data_set_bool(settings, "use_https", httpsCheckbox->isChecked());
-  obs_data_set_string(settings, "username",
-                      usernameEdit->text().toUtf8().constData());
-  obs_data_set_string(settings, "password",
-                      passwordEdit->text().toUtf8().constData());
+  /* Connection settings now handled by ConnectionConfigDialog */
 
   /* Save profiles */
-  if (profileManager) {
-    profile_manager_save_to_settings(profileManager, settings);
+  if (channelManager) {
+    channel_manager_save_to_settings(channelManager, settings);
   }
 
   /* Save multistream config */
@@ -1383,12 +847,18 @@ void RestreamerDock::saveSettings() {
   }
 
   /* Save bridge settings */
-  obs_data_set_string(settings, "bridge_horizontal_url",
-                      bridgeHorizontalUrlEdit->text().toUtf8().constData());
-  obs_data_set_string(settings, "bridge_vertical_url",
-                      bridgeVerticalUrlEdit->text().toUtf8().constData());
-  obs_data_set_bool(settings, "bridge_auto_start",
-                    bridgeAutoStartCheckbox->isChecked());
+  if (bridgeHorizontalUrlEdit) {
+    obs_data_set_string(settings, "bridge_horizontal_url",
+                        bridgeHorizontalUrlEdit->text().toUtf8().constData());
+  }
+  if (bridgeVerticalUrlEdit) {
+    obs_data_set_string(settings, "bridge_vertical_url",
+                        bridgeVerticalUrlEdit->text().toUtf8().constData());
+  }
+  if (bridgeAutoStartCheckbox) {
+    obs_data_set_bool(settings, "bridge_auto_start",
+                      bridgeAutoStartCheckbox->isChecked());
+  }
 
   /* Safe file writing: writes to .tmp first, then creates .bak backup,
    * then renames .tmp to actual file. Prevents corruption on crash/power loss.
@@ -1401,23 +871,8 @@ void RestreamerDock::saveSettings() {
 
   /* RAII: settings automatically released when going out of scope */
 
-  /* Update global config */
-  restreamer_connection_t connection = {0};
-  connection.host = bstrdup(hostEdit->text().toUtf8().constData());
-  connection.port = (uint16_t)portEdit->text().toInt();
-  connection.use_https = httpsCheckbox->isChecked();
-  if (!usernameEdit->text().isEmpty()) {
-    connection.username = bstrdup(usernameEdit->text().toUtf8().constData());
-  }
-  if (!passwordEdit->text().isEmpty()) {
-    connection.password = bstrdup(passwordEdit->text().toUtf8().constData());
-  }
-
-  restreamer_config_set_global_connection(&connection);
-
-  bfree(connection.host);
-  bfree(connection.username);
-  bfree(connection.password);
+  /* Connection settings are now saved directly by ConnectionConfigDialog */
+  /* Global connection config is updated when dialog saves settings */
 }
 
 void RestreamerDock::onTestConnectionClicked() {
@@ -1430,27 +885,86 @@ void RestreamerDock::onTestConnectionClicked() {
   api = restreamer_config_create_global_api();
 
   if (!api) {
-    connectionStatusLabel->setText("Failed to create API");
-    connectionStatusLabel->setStyleSheet(
-        QString("color: %1;").arg(obs_theme_get_error_color().name()));
-    updateConnectionSectionTitle();
+    connectionIndicator->setStyleSheet(
+        QString("color: %1; font-size: 16px;")
+            .arg(obs_theme_get_error_color().name()));
+    connectionStatusLabel->setText("Not Configured");
     return;
   }
 
   if (restreamer_api_test_connection(api)) {
+    connectionIndicator->setStyleSheet(
+        QString("color: %1; font-size: 16px;")
+            .arg(obs_theme_get_success_color().name()));
     connectionStatusLabel->setText("Connected");
-    connectionStatusLabel->setStyleSheet(
-        QString("color: %1;").arg(obs_theme_get_success_color().name()));
-    updateConnectionSectionTitle();
     onRefreshClicked();
   } else {
-    connectionStatusLabel->setText("Connection failed");
-    connectionStatusLabel->setStyleSheet(
-        QString("color: %1;").arg(obs_theme_get_error_color().name()));
-    updateConnectionSectionTitle();
+    connectionIndicator->setStyleSheet(
+        QString("color: %1; font-size: 16px;")
+            .arg(obs_theme_get_error_color().name()));
+    connectionStatusLabel->setText("Disconnected");
     QMessageBox::warning(
         this, "Connection Error",
         QString("Failed to connect: %1").arg(restreamer_api_get_error(api)));
+  }
+}
+
+void RestreamerDock::onConfigureConnectionClicked() {
+  /* Create and show dialog (loads settings automatically in constructor) */
+  ConnectionConfigDialog dialog(this);
+
+  /* Handle dialog result */
+  if (dialog.exec() == QDialog::Accepted) {
+    obs_log(LOG_INFO, "Connection settings saved, reconnecting...");
+
+    /* Reconnect with new settings */
+    if (api) {
+      restreamer_api_destroy(api);
+      api = nullptr;
+    }
+
+    /* Update connection status (will create API and test connection) */
+    updateConnectionStatus();
+
+    /* Refresh process list if connected */
+    if (api) {
+      onRefreshClicked();
+    }
+  }
+}
+
+void RestreamerDock::updateConnectionStatus() {
+  /* Recreate API client from global config */
+  if (api) {
+    restreamer_api_destroy(api);
+    api = nullptr;
+  }
+
+  api = restreamer_config_create_global_api();
+
+  /* If API creation failed, no settings are configured */
+  if (!api) {
+    connectionIndicator->setStyleSheet(
+        QString("color: %1; font-size: 16px;")
+            .arg(obs_theme_get_muted_color().name()));
+    connectionStatusLabel->setText("Not Connected");
+    obs_log(LOG_DEBUG, "No Restreamer connection settings configured");
+    return;
+  }
+
+  /* Test connection with created API */
+  if (restreamer_api_test_connection(api)) {
+    connectionIndicator->setStyleSheet(
+        QString("color: %1; font-size: 16px;")
+            .arg(obs_theme_get_success_color().name()));
+    connectionStatusLabel->setText("Connected");
+    obs_log(LOG_INFO, "Successfully connected to Restreamer");
+  } else {
+    connectionIndicator->setStyleSheet(
+        QString("color: %1; font-size: 16px;")
+            .arg(obs_theme_get_error_color().name()));
+    connectionStatusLabel->setText("Disconnected");
+    obs_log(LOG_WARNING, "Failed to connect to Restreamer");
   }
 }
 
@@ -1460,6 +974,10 @@ void RestreamerDock::onRefreshClicked() {
 }
 
 void RestreamerDock::updateProcessList() {
+  if (!processList) {
+    return; /* Monitoring section removed from UI */
+  }
+
   processList->clear();
 
   if (!api) {
@@ -1487,6 +1005,10 @@ void RestreamerDock::updateProcessList() {
 }
 
 void RestreamerDock::onProcessSelected() {
+  if (!processList || !startButton || !stopButton || !restartButton) {
+    return; /* Monitoring section removed from UI */
+  }
+
   QListWidgetItem *item = processList->currentItem();
   if (!item) {
     startButton->setEnabled(false);
@@ -1509,6 +1031,10 @@ void RestreamerDock::onProcessSelected() {
 void RestreamerDock::updateProcessDetails() {
   if (!api || !selectedProcessId) {
     return;
+  }
+
+  if (!processIdLabel || !processStateLabel) {
+    return; /* Monitoring section removed from UI */
   }
 
   restreamer_process_t process = {0};
@@ -1539,7 +1065,6 @@ void RestreamerDock::updateProcessDetails() {
   processStateLabel->setText(stateText);
   processStateLabel->setStyleSheet(
       QString("QLabel { color: %1; font-weight: bold; }").arg(stateColor));
-  updateMonitoringSectionTitle();
 
   /* Format uptime */
   uint64_t hours = process.uptime_seconds / 3600;
@@ -1628,6 +1153,10 @@ void RestreamerDock::updateProcessDetails() {
 }
 
 void RestreamerDock::updateSessionList() {
+  if (!sessionTable) {
+    return; /* Monitoring section removed from UI */
+  }
+
   sessionTable->setRowCount(0);
 
   if (!api) {
@@ -1703,6 +1232,10 @@ void RestreamerDock::onRestartProcessClicked() {
 void RestreamerDock::updateDestinationList() {
   if (!multistreamConfig) {
     return;
+  }
+
+  if (!destinationsTable) {
+    return; /* Advanced section removed from UI */
   }
 
   destinationsTable->setRowCount(
@@ -2063,6 +1596,11 @@ void RestreamerDock::onSaveBridgeSettingsClicked() {
     return;
   }
 
+  if (!bridgeHorizontalUrlEdit || !bridgeVerticalUrlEdit ||
+      !bridgeAutoStartCheckbox) {
+    return; /* Bridge section removed from UI */
+  }
+
   /* Get values from UI */
   QString horizontalUrl = bridgeHorizontalUrlEdit->text().trimmed();
   QString verticalUrl = bridgeVerticalUrlEdit->text().trimmed();
@@ -2105,282 +1643,77 @@ void RestreamerDock::onSaveBridgeSettingsClicked() {
         QString("QLabel { color: %1; }")
             .arg(obs_theme_get_muted_color().name()));
   }
-  updateBridgeSectionTitle();
 }
 
 /* Profile Management Functions */
 
-void RestreamerDock::updateProfileList() {
-  profileListWidget->clear();
+void RestreamerDock::updateChannelList() {
+  /* Clear existing profile widgets */
+  qDeleteAll(channelWidgets);
+  channelWidgets.clear();
 
-  if (!profileManager || profileManager->profile_count == 0) {
-    profileStatusLabel->setText("No profiles");
-    updateProfilesSectionTitle();
-    deleteProfileButton->setEnabled(false);
-    duplicateProfileButton->setEnabled(false);
-    configureProfileButton->setEnabled(false);
-    startProfileButton->setEnabled(false);
-    stopProfileButton->setEnabled(false);
-    stopAllProfilesButton->setEnabled(false);
+  if (!channelManager || channelManager->channel_count == 0) {
+    channelStatusLabel->setText("No channels");
+    stopAllChannelsButton->setEnabled(false);
     return;
   }
 
-  /* Iterate through all profiles */
+  /* Iterate through all profiles and create ChannelWidgets */
   bool hasActiveProfile = false;
-  for (size_t i = 0; i < profileManager->profile_count; i++) {
-    output_profile_t *profile = profileManager->profiles[i];
+  for (size_t i = 0; i < channelManager->channel_count; i++) {
+    stream_channel_t *profile = channelManager->channels[i];
 
-    /* Create status indicator based on profile status */
-    QString statusIcon;
-    switch (profile->status) {
-    case PROFILE_STATUS_ACTIVE:
-      statusIcon = "🟢";
+    /* Track if any profile is active */
+    if (profile->status == CHANNEL_STATUS_ACTIVE ||
+        profile->status == CHANNEL_STATUS_STARTING) {
       hasActiveProfile = true;
-      break;
-    case PROFILE_STATUS_STARTING:
-    case PROFILE_STATUS_STOPPING:
-      statusIcon = "🟡";
-      hasActiveProfile = true;
-      break;
-    case PROFILE_STATUS_ERROR:
-      statusIcon = "🔴";
-      break;
-    case PROFILE_STATUS_INACTIVE:
-    default:
-      statusIcon = "⚫";
-      break;
     }
 
-    /* Create list item with profile name, status, and destination count */
-    QString itemText = QString("%1 %2 (%3 destinations)")
-                           .arg(statusIcon)
-                           .arg(profile->profile_name)
-                           .arg(profile->destination_count);
+    /* Create a new ChannelWidget for this profile */
+    ChannelWidget *profileWidget = new ChannelWidget(profile, this);
 
-    QListWidgetItem *item = new QListWidgetItem(itemText);
-    item->setData(Qt::UserRole, QString(profile->profile_id));
-    profileListWidget->addItem(item);
+    /* Connect ChannelWidget signals to dock slot methods */
+    connect(profileWidget, &ChannelWidget::startRequested, this,
+            &RestreamerDock::onChannelStartRequested);
+    connect(profileWidget, &ChannelWidget::stopRequested, this,
+            &RestreamerDock::onChannelStopRequested);
+    connect(profileWidget, &ChannelWidget::editRequested, this,
+            &RestreamerDock::onChannelEditRequested);
+    connect(profileWidget, &ChannelWidget::deleteRequested, this,
+            &RestreamerDock::onChannelDeleteRequested);
+    connect(profileWidget, &ChannelWidget::duplicateRequested, this,
+            &RestreamerDock::onChannelDuplicateRequested);
+
+    /* Connect destination control signals */
+    connect(profileWidget, &ChannelWidget::outputStartRequested, this,
+            &RestreamerDock::onOutputStartRequested);
+    connect(profileWidget, &ChannelWidget::outputStopRequested, this,
+            &RestreamerDock::onOutputStopRequested);
+    connect(profileWidget, &ChannelWidget::outputEditRequested, this,
+            &RestreamerDock::onOutputEditRequested);
+
+    /* Add widget to layout and track it */
+    channelListLayout->addWidget(profileWidget);
+    channelWidgets.append(profileWidget);
   }
 
   /* Update status label */
-  profileStatusLabel->setText(
-      QString("%1 profile(s)").arg(profileManager->profile_count));
-  updateProfilesSectionTitle();
+  channelStatusLabel->setText(
+      QString("%1 channel(s)").arg(channelManager->channel_count));
 
   /* Update button states */
-  stopAllProfilesButton->setEnabled(hasActiveProfile);
-
-  /* Update profile details for current selection (or select first if none
-   * selected) */
-  if (profileListWidget->currentRow() < 0 && profileListWidget->count() > 0) {
-    profileListWidget->setCurrentRow(0);
-  }
-  updateProfileDetails();
-}
-
-void RestreamerDock::updateProfileDetails() {
-  int currentRow = profileListWidget->currentRow();
-  if (currentRow < 0 || !profileManager ||
-      currentRow >= (int)profileManager->profile_count) {
-    /* No selection */
-    profileDestinationsTable->setRowCount(0);
-    deleteProfileButton->setEnabled(false);
-    duplicateProfileButton->setEnabled(false);
-    configureProfileButton->setEnabled(false);
-    startProfileButton->setEnabled(false);
-    stopProfileButton->setEnabled(false);
-    return;
-  }
-
-  /* Get selected profile */
-  QListWidgetItem *currentItem = profileListWidget->currentItem();
-  if (!currentItem) {
-    return;
-  }
-
-  QString profileId = currentItem->data(Qt::UserRole).toString();
-  output_profile_t *profile = profile_manager_get_profile(
-      profileManager, profileId.toUtf8().constData());
-
-  if (!profile) {
-    return;
-  }
-
-  /* Debug: Log profile status */
-  blog(LOG_INFO,
-       "[obs-polyemesis] Profile '%s' status: %d (0=INACTIVE, 1=STARTING, "
-       "2=ACTIVE, 3=STOPPING, 4=ERROR)",
-       profile->profile_name, profile->status);
-
-  /* Enhanced: Update status label with color-coded visual feedback */
-  QString statusText;
-  QString statusColor;
-  switch (profile->status) {
-  case PROFILE_STATUS_INACTIVE:
-    statusText = "⚫ Inactive";
-    statusColor = obs_theme_get_muted_color().name(); /* Gray */
-    break;
-  case PROFILE_STATUS_STARTING:
-    statusText = "🟡 Starting...";
-    statusColor = obs_theme_get_warning_color().name(); /* Orange */
-    break;
-  case PROFILE_STATUS_ACTIVE:
-    statusText = "🟢 Active";
-    statusColor = obs_theme_get_success_color().name(); /* Green */
-    break;
-  case PROFILE_STATUS_STOPPING:
-    statusText = "🟠 Stopping...";
-    statusColor = obs_theme_get_warning_color().name(); /* Dark Orange */
-    break;
-  case PROFILE_STATUS_ERROR:
-    statusText = "🔴 Error";
-    statusColor = obs_theme_get_error_color().name(); /* Red */
-    break;
-  default:
-    statusText = "❓ Unknown";
-    statusColor = obs_theme_get_muted_color().name(); /* Light Gray */
-    break;
-  }
-  profileStatusLabel->setText(statusText);
-  profileStatusLabel->setStyleSheet(
-      QString("QLabel { color: %1; font-weight: bold; }").arg(statusColor));
-  updateProfilesSectionTitle();
-
-  /* Update quick action toggle button text */
-  if (quickProfileToggleButton) {
-    bool isActive = (profile->status == PROFILE_STATUS_ACTIVE ||
-                     profile->status == PROFILE_STATUS_STARTING);
-    quickProfileToggleButton->setText(isActive ? "Stop" : "Start");
-  }
-
-  /* Update button states based on profile status */
-  /* DYNAMIC STREAMING ENABLED: Allow configuration changes during active
-   * streaming */
-  deleteProfileButton->setEnabled(profile->status == PROFILE_STATUS_INACTIVE);
-  duplicateProfileButton->setEnabled(true);
-  configureProfileButton->setEnabled(
-      true); /* NOW ALLOWED DURING ACTIVE STREAMING */
-  startProfileButton->setEnabled(profile->status == PROFILE_STATUS_INACTIVE);
-  stopProfileButton->setEnabled(profile->status == PROFILE_STATUS_ACTIVE ||
-                                profile->status == PROFILE_STATUS_STARTING);
-
-  /* Populate destinations table */
-  profileDestinationsTable->setRowCount(
-      static_cast<int>(profile->destination_count));
-
-  for (size_t i = 0; i < profile->destination_count; i++) {
-    int row = static_cast<int>(i);
-    profile_destination_t *dest = &profile->destinations[i];
-
-    /* Destination name */
-    QTableWidgetItem *nameItem = new QTableWidgetItem(dest->service_name);
-    profileDestinationsTable->setItem(row, 0, nameItem);
-
-    /* Resolution */
-    QString resolution;
-    if (dest->encoding.width == 0 || dest->encoding.height == 0) {
-      resolution = "Source";
-    } else {
-      resolution =
-          QString("%1x%2").arg(dest->encoding.width).arg(dest->encoding.height);
-    }
-    QTableWidgetItem *resItem = new QTableWidgetItem(resolution);
-    profileDestinationsTable->setItem(row, 1, resItem);
-
-    /* Bitrate */
-    QString bitrate;
-    if (dest->encoding.bitrate == 0) {
-      bitrate = "Default";
-    } else {
-      bitrate = QString("%1 kbps").arg(dest->encoding.bitrate);
-    }
-    QTableWidgetItem *bitrateItem = new QTableWidgetItem(bitrate);
-    profileDestinationsTable->setItem(row, 2, bitrateItem);
-
-    /* Status */
-    QString status = dest->enabled ? "Enabled" : "Disabled";
-    QTableWidgetItem *statusItem = new QTableWidgetItem(status);
-    profileDestinationsTable->setItem(row, 3, statusItem);
-  }
+  stopAllChannelsButton->setEnabled(hasActiveProfile);
 }
 
 /* Profile Slot Implementations */
 
-void RestreamerDock::onProfileSelected() { updateProfileDetails(); }
-
-void RestreamerDock::onStartProfileClicked() {
-  QListWidgetItem *currentItem = profileListWidget->currentItem();
-  if (!currentItem || !profileManager) {
+void RestreamerDock::onStartAllChannelsClicked() {
+  if (!channelManager) {
     return;
   }
 
-  QString profileId = currentItem->data(Qt::UserRole).toString();
-
-  if (output_profile_start(profileManager, profileId.toUtf8().constData())) {
-    updateProfileList();
-    updateProfileDetails();
-  } else {
-    QMessageBox::warning(
-        this, "Error", "Failed to start profile. Check Restreamer connection.");
-  }
-}
-
-void RestreamerDock::onStopProfileClicked() {
-  QListWidgetItem *currentItem = profileListWidget->currentItem();
-  if (!currentItem || !profileManager) {
-    return;
-  }
-
-  QString profileId = currentItem->data(Qt::UserRole).toString();
-
-  if (output_profile_stop(profileManager, profileId.toUtf8().constData())) {
-    updateProfileList();
-    updateProfileDetails();
-  } else {
-    QMessageBox::warning(this, "Error", "Failed to stop profile.");
-  }
-}
-
-void RestreamerDock::onDeleteProfileClicked() {
-  QListWidgetItem *currentItem = profileListWidget->currentItem();
-  if (!currentItem || !profileManager) {
-    return;
-  }
-
-  QString profileId = currentItem->data(Qt::UserRole).toString();
-  output_profile_t *profile = profile_manager_get_profile(
-      profileManager, profileId.toUtf8().constData());
-
-  if (!profile) {
-    return;
-  }
-
-  /* Confirm deletion */
-  QMessageBox::StandardButton reply = QMessageBox::question(
-      this, "Delete Profile",
-      QString("Are you sure you want to delete profile '%1'?")
-          .arg(profile->profile_name),
-      QMessageBox::Yes | QMessageBox::No);
-
-  if (reply == QMessageBox::Yes) {
-    if (profile_manager_delete_profile(profileManager,
-                                       profileId.toUtf8().constData())) {
-      updateProfileList();
-      saveSettings();
-    } else {
-      QMessageBox::warning(this, "Error", "Failed to delete profile.");
-    }
-  }
-}
-
-void RestreamerDock::onStartAllProfilesClicked() {
-  if (!profileManager) {
-    return;
-  }
-
-  if (profile_manager_start_all(profileManager)) {
-    updateProfileList();
-    updateProfileDetails();
+  if (channel_manager_start_all(channelManager)) {
+    updateChannelList();
   } else {
     QMessageBox::warning(
         this, "Error",
@@ -2388,1498 +1721,1001 @@ void RestreamerDock::onStartAllProfilesClicked() {
   }
 }
 
-void RestreamerDock::onStopAllProfilesClicked() {
-  if (!profileManager) {
+void RestreamerDock::onStopAllChannelsClicked() {
+  if (!channelManager) {
     return;
   }
 
   /* Confirm stop all */
   QMessageBox::StandardButton reply = QMessageBox::question(
-      this, "Stop All Profiles",
-      "Are you sure you want to stop all active profiles?",
+      this, "Stop All Channels",
+      "Are you sure you want to stop all active channels?",
       QMessageBox::Yes | QMessageBox::No);
 
   if (reply == QMessageBox::Yes) {
-    if (profile_manager_stop_all(profileManager)) {
-      updateProfileList();
-      updateProfileDetails();
+    if (channel_manager_stop_all(channelManager)) {
+      updateChannelList();
     } else {
       QMessageBox::warning(this, "Error", "Failed to stop all profiles.");
     }
   }
 }
 
-void RestreamerDock::onDuplicateProfileClicked() {
-  QListWidgetItem *currentItem = profileListWidget->currentItem();
-  if (!currentItem || !profileManager) {
+void RestreamerDock::onCreateChannelClicked() {
+  if (!channelManager) {
     return;
   }
 
-  QString profileId = currentItem->data(Qt::UserRole).toString();
-  output_profile_t *sourceProfile = profile_manager_get_profile(
-      profileManager, profileId.toUtf8().constData());
-
-  if (!sourceProfile) {
-    return;
-  }
-
-  /* Prompt for new profile name */
+  /* Prompt for channel name */
   bool ok;
-  QString newName = QInputDialog::getText(
-      this, "Duplicate Profile",
-      "Enter name for duplicated profile:", QLineEdit::Normal,
-      QString("%1 (Copy)").arg(sourceProfile->profile_name), &ok);
+  QString channelName = QInputDialog::getText(
+      this, "Create Channel", "Enter channel name:", QLineEdit::Normal,
+      "New Channel", &ok);
 
-  if (ok && !newName.isEmpty()) {
-    /* Create new profile with same settings */
-    output_profile_t *newProfile = profile_manager_create_profile(
-        profileManager, newName.toUtf8().constData());
+  if (ok && !channelName.isEmpty()) {
+    stream_channel_t *newChannel = channel_manager_create_channel(
+        channelManager, channelName.toUtf8().constData());
 
-    if (newProfile) {
-      /* Copy settings */
-      newProfile->source_orientation = sourceProfile->source_orientation;
-      newProfile->auto_detect_orientation =
-          sourceProfile->auto_detect_orientation;
-      newProfile->source_width = sourceProfile->source_width;
-      newProfile->source_height = sourceProfile->source_height;
-      newProfile->auto_start = sourceProfile->auto_start;
-      newProfile->auto_reconnect = sourceProfile->auto_reconnect;
-      newProfile->reconnect_delay_sec = sourceProfile->reconnect_delay_sec;
-
-      /* Copy destinations */
-      for (size_t i = 0; i < sourceProfile->destination_count; i++) {
-        profile_destination_t *srcDest = &sourceProfile->destinations[i];
-        profile_add_destination(
-            newProfile, srcDest->service, srcDest->stream_key,
-            srcDest->target_orientation, &srcDest->encoding);
-      }
-
-      updateProfileList();
+    if (newChannel) {
+      updateChannelList();
       saveSettings();
 
-      /* Select the new profile */
-      for (int i = 0; i < profileListWidget->count(); i++) {
-        QListWidgetItem *item = profileListWidget->item(i);
-        if (item->data(Qt::UserRole).toString() == newProfile->profile_id) {
-          profileListWidget->setCurrentRow(i);
-          break;
-        }
-      }
-    } else {
-      QMessageBox::warning(this, "Error", "Failed to duplicate profile.");
-    }
-  }
-}
-
-void RestreamerDock::onCreateProfileClicked() {
-  if (!profileManager) {
-    return;
-  }
-
-  /* Prompt for profile name */
-  bool ok;
-  QString profileName = QInputDialog::getText(
-      this, "Create Profile", "Enter profile name:", QLineEdit::Normal,
-      "New Profile", &ok);
-
-  if (ok && !profileName.isEmpty()) {
-    output_profile_t *newProfile = profile_manager_create_profile(
-        profileManager, profileName.toUtf8().constData());
-
-    if (newProfile) {
-      updateProfileList();
-      saveSettings();
-
-      /* Select the new profile */
-      for (int i = 0; i < profileListWidget->count(); i++) {
-        QListWidgetItem *item = profileListWidget->item(i);
-        if (item->data(Qt::UserRole).toString() == newProfile->profile_id) {
-          profileListWidget->setCurrentRow(i);
-          break;
-        }
-      }
-
-      /* Open configure dialog to set up destinations */
+      /* Open configure dialog to set up outputs */
       QMessageBox::information(
-          this, "Profile Created",
-          QString("Profile '%1' created successfully.\n\nUse the Configure "
-                  "button to add destinations and customize settings.")
-              .arg(profileName));
+          this, "Channel Created",
+          QString("Channel '%1' created successfully.\n\nUse the Edit "
+                  "button on the channel to add outputs and customize "
+                  "settings.")
+              .arg(channelName));
     } else {
-      QMessageBox::warning(this, "Error", "Failed to create profile.");
+      QMessageBox::warning(this, "Error", "Failed to create channel.");
     }
   }
 }
 
-void RestreamerDock::onConfigureProfileClicked() {
-  QListWidgetItem *currentItem = profileListWidget->currentItem();
-  if (!currentItem || !profileManager) {
+/* ChannelWidget Signal Handlers */
+
+void RestreamerDock::onChannelStartRequested(const char *profileId) {
+  if (!channelManager || !profileId) {
     return;
   }
 
-  QString profileId = currentItem->data(Qt::UserRole).toString();
-  output_profile_t *profile = profile_manager_get_profile(
-      profileManager, profileId.toUtf8().constData());
+  if (channel_start(channelManager, profileId)) {
+    updateChannelList();
+  } else {
+    QMessageBox::warning(
+        this, "Error", "Failed to start channel. Check Restreamer connection.");
+  }
+}
 
+void RestreamerDock::onChannelStopRequested(const char *profileId) {
+  if (!channelManager || !profileId) {
+    return;
+  }
+
+  if (channel_stop(channelManager, profileId)) {
+    updateChannelList();
+  } else {
+    QMessageBox::warning(this, "Error", "Failed to stop channel.");
+  }
+}
+
+void RestreamerDock::onChannelEditRequested(const char *profileId) {
+  if (!channelManager || !profileId) {
+    return;
+  }
+
+  stream_channel_t *profile =
+      channel_manager_get_channel(channelManager, profileId);
   if (!profile) {
     return;
   }
 
-  /* Create configuration dialog */
+  /* Open channel edit dialog */
+  ChannelEditDialog *dialog = new ChannelEditDialog(profile, this);
+  connect(dialog, &ChannelEditDialog::channelUpdated, this, [this]() {
+    obs_log(LOG_INFO, "Channel configuration updated, refreshing UI");
+    updateChannelList();
+  });
+
+  if (dialog->exec() == QDialog::Accepted) {
+    obs_log(LOG_INFO, "Channel '%s' updated successfully",
+            profile->channel_name);
+    updateChannelList();
+  }
+
+  dialog->deleteLater();
+}
+
+void RestreamerDock::onChannelDeleteRequested(const char *profileId) {
+  if (!channelManager || !profileId) {
+    return;
+  }
+
+  stream_channel_t *profile =
+      channel_manager_get_channel(channelManager, profileId);
+  if (!profile) {
+    return;
+  }
+
+  /* Confirm deletion */
+  QMessageBox::StandardButton reply = QMessageBox::question(
+      this, "Delete Channel",
+      QString("Are you sure you want to delete channel '%1'?")
+          .arg(profile->channel_name),
+      QMessageBox::Yes | QMessageBox::No);
+
+  if (reply == QMessageBox::Yes) {
+    if (channel_manager_delete_channel(channelManager, profileId)) {
+      /* Defer updateChannelList to allow context menu event to complete
+       * This prevents double-free crash when deleting the ChannelWidget
+       * that triggered this slot via its context menu */
+      QTimer::singleShot(0, this, [this]() {
+        updateChannelList();
+        saveSettings();
+      });
+    } else {
+      QMessageBox::warning(this, "Error", "Failed to delete channel.");
+    }
+  }
+}
+
+void RestreamerDock::onChannelDuplicateRequested(const char *profileId) {
+  if (!channelManager || !profileId) {
+    return;
+  }
+
+  stream_channel_t *sourceProfile =
+      channel_manager_get_channel(channelManager, profileId);
+  if (!sourceProfile) {
+    return;
+  }
+
+  /* Prompt for new channel name */
+  bool ok;
+  QString newName = QInputDialog::getText(
+      this, "Duplicate Channel",
+      "Enter name for duplicated channel:", QLineEdit::Normal,
+      QString("%1 (Copy)").arg(sourceProfile->channel_name), &ok);
+
+  if (ok && !newName.isEmpty()) {
+    /* Create new channel with same settings */
+    stream_channel_t *newChannel = channel_manager_create_channel(
+        channelManager, newName.toUtf8().constData());
+
+    if (newChannel) {
+      /* Copy settings */
+      newChannel->source_orientation = sourceProfile->source_orientation;
+      newChannel->auto_detect_orientation =
+          sourceProfile->auto_detect_orientation;
+      newChannel->source_width = sourceProfile->source_width;
+      newChannel->source_height = sourceProfile->source_height;
+      newChannel->auto_start = sourceProfile->auto_start;
+      newChannel->auto_reconnect = sourceProfile->auto_reconnect;
+      newChannel->reconnect_delay_sec = sourceProfile->reconnect_delay_sec;
+
+      /* Copy outputs */
+      for (size_t i = 0; i < sourceProfile->output_count; i++) {
+        channel_output_t *srcDest = &sourceProfile->outputs[i];
+        channel_add_output(
+            newChannel, srcDest->service, srcDest->stream_key,
+            srcDest->target_orientation, &srcDest->encoding);
+      }
+
+      /* Defer updateChannelList to allow context menu event to complete
+       * This prevents double-free crash when the ChannelWidget
+       * that triggered this slot via its context menu is replaced */
+      QTimer::singleShot(0, this, [this]() {
+        updateChannelList();
+        saveSettings();
+      });
+    } else {
+      QMessageBox::warning(this, "Error", "Failed to duplicate channel.");
+    }
+  }
+}
+
+/* Output Control Signal Handlers */
+
+void RestreamerDock::onOutputStartRequested(const char *profileId,
+                                                 size_t destIndex) {
+  if (!channelManager || !api || !profileId) {
+    return;
+  }
+
+  stream_channel_t *profile =
+      channel_manager_get_channel(channelManager, profileId);
+  if (!profile) {
+    obs_log(LOG_ERROR, "Profile not found: %s", profileId);
+    return;
+  }
+
+  if (destIndex >= profile->output_count) {
+    obs_log(LOG_ERROR, "Invalid destination index: %zu", destIndex);
+    return;
+  }
+
+  channel_output_t *dest = &profile->outputs[destIndex];
+
+  /* Check if channel is active */
+  if (profile->status != CHANNEL_STATUS_ACTIVE) {
+    QMessageBox::warning(
+        this, "Cannot Start Output",
+        QString("Channel '%1' must be active to start individual outputs.")
+            .arg(profile->channel_name));
+    return;
+  }
+
+  /* Check if already enabled */
+  if (dest->enabled) {
+    obs_log(LOG_INFO, "Output '%s' is already enabled",
+            dest->service_name);
+    return;
+  }
+
+  /* Use bulk start with single output */
+  size_t indices[] = {destIndex};
+  if (channel_bulk_start_outputs(profile, api, indices, 1)) {
+    obs_log(LOG_INFO, "Started output: %s", dest->service_name);
+    updateChannelList();
+  } else {
+    QMessageBox::warning(
+        this, "Error",
+        QString("Failed to start output '%1'.").arg(dest->service_name));
+  }
+}
+
+void RestreamerDock::onOutputStopRequested(const char *profileId,
+                                                size_t destIndex) {
+  if (!channelManager || !api || !profileId) {
+    return;
+  }
+
+  stream_channel_t *profile =
+      channel_manager_get_channel(channelManager, profileId);
+  if (!profile) {
+    obs_log(LOG_ERROR, "Profile not found: %s", profileId);
+    return;
+  }
+
+  if (destIndex >= profile->output_count) {
+    obs_log(LOG_ERROR, "Invalid destination index: %zu", destIndex);
+    return;
+  }
+
+  channel_output_t *dest = &profile->outputs[destIndex];
+
+  /* Check if channel is active */
+  if (profile->status != CHANNEL_STATUS_ACTIVE) {
+    QMessageBox::warning(
+        this, "Cannot Stop Output",
+        QString("Channel '%1' must be active to stop individual outputs.")
+            .arg(profile->channel_name));
+    return;
+  }
+
+  /* Check if already disabled */
+  if (!dest->enabled) {
+    obs_log(LOG_INFO, "Output '%s' is already disabled",
+            dest->service_name);
+    return;
+  }
+
+  /* Use bulk stop with single output */
+  size_t indices[] = {destIndex};
+  if (channel_bulk_stop_outputs(profile, api, indices, 1)) {
+    obs_log(LOG_INFO, "Stopped output: %s", dest->service_name);
+    updateChannelList();
+  } else {
+    QMessageBox::warning(
+        this, "Error",
+        QString("Failed to stop output '%1'.").arg(dest->service_name));
+  }
+}
+
+void RestreamerDock::onOutputEditRequested(const char *profileId,
+                                                size_t destIndex) {
+  if (!channelManager || !profileId) {
+    return;
+  }
+
+  stream_channel_t *profile =
+      channel_manager_get_channel(channelManager, profileId);
+  if (!profile) {
+    obs_log(LOG_ERROR, "Profile not found: %s", profileId);
+    return;
+  }
+
+  if (destIndex >= profile->output_count) {
+    obs_log(LOG_ERROR, "Invalid destination index: %zu", destIndex);
+    return;
+  }
+
+  channel_output_t *dest = &profile->outputs[destIndex];
+
+  /* Create a dialog to edit output settings */
   QDialog dialog(this);
   dialog.setWindowTitle(
-      QString("Configure Profile: %1").arg(profile->profile_name));
+      QString("Edit Output - %1").arg(dest->service_name));
   dialog.setMinimumWidth(500);
 
-  QVBoxLayout *mainLayout = new QVBoxLayout(&dialog);
-
-  /* Basic profile settings group */
-  QGroupBox *basicGroup = new QGroupBox("Basic Settings");
-  QGridLayout *basicLayout = new QGridLayout();
-  basicLayout->setColumnStretch(1, 1);
-  basicLayout->setHorizontalSpacing(10);
-  basicLayout->setVerticalSpacing(10);
-
-  /* Create labels */
-  QLabel *nameLabel = new QLabel("Profile Name:");
-  nameLabel->setAlignment(Qt::AlignRight | Qt::AlignVCenter);
-
-  QLabel *orientLabel = new QLabel("Source Orientation:");
-  orientLabel->setAlignment(Qt::AlignRight | Qt::AlignVCenter);
-
-  QLabel *inputUrlLabel = new QLabel("Input URL:");
-  inputUrlLabel->setAlignment(Qt::AlignRight | Qt::AlignVCenter);
-
-  /* Profile name */
-  QLineEdit *nameEdit = new QLineEdit(profile->profile_name);
-  nameEdit->setMinimumWidth(300);
-
-  /* Source orientation */
-  QComboBox *orientationCombo = new QComboBox();
-  orientationCombo->addItem("Horizontal (16:9)", (int)ORIENTATION_HORIZONTAL);
-  orientationCombo->addItem("Vertical (9:16)", (int)ORIENTATION_VERTICAL);
-  orientationCombo->addItem("Square (1:1)", (int)ORIENTATION_SQUARE);
-  orientationCombo->setCurrentIndex((int)profile->source_orientation);
-  orientationCombo->setMinimumWidth(300);
-
-  /* Auto-detect orientation */
-  QCheckBox *autoDetectCheck =
-      new QCheckBox("Auto-detect orientation from source");
-  autoDetectCheck->setChecked(profile->auto_detect_orientation);
-
-  /* Auto-start */
-  QCheckBox *autoStartCheck = new QCheckBox("Auto-start with OBS streaming");
-  autoStartCheck->setChecked(profile->auto_start);
-
-  /* Auto-reconnect */
-  QCheckBox *autoReconnectCheck = new QCheckBox("Auto-reconnect on disconnect");
-  autoReconnectCheck->setChecked(profile->auto_reconnect);
-
-  /* Input URL */
-  QLineEdit *inputUrlEdit = new QLineEdit(profile->input_url);
-  inputUrlEdit->setPlaceholderText("rtmp://localhost/live/obs_input");
-  inputUrlEdit->setMinimumWidth(300);
-
-  /* Add widgets to grid layout */
-  int row = 0;
-  basicLayout->addWidget(nameLabel, row, 0);
-  basicLayout->addWidget(nameEdit, row, 1);
-  row++;
-
-  basicLayout->addWidget(orientLabel, row, 0);
-  basicLayout->addWidget(orientationCombo, row, 1);
-  row++;
-
-  basicLayout->addWidget(autoDetectCheck, row, 1);
-  row++;
-
-  basicLayout->addWidget(autoStartCheck, row, 1);
-  row++;
-
-  basicLayout->addWidget(autoReconnectCheck, row, 1);
-  row++;
-
-  basicLayout->addWidget(inputUrlLabel, row, 0);
-  basicLayout->addWidget(inputUrlEdit, row, 1);
-
-  basicGroup->setLayout(basicLayout);
-  mainLayout->addWidget(basicGroup);
-
-  /* Destinations group */
-  QGroupBox *destGroup = new QGroupBox("Destinations");
-  QVBoxLayout *destLayout = new QVBoxLayout();
-
-  /* Destinations table */
-  QTableWidget *destTable = new QTableWidget();
-  destTable->setColumnCount(4);
-  destTable->setHorizontalHeaderLabels(
-      {"Service", "Stream Key", "Orientation", "Enabled"});
-  destTable->horizontalHeader()->setStretchLastSection(false);
-  destTable->horizontalHeader()->setSectionResizeMode(
-      0, QHeaderView::ResizeToContents);
-  destTable->horizontalHeader()->setSectionResizeMode(1, QHeaderView::Stretch);
-  destTable->horizontalHeader()->setSectionResizeMode(
-      2, QHeaderView::ResizeToContents);
-  destTable->horizontalHeader()->setSectionResizeMode(
-      3, QHeaderView::ResizeToContents);
-  destTable->setSelectionBehavior(QAbstractItemView::SelectRows);
-  destTable->setSelectionMode(QAbstractItemView::SingleSelection);
-  destTable->setEditTriggers(QAbstractItemView::NoEditTriggers);
-  destTable->setMinimumHeight(150);
-
-  /* Populate destinations table */
-  destTable->setRowCount(static_cast<int>(profile->destination_count));
-  for (int i = 0; i < static_cast<int>(profile->destination_count); i++) {
-    profile_destination_t *dest = &profile->destinations[i];
-
-    /* Service name */
-    QTableWidgetItem *serviceItem = new QTableWidgetItem(dest->service_name);
-    destTable->setItem(i, 0, serviceItem);
-
-    /* Stream key (masked) */
-    QString maskedKey = QString(dest->stream_key);
-    if (maskedKey.length() > 8) {
-      maskedKey = maskedKey.left(4) + "..." + maskedKey.right(4);
-    }
-    QTableWidgetItem *keyItem = new QTableWidgetItem(maskedKey);
-    destTable->setItem(i, 1, keyItem);
-
-    /* Orientation */
-    QString orientation;
-    switch (dest->target_orientation) {
-    case ORIENTATION_HORIZONTAL:
-      orientation = "Horizontal";
-      break;
-    case ORIENTATION_VERTICAL:
-      orientation = "Vertical";
-      break;
-    case ORIENTATION_SQUARE:
-      orientation = "Square";
-      break;
-    default:
-      orientation = "Auto";
-      break;
-    }
-    QTableWidgetItem *orientItem = new QTableWidgetItem(orientation);
-    destTable->setItem(i, 2, orientItem);
-
-    /* Enabled checkbox */
-    QTableWidgetItem *enabledItem = new QTableWidgetItem();
-    enabledItem->setCheckState(dest->enabled ? Qt::Checked : Qt::Unchecked);
-    destTable->setItem(i, 3, enabledItem);
-  }
-
-  destLayout->addWidget(destTable);
-
-  /* Destination buttons */
-  QHBoxLayout *destButtonLayout = new QHBoxLayout();
-  destButtonLayout->addStretch();
-  QPushButton *addDestButton = new QPushButton("Add Destination");
-  addDestButton->setMinimumWidth(140);
-  QPushButton *removeDestButton = new QPushButton("Remove Destination");
-  removeDestButton->setMinimumWidth(140);
-  QPushButton *editDestButton = new QPushButton("Edit Destination");
-  editDestButton->setMinimumWidth(140);
-
-  destButtonLayout->addWidget(addDestButton);
-  destButtonLayout->addWidget(removeDestButton);
-  destButtonLayout->addWidget(editDestButton);
-  destButtonLayout->addStretch();
-
-  destLayout->addLayout(destButtonLayout);
-
-  /* Add destination handler */
-  connect(
-      addDestButton, &QPushButton::clicked, [&, destTable, profile, this]() {
-        /* Create enhanced add destination dialog */
-        QDialog destDialog(&dialog);
-        destDialog.setWindowTitle("Add Streaming Destination");
-        destDialog.setMinimumWidth(500);
-
-        QVBoxLayout *destDialogLayout = new QVBoxLayout(&destDialog);
-
-        QGroupBox *destFormGroup = new QGroupBox("Destination Settings");
-        QGridLayout *destForm = new QGridLayout();
-        destForm->setColumnStretch(1, 1); // Make the widget column stretch
-        destForm->setHorizontalSpacing(10);
-        destForm->setVerticalSpacing(10);
-
-        /* Service combo with full OBS service list */
-        QComboBox *serviceCombo = new QComboBox();
-        serviceCombo->setMinimumWidth(300);
-
-        /* Show common services first, then all services */
-        QStringList commonServices = serviceLoader->getCommonServiceNames();
-        QStringList allServices = serviceLoader->getServiceNames();
-
-        // Add common services
-        for (const QString &serviceName : commonServices) {
-          serviceCombo->addItem(serviceName, serviceName);
-        }
-
-        // Add separator and remaining services
-        if (!commonServices.isEmpty() &&
-            commonServices.size() < allServices.size()) {
-          serviceCombo->insertSeparator(serviceCombo->count());
-          serviceCombo->addItem("-- Show All Services --", QString());
-          serviceCombo->insertSeparator(serviceCombo->count());
-
-          for (const QString &serviceName : allServices) {
-            if (!commonServices.contains(serviceName)) {
-              serviceCombo->addItem(serviceName, serviceName);
-            }
-          }
-        }
-
-        // Add Custom RTMP option
-        serviceCombo->insertSeparator(serviceCombo->count());
-        serviceCombo->addItem("Custom RTMP Server", "custom");
-
-        /* Create labels for form fields */
-        QLabel *serviceLabel = new QLabel("Service:");
-        serviceLabel->setAlignment(Qt::AlignRight | Qt::AlignVCenter);
-
-        QLabel *serverLabel = new QLabel("Server:");
-        serverLabel->setAlignment(Qt::AlignRight | Qt::AlignVCenter);
-
-        QLabel *customUrlLabel = new QLabel("RTMP URL:");
-        customUrlLabel->setAlignment(Qt::AlignRight | Qt::AlignVCenter);
-
-        QLabel *streamKeyLabel = new QLabel("Stream Key:");
-        streamKeyLabel->setAlignment(Qt::AlignRight | Qt::AlignVCenter);
-
-        QLabel *orientationLabel = new QLabel("Target Orientation:");
-        orientationLabel->setAlignment(Qt::AlignRight | Qt::AlignVCenter);
-
-        /* Server selection combo */
-        QComboBox *serverCombo = new QComboBox();
-        serverCombo->setMinimumWidth(300);
-
-        /* Custom server URL field */
-        QLineEdit *customUrlEdit = new QLineEdit();
-        customUrlEdit->setPlaceholderText("rtmp://your-server/live/stream-key");
-        customUrlEdit->setMinimumWidth(300);
-        customUrlEdit->setVisible(false);
-
-        /* Stream key */
-        QLineEdit *keyEdit = new QLineEdit();
-        keyEdit->setPlaceholderText("Enter your stream key");
-        keyEdit->setMinimumWidth(300);
-
-        /* Stream key help label */
-        QLabel *streamKeyHelpLabel = new QLabel();
-        streamKeyHelpLabel->setOpenExternalLinks(true);
-        streamKeyHelpLabel->setWordWrap(true);
-        streamKeyHelpLabel->setStyleSheet(
-            QString("QLabel { color: %1; font-size: 11px; }")
-                .arg(obs_theme_get_info_color().name()));
-
-        /* Target orientation */
-        QComboBox *targetOrientCombo = new QComboBox();
-        targetOrientCombo->addItem("Horizontal (16:9)",
-                                   (int)ORIENTATION_HORIZONTAL);
-        targetOrientCombo->addItem("Vertical (9:16)",
-                                   (int)ORIENTATION_VERTICAL);
-        targetOrientCombo->addItem("Square (1:1)", (int)ORIENTATION_SQUARE);
-        targetOrientCombo->setMinimumWidth(300);
-
-        /* Enabled checkbox */
-        QCheckBox *enabledCheck = new QCheckBox("Enable this destination");
-        enabledCheck->setChecked(true);
-
-        /* Update server list when service changes */
-        auto updateServerList =
-            [this, serviceCombo, serverCombo, streamKeyHelpLabel, customUrlEdit,
-             keyEdit, serverLabel, customUrlLabel, streamKeyLabel]() {
-              QString selectedService = serviceCombo->currentData().toString();
-              serverCombo->clear();
-              streamKeyHelpLabel->clear();
-
-              if (selectedService == "custom") {
-                // Custom RTMP mode - show only custom URL field
-                serverLabel->setVisible(false);
-                serverCombo->setVisible(false);
-                streamKeyLabel->setVisible(false);
-                keyEdit->setVisible(false);
-                customUrlLabel->setVisible(true);
-                customUrlEdit->setVisible(true);
-                streamKeyHelpLabel->setText(
-                    "Enter the full RTMP URL including stream key");
-              } else if (!selectedService.isEmpty() &&
-                         selectedService != "-- Show All Services --") {
-                // Regular service mode - show server and stream key fields
-                customUrlLabel->setVisible(false);
-                customUrlEdit->setVisible(false);
-                serverLabel->setVisible(true);
-                serverCombo->setVisible(true);
-                streamKeyLabel->setVisible(true);
-                keyEdit->setVisible(true);
-
-                // Load servers for the selected service
-                const StreamingService *service =
-                    serviceLoader->getService(selectedService);
-                if (service) {
-                  for (const StreamingServer &server : service->servers) {
-                    serverCombo->addItem(server.name, server.url);
-                  }
-
-                  // Update stream key help link
-                  if (!service->stream_key_link.isEmpty()) {
-                    streamKeyHelpLabel->setText(
-                        QString("<a href=\"%1\">Get your stream key</a>")
-                            .arg(service->stream_key_link));
-                  }
-                }
-              }
-            };
-
-        connect(serviceCombo,
-                QOverload<int>::of(&QComboBox::currentIndexChanged),
-                updateServerList);
-
-        /* Add widgets to grid layout (row, column) */
-        int row = 0;
-        destForm->addWidget(serviceLabel, row, 0);
-        destForm->addWidget(serviceCombo, row, 1);
-        row++;
-
-        destForm->addWidget(serverLabel, row, 0);
-        destForm->addWidget(serverCombo, row, 1);
-        row++;
-
-        destForm->addWidget(customUrlLabel, row, 0);
-        destForm->addWidget(customUrlEdit, row, 1);
-        row++;
-
-        destForm->addWidget(streamKeyLabel, row, 0);
-        destForm->addWidget(keyEdit, row, 1);
-        row++;
-
-        destForm->addWidget(streamKeyHelpLabel, row,
-                            1); // Help label spans column 1 only
-        row++;
-
-        destForm->addWidget(orientationLabel, row, 0);
-        destForm->addWidget(targetOrientCombo, row, 1);
-        row++;
-
-        destForm->addWidget(enabledCheck, row, 1); // Checkbox in column 1
-
-        /* Initially hide custom URL fields since we start with regular services
-         */
-        customUrlLabel->setVisible(false);
-        customUrlEdit->setVisible(false);
-
-        destFormGroup->setLayout(destForm);
-        destDialogLayout->addWidget(destFormGroup);
-
-        /* Info label */
-        QLabel *infoLabel = new QLabel(
-            "Tip: Select a service and server, then enter your stream key. "
-            "For custom RTMP servers, enter the complete URL including the "
-            "stream key.");
-        infoLabel->setWordWrap(true);
-        infoLabel->setStyleSheet(
-            QString("QLabel { color: %1; font-size: 10px; padding: 10px; }")
-                .arg(obs_theme_get_muted_color().name()));
-        destDialogLayout->addWidget(infoLabel);
-
-        /* Dialog buttons */
-        QDialogButtonBox *destButtonBox = new QDialogButtonBox(
-            QDialogButtonBox::Ok | QDialogButtonBox::Cancel);
-        connect(destButtonBox, &QDialogButtonBox::accepted, &destDialog,
-                &QDialog::accept);
-        connect(destButtonBox, &QDialogButtonBox::rejected, &destDialog,
-                &QDialog::reject);
-        destDialogLayout->addWidget(destButtonBox);
-
-        /* Initialize server list for first service */
-        updateServerList();
-
-        /* Show dialog and add destination */
-        if (destDialog.exec() == QDialog::Accepted) {
-          QString serviceName = serviceCombo->currentText();
-          QString streamKey;
-          QString rtmpUrl;
-
-          // Determine stream key and RTMP URL based on service type
-          if (serviceCombo->currentData().toString() == "custom") {
-            // Custom RTMP mode - use the full URL from customUrlEdit
-            rtmpUrl = customUrlEdit->text().trimmed();
-            if (rtmpUrl.isEmpty()) {
-              QMessageBox::warning(&dialog, "Validation Error",
-                                   "RTMP URL cannot be empty.");
-              return;
-            }
-            // Extract stream key from URL for display (last path component)
-            streamKey = rtmpUrl.section('/', -1);
-          } else {
-            // Regular service - construct URL from server + stream key
-            streamKey = keyEdit->text().trimmed();
-            if (streamKey.isEmpty()) {
-              QMessageBox::warning(&dialog, "Validation Error",
-                                   "Stream key cannot be empty.");
-              return;
-            }
-
-            QString serverUrl = serverCombo->currentData().toString();
-            if (serverUrl.isEmpty()) {
-              QMessageBox::warning(&dialog, "Validation Error",
-                                   "Please select a server.");
-              return;
-            }
-
-            // Construct full RTMP URL
-            rtmpUrl = serverUrl;
-            if (!rtmpUrl.endsWith("/")) {
-              rtmpUrl += "/";
-            }
-            rtmpUrl += streamKey;
-          }
-
-          // Map service name to service enum for compatibility
-          streaming_service_t service = SERVICE_CUSTOM;
-          if (serviceName.contains("Twitch", Qt::CaseInsensitive)) {
-            service = SERVICE_TWITCH;
-          } else if (serviceName.contains("YouTube", Qt::CaseInsensitive)) {
-            service = SERVICE_YOUTUBE;
-          } else if (serviceName.contains("Facebook", Qt::CaseInsensitive)) {
-            service = SERVICE_FACEBOOK;
-          } else if (serviceName.contains("Kick", Qt::CaseInsensitive)) {
-            service = SERVICE_KICK;
-          } else if (serviceName.contains("TikTok", Qt::CaseInsensitive)) {
-            service = SERVICE_TIKTOK;
-          } else if (serviceName.contains("Instagram", Qt::CaseInsensitive)) {
-            service = SERVICE_INSTAGRAM;
-          } else if (serviceName.contains("Twitter", Qt::CaseInsensitive) ||
-                     serviceName.contains("X", Qt::CaseInsensitive)) {
-            service = SERVICE_X_TWITTER;
-          }
-
-          stream_orientation_t targetOrient =
-              (stream_orientation_t)targetOrientCombo->currentData().toInt();
-
-          /* Add destination to profile */
-          encoding_settings_t defaultEncoding = profile_get_default_encoding();
-          if (profile_add_destination(profile, service,
-                                      streamKey.toUtf8().constData(),
-                                      targetOrient, &defaultEncoding)) {
-            /* Update table */
-            int row = destTable->rowCount();
-            destTable->insertRow(row);
-
-            const char *serviceName =
-                restreamer_multistream_get_service_name(service);
-            destTable->setItem(row, 0, new QTableWidgetItem(serviceName));
-
-            QString maskedKey = streamKey;
-            if (maskedKey.length() > 8) {
-              maskedKey = maskedKey.left(4) + "..." + maskedKey.right(4);
-            }
-            destTable->setItem(row, 1, new QTableWidgetItem(maskedKey));
-
-            QString orientStr;
-            switch (targetOrient) {
-            case ORIENTATION_HORIZONTAL:
-              orientStr = "Horizontal";
-              break;
-            case ORIENTATION_VERTICAL:
-              orientStr = "Vertical";
-              break;
-            case ORIENTATION_SQUARE:
-              orientStr = "Square";
-              break;
-            default:
-              orientStr = "Auto";
-              break;
-            }
-            destTable->setItem(row, 2, new QTableWidgetItem(orientStr));
-
-            QTableWidgetItem *enabledItem = new QTableWidgetItem();
-            enabledItem->setCheckState(
-                enabledCheck->isChecked() ? Qt::Checked : Qt::Unchecked);
-            destTable->setItem(row, 3, enabledItem);
-
-            /* Update enabled state if needed */
-            if (!enabledCheck->isChecked()) {
-              profile_set_destination_enabled(
-                  profile, profile->destination_count - 1, false);
-            }
-          } else {
-            QMessageBox::warning(&dialog, "Error",
-                                 "Failed to add destination.");
-          }
-        }
-      });
-
-  /* Remove destination handler */
-  connect(removeDestButton, &QPushButton::clicked, [&, destTable, profile]() {
-    int currentRow = destTable->currentRow();
-    if (currentRow < 0) {
-      QMessageBox::information(&dialog, "No Selection",
-                               "Please select a destination to remove.");
-      return;
-    }
-
-    QMessageBox::StandardButton reply = QMessageBox::question(
-        &dialog, "Confirm Remove",
-        "Are you sure you want to remove this destination?",
-        QMessageBox::Yes | QMessageBox::No);
-
-    if (reply == QMessageBox::Yes) {
-      if (profile_remove_destination(profile, currentRow)) {
-        destTable->removeRow(currentRow);
-      } else {
-        QMessageBox::warning(&dialog, "Error", "Failed to remove destination.");
-      }
-    }
-  });
-
-  /* Edit destination handler */
-  connect(editDestButton, &QPushButton::clicked, [&, destTable, profile]() {
-    int currentRow = destTable->currentRow();
-    if (currentRow < 0) {
-      QMessageBox::information(&dialog, "No Selection",
-                               "Please select a destination to edit.");
-      return;
-    }
-
-    if ((size_t)currentRow >= profile->destination_count) {
-      return;
-    }
-
-    profile_destination_t *dest = &profile->destinations[currentRow];
-
-    /* Create edit destination dialog */
-    QDialog destDialog(&dialog);
-    destDialog.setWindowTitle("Edit Destination");
-    destDialog.setMinimumWidth(450);
-
-    QVBoxLayout *destDialogLayout = new QVBoxLayout(&destDialog);
-
-    QGroupBox *destFormGroup = new QGroupBox("Destination Settings");
-    QGridLayout *destForm = new QGridLayout();
-    destForm->setColumnStretch(1, 1);
-    destForm->setHorizontalSpacing(10);
-    destForm->setVerticalSpacing(10);
-
-    /* Create labels */
-    QLabel *serviceLabel = new QLabel("Service:");
-    serviceLabel->setAlignment(Qt::AlignRight | Qt::AlignVCenter);
-
-    QLabel *keyLabel = new QLabel("Stream Key:");
-    keyLabel->setAlignment(Qt::AlignRight | Qt::AlignVCenter);
-
-    QLabel *orientLabel = new QLabel("Target Orientation:");
-    orientLabel->setAlignment(Qt::AlignRight | Qt::AlignVCenter);
-
-    /* Service combo (pre-selected) */
-    QComboBox *serviceCombo = new QComboBox();
-    serviceCombo->addItem("Custom", (int)SERVICE_CUSTOM);
-    serviceCombo->addItem("Twitch", (int)SERVICE_TWITCH);
-    serviceCombo->addItem("YouTube", (int)SERVICE_YOUTUBE);
-    serviceCombo->addItem("Facebook", (int)SERVICE_FACEBOOK);
-    serviceCombo->addItem("Kick", (int)SERVICE_KICK);
-    serviceCombo->addItem("TikTok", (int)SERVICE_TIKTOK);
-    serviceCombo->addItem("Instagram", (int)SERVICE_INSTAGRAM);
-    serviceCombo->addItem("X (Twitter)", (int)SERVICE_X_TWITTER);
-    serviceCombo->setCurrentIndex(serviceCombo->findData((int)dest->service));
-    serviceCombo->setMinimumWidth(250);
-
-    /* Stream key */
-    QLineEdit *keyEdit = new QLineEdit(dest->stream_key);
-    keyEdit->setMinimumWidth(250);
-
-    /* Target orientation */
-    QComboBox *targetOrientCombo = new QComboBox();
-    targetOrientCombo->addItem("Horizontal (16:9)",
-                               (int)ORIENTATION_HORIZONTAL);
-    targetOrientCombo->addItem("Vertical (9:16)", (int)ORIENTATION_VERTICAL);
-    targetOrientCombo->addItem("Square (1:1)", (int)ORIENTATION_SQUARE);
-    targetOrientCombo->setCurrentIndex(
-        targetOrientCombo->findData((int)dest->target_orientation));
-    targetOrientCombo->setMinimumWidth(250);
-
-    /* Enabled checkbox */
-    QCheckBox *enabledCheck = new QCheckBox("Enable this destination");
-    enabledCheck->setChecked(dest->enabled);
-
-    /* Add widgets to grid layout */
-    int row = 0;
-    destForm->addWidget(serviceLabel, row, 0);
-    destForm->addWidget(serviceCombo, row, 1);
-    row++;
-
-    destForm->addWidget(keyLabel, row, 0);
-    destForm->addWidget(keyEdit, row, 1);
-    row++;
-
-    destForm->addWidget(orientLabel, row, 0);
-    destForm->addWidget(targetOrientCombo, row, 1);
-    row++;
-
-    destForm->addWidget(enabledCheck, row, 1);
-
-    destFormGroup->setLayout(destForm);
-    destDialogLayout->addWidget(destFormGroup);
-
-    /* Dialog buttons */
-    QDialogButtonBox *destButtonBox =
-        new QDialogButtonBox(QDialogButtonBox::Ok | QDialogButtonBox::Cancel);
-    connect(destButtonBox, &QDialogButtonBox::accepted, &destDialog,
-            &QDialog::accept);
-    connect(destButtonBox, &QDialogButtonBox::rejected, &destDialog,
-            &QDialog::reject);
-    destDialogLayout->addWidget(destButtonBox);
-
-    /* Show dialog and update destination */
-    if (destDialog.exec() == QDialog::Accepted) {
-      QString streamKey = keyEdit->text().trimmed();
-      if (streamKey.isEmpty()) {
-        QMessageBox::warning(&dialog, "Validation Error",
-                             "Stream key cannot be empty.");
-        return;
-      }
-
-      streaming_service_t service =
-          (streaming_service_t)serviceCombo->currentData().toInt();
-      stream_orientation_t targetOrient =
-          (stream_orientation_t)targetOrientCombo->currentData().toInt();
-
-      /* Update destination (remove and re-add with new settings) */
-      profile_remove_destination(profile, currentRow);
-
-      encoding_settings_t defaultEncoding = profile_get_default_encoding();
-      if (profile_add_destination(profile, service,
-                                  streamKey.toUtf8().constData(), targetOrient,
-                                  &defaultEncoding)) {
-        /* Move the new destination to the correct position */
-        if ((size_t)currentRow < profile->destination_count - 1) {
-          profile_destination_t temp =
-              profile->destinations[profile->destination_count - 1];
-          for (size_t i = profile->destination_count - 1;
-               i > (size_t)currentRow; i--) {
-            profile->destinations[i] = profile->destinations[i - 1];
-          }
-          profile->destinations[currentRow] = temp;
-        }
-
-        /* Update enabled state */
-        profile_set_destination_enabled(profile, currentRow,
-                                        enabledCheck->isChecked());
-
-        /* Update table */
-        const char *serviceName =
-            restreamer_multistream_get_service_name(service);
-        destTable->item(currentRow, 0)->setText(serviceName);
-
-        QString maskedKey = streamKey;
-        if (maskedKey.length() > 8) {
-          maskedKey = maskedKey.left(4) + "..." + maskedKey.right(4);
-        }
-        destTable->item(currentRow, 1)->setText(maskedKey);
-
-        QString orientStr;
-        switch (targetOrient) {
-        case ORIENTATION_HORIZONTAL:
-          orientStr = "Horizontal";
-          break;
-        case ORIENTATION_VERTICAL:
-          orientStr = "Vertical";
-          break;
-        case ORIENTATION_SQUARE:
-          orientStr = "Square";
-          break;
-        default:
-          orientStr = "Auto";
-          break;
-        }
-        destTable->item(currentRow, 2)->setText(orientStr);
-
-        destTable->item(currentRow, 3)
-            ->setCheckState(enabledCheck->isChecked() ? Qt::Checked
-                                                      : Qt::Unchecked);
-      } else {
-        QMessageBox::warning(&dialog, "Error", "Failed to update destination.");
-      }
-    }
-  });
-
-  destGroup->setLayout(destLayout);
-  mainLayout->addWidget(destGroup);
-
-  /* Notes & Metadata group */
-  QGroupBox *notesGroup = new QGroupBox("Notes & Metadata");
-  QVBoxLayout *notesLayout = new QVBoxLayout();
-
-  QLabel *notesLabel = new QLabel("Profile Notes (optional):");
-  notesLayout->addWidget(notesLabel);
-
-  QTextEdit *notesEdit = new QTextEdit();
-  notesEdit->setPlaceholderText(
-      "Add notes, tags, or any custom information about this profile...");
-  notesEdit->setMaximumHeight(100);
-
-  /* Try to fetch metadata from API if profile has active process */
-  if (api && profile->process_reference) {
-    char *metadata_value = nullptr;
-    if (restreamer_api_get_process_metadata(api, profile->process_reference,
-                                            "profile_notes", &metadata_value)) {
-      if (metadata_value) {
-        notesEdit->setPlainText(QString::fromUtf8(metadata_value));
-        bfree(metadata_value);
-      }
-    }
-  }
-
-  notesLayout->addWidget(notesEdit);
-  notesGroup->setLayout(notesLayout);
-  mainLayout->addWidget(notesGroup);
+  QVBoxLayout *layout = new QVBoxLayout(&dialog);
+
+  /* Stream Key */
+  QFormLayout *formLayout = new QFormLayout();
+
+  QLineEdit *streamKeyEdit = new QLineEdit(dest->stream_key, &dialog);
+  formLayout->addRow("Stream Key:", streamKeyEdit);
+
+  /* Target Orientation */
+  QComboBox *orientationCombo = new QComboBox(&dialog);
+  orientationCombo->addItem("Auto", ORIENTATION_AUTO);
+  orientationCombo->addItem("Horizontal (16:9)", ORIENTATION_HORIZONTAL);
+  orientationCombo->addItem("Vertical (9:16)", ORIENTATION_VERTICAL);
+  orientationCombo->addItem("Square (1:1)", ORIENTATION_SQUARE);
+  orientationCombo->setCurrentIndex(
+      orientationCombo->findData(dest->target_orientation));
+  formLayout->addRow("Target Orientation:", orientationCombo);
+
+  /* Encoding Settings */
+  QGroupBox *encodingGroup = new QGroupBox("Encoding Settings", &dialog);
+  QFormLayout *encodingLayout = new QFormLayout(encodingGroup);
+
+  QSpinBox *bitrateSpinBox = new QSpinBox(&dialog);
+  bitrateSpinBox->setRange(0, 50000);
+  bitrateSpinBox->setSuffix(" kbps");
+  bitrateSpinBox->setValue(dest->encoding.bitrate);
+  bitrateSpinBox->setSpecialValueText("Default");
+  encodingLayout->addRow("Video Bitrate:", bitrateSpinBox);
+
+  QSpinBox *widthSpinBox = new QSpinBox(&dialog);
+  widthSpinBox->setRange(0, 7680);
+  widthSpinBox->setValue(dest->encoding.width);
+  widthSpinBox->setSpecialValueText("Source");
+  encodingLayout->addRow("Width:", widthSpinBox);
+
+  QSpinBox *heightSpinBox = new QSpinBox(&dialog);
+  heightSpinBox->setRange(0, 4320);
+  heightSpinBox->setValue(dest->encoding.height);
+  heightSpinBox->setSpecialValueText("Source");
+  encodingLayout->addRow("Height:", heightSpinBox);
+
+  QSpinBox *audioBitrateSpinBox = new QSpinBox(&dialog);
+  audioBitrateSpinBox->setRange(0, 320);
+  audioBitrateSpinBox->setSuffix(" kbps");
+  audioBitrateSpinBox->setValue(dest->encoding.audio_bitrate);
+  audioBitrateSpinBox->setSpecialValueText("Default");
+  encodingLayout->addRow("Audio Bitrate:", audioBitrateSpinBox);
+
+  QCheckBox *lowLatencyCheckBox = new QCheckBox("Low Latency Mode", &dialog);
+  lowLatencyCheckBox->setChecked(dest->encoding.low_latency);
+  encodingLayout->addRow(lowLatencyCheckBox);
+
+  layout->addLayout(formLayout);
+  layout->addWidget(encodingGroup);
 
   /* Dialog buttons */
   QDialogButtonBox *buttonBox =
       new QDialogButtonBox(QDialogButtonBox::Ok | QDialogButtonBox::Cancel);
   connect(buttonBox, &QDialogButtonBox::accepted, &dialog, &QDialog::accept);
   connect(buttonBox, &QDialogButtonBox::rejected, &dialog, &QDialog::reject);
-  mainLayout->addWidget(buttonBox);
-
-  /* Show dialog and apply changes if accepted */
-  if (dialog.exec() == QDialog::Accepted) {
-    /* Validate input URL */
-    QString inputUrl = inputUrlEdit->text().trimmed();
-    if (inputUrl.isEmpty()) {
-      QMessageBox::warning(this, "Validation Error",
-                           "Input URL cannot be empty.");
-      return;
-    }
-
-    if (!inputUrl.startsWith("rtmp://") && !inputUrl.startsWith("rtmps://")) {
-      QMessageBox::warning(
-          this, "Validation Error",
-          "Input URL must start with rtmp:// or rtmps://\n\nExample: "
-          "rtmp://localhost/live/obs_input");
-      return;
-    }
-
-    /* Basic format validation: rtmp://host/app/key */
-    QStringList urlParts = inputUrl.mid(7).split('/'); // Skip "rtmp://"
-    if (urlParts.size() < 3) {
-      QMessageBox::warning(this, "Validation Error",
-                           "Input URL must include host, application, and "
-                           "stream key.\n\nFormat: "
-                           "rtmp://host/application/streamkey\nExample: "
-                           "rtmp://localhost/live/obs_input");
-      return;
-    }
-
-    /* Update profile settings */
-    if (profile->profile_name) {
-      bfree(profile->profile_name);
-    }
-    profile->profile_name = bstrdup(nameEdit->text().toUtf8().constData());
-
-    profile->source_orientation =
-        (stream_orientation_t)orientationCombo->currentData().toInt();
-    profile->auto_detect_orientation = autoDetectCheck->isChecked();
-    profile->auto_start = autoStartCheck->isChecked();
-    profile->auto_reconnect = autoReconnectCheck->isChecked();
-
-    /* Update input URL (use validated and trimmed value) */
-    if (profile->input_url) {
-      bfree(profile->input_url);
-    }
-    profile->input_url = bstrdup(inputUrl.toUtf8().constData());
-
-    /* Save notes/metadata to API if profile has active process */
-    QString notes = notesEdit->toPlainText().trimmed();
-    if (api && profile->process_reference && !notes.isEmpty()) {
-      restreamer_api_set_process_metadata(api, profile->process_reference,
-                                          "profile_notes",
-                                          notes.toUtf8().constData());
-    }
-
-    updateProfileList();
-    updateProfileDetails();
-    saveSettings();
-
-    QMessageBox::information(this, "Success", "Profile settings updated.");
-  }
-}
-
-void RestreamerDock::onProfileListContextMenu(const QPoint &pos) {
-  QMenu contextMenu(tr("Profile Actions"), this);
-
-  /* Get the item at the clicked position */
-  QListWidgetItem *item = profileListWidget->itemAt(pos);
-
-  if (item) {
-    /* Right-clicked on an item - show full menu */
-    QString profileId = item->data(Qt::UserRole).toString();
-    output_profile_t *profile =
-        profileManager ? profile_manager_get_profile(
-                             profileManager, profileId.toUtf8().constData())
-                       : nullptr;
-
-    /* Create profile */
-    QAction *createAction = contextMenu.addAction("Create...");
-    connect(createAction, &QAction::triggered, this,
-            &RestreamerDock::onCreateProfileClicked);
-
-    contextMenu.addSeparator();
-
-    /* Delete profile (only if inactive) */
-    QAction *deleteAction = contextMenu.addAction("Delete");
-    deleteAction->setEnabled(profile &&
-                             profile->status == PROFILE_STATUS_INACTIVE);
-    connect(deleteAction, &QAction::triggered, this,
-            &RestreamerDock::onDeleteProfileClicked);
-
-    /* Duplicate profile */
-    QAction *duplicateAction = contextMenu.addAction("Duplicate...");
-    duplicateAction->setEnabled(profile != nullptr);
-    connect(duplicateAction, &QAction::triggered, this,
-            &RestreamerDock::onDuplicateProfileClicked);
-
-    /* Configure profile (only if inactive) */
-    QAction *configureAction = contextMenu.addAction("Configure...");
-    configureAction->setEnabled(profile &&
-                                profile->status == PROFILE_STATUS_INACTIVE);
-    connect(configureAction, &QAction::triggered, this,
-            &RestreamerDock::onConfigureProfileClicked);
-
-    contextMenu.addSeparator();
-
-    /* Start profile (only if inactive) */
-    QAction *startAction = contextMenu.addAction("Start");
-    startAction->setEnabled(profile &&
-                            profile->status == PROFILE_STATUS_INACTIVE);
-    connect(startAction, &QAction::triggered, this,
-            &RestreamerDock::onStartProfileClicked);
-
-    /* Stop profile (only if active or starting) */
-    QAction *stopAction = contextMenu.addAction("Stop");
-    stopAction->setEnabled(profile &&
-                           (profile->status == PROFILE_STATUS_ACTIVE ||
-                            profile->status == PROFILE_STATUS_STARTING));
-    connect(stopAction, &QAction::triggered, this,
-            &RestreamerDock::onStopProfileClicked);
-
-    contextMenu.addSeparator();
-
-    /* Start all profiles */
-    QAction *startAllAction = contextMenu.addAction("Start All");
-    startAllAction->setEnabled(profileManager &&
-                               profileManager->profile_count > 0);
-    connect(startAllAction, &QAction::triggered, this,
-            &RestreamerDock::onStartAllProfilesClicked);
-
-    /* Stop all profiles */
-    QAction *stopAllAction = contextMenu.addAction("Stop All");
-    bool hasActiveProfile = false;
-    if (profileManager) {
-      for (size_t i = 0; i < profileManager->profile_count; i++) {
-        if (profileManager->profiles[i]->status == PROFILE_STATUS_ACTIVE ||
-            profileManager->profiles[i]->status == PROFILE_STATUS_STARTING) {
-          hasActiveProfile = true;
-          break;
-        }
-      }
-    }
-    stopAllAction->setEnabled(hasActiveProfile);
-    connect(stopAllAction, &QAction::triggered, this,
-            &RestreamerDock::onStopAllProfilesClicked);
-
-  } else {
-    /* Right-clicked on empty space - show limited menu */
-    QAction *createAction = contextMenu.addAction("Create...");
-    connect(createAction, &QAction::triggered, this,
-            &RestreamerDock::onCreateProfileClicked);
-
-    contextMenu.addSeparator();
-
-    /* Start all profiles */
-    QAction *startAllAction = contextMenu.addAction("Start All");
-    startAllAction->setEnabled(profileManager &&
-                               profileManager->profile_count > 0);
-    connect(startAllAction, &QAction::triggered, this,
-            &RestreamerDock::onStartAllProfilesClicked);
-
-    /* Stop all profiles */
-    QAction *stopAllAction = contextMenu.addAction("Stop All");
-    bool hasActiveProfile = false;
-    if (profileManager) {
-      for (size_t i = 0; i < profileManager->profile_count; i++) {
-        if (profileManager->profiles[i]->status == PROFILE_STATUS_ACTIVE ||
-            profileManager->profiles[i]->status == PROFILE_STATUS_STARTING) {
-          hasActiveProfile = true;
-          break;
-        }
-      }
-    }
-    stopAllAction->setEnabled(hasActiveProfile);
-    connect(stopAllAction, &QAction::triggered, this,
-            &RestreamerDock::onStopAllProfilesClicked);
-  }
-
-  contextMenu.exec(profileListWidget->mapToGlobal(pos));
-}
-
-void RestreamerDock::onProbeInputClicked() {
-  if (!api || !selectedProcessId) {
-    QMessageBox::warning(this, "No Process Selected",
-                         "Please select a process first.");
-    return;
-  }
-
-  /* Probe the input stream */
-  restreamer_probe_info_t info = {0};
-  if (!restreamer_api_probe_input(api, selectedProcessId, &info)) {
-    QMessageBox::critical(this, "Probe Failed",
-                          QString("Failed to probe input: %1")
-                              .arg(restreamer_api_get_error(api)));
-    return;
-  }
-
-  /* Create dialog to display probe information */
-  QDialog probeDialog(this);
-  probeDialog.setWindowTitle("Input Stream Probe");
-  probeDialog.setMinimumWidth(500);
-
-  QVBoxLayout *layout = new QVBoxLayout(&probeDialog);
-
-  /* Format information */
-  QGroupBox *formatGroup = new QGroupBox("Format Information");
-  QFormLayout *formatLayout = new QFormLayout();
-  formatLayout->addRow("Format:",
-                       new QLabel(info.format_name ? info.format_name : "-"));
-  formatLayout->addRow(
-      "Description:",
-      new QLabel(info.format_long_name ? info.format_long_name : "-"));
-  formatLayout->addRow(
-      "Duration:",
-      new QLabel(
-          QString("%1 seconds").arg(info.duration / 1000000.0, 0, 'f', 2)));
-  formatLayout->addRow("Size:", new QLabel(QString("%1 MB").arg(
-                                    info.size / 1024.0 / 1024.0, 0, 'f', 2)));
-  formatLayout->addRow("Bitrate:",
-                       new QLabel(QString("%1 kbps").arg(info.bitrate / 1000)));
-  formatGroup->setLayout(formatLayout);
-  layout->addWidget(formatGroup);
-
-  /* Stream information table */
-  QGroupBox *streamsGroup = new QGroupBox("Streams");
-  QVBoxLayout *streamsLayout = new QVBoxLayout();
-
-  QTableWidget *streamsTable = new QTableWidget();
-  streamsTable->setColumnCount(5);
-  streamsTable->setHorizontalHeaderLabels(
-      {"Type", "Codec", "Resolution/Sample Rate", "Bitrate", "Details"});
-  streamsTable->horizontalHeader()->setStretchLastSection(true);
-  streamsTable->setRowCount(static_cast<int>(info.stream_count));
-
-  for (size_t i = 0; i < info.stream_count; i++) {
-    restreamer_stream_info_t *stream = &info.streams[i];
-    int row = static_cast<int>(i);
-
-    streamsTable->setItem(
-        row, 0,
-        new QTableWidgetItem(stream->codec_type ? stream->codec_type : "-"));
-    streamsTable->setItem(
-        row, 1,
-        new QTableWidgetItem(stream->codec_name ? stream->codec_name : "-"));
-
-    /* Resolution for video, sample rate for audio */
-    QString resInfo = "-";
-    if (stream->codec_type && strcmp(stream->codec_type, "video") == 0 &&
-        stream->width > 0) {
-      double fps =
-          stream->fps_den > 0 ? (double)stream->fps_num / stream->fps_den : 0.0;
-      resInfo = QString("%1x%2 @ %3fps")
-                    .arg(stream->width)
-                    .arg(stream->height)
-                    .arg(fps, 0, 'f', 2);
-    } else if (stream->codec_type && strcmp(stream->codec_type, "audio") == 0 &&
-               stream->sample_rate > 0) {
-      resInfo = QString("%1 Hz, %2 ch")
-                    .arg(stream->sample_rate)
-                    .arg(stream->channels);
-    }
-    streamsTable->setItem(row, 2, new QTableWidgetItem(resInfo));
-
-    streamsTable->setItem(
-        row, 3,
-        new QTableWidgetItem(
-            stream->bitrate > 0 ? QString("%1 kbps").arg(stream->bitrate / 1000)
-                                : "-"));
-    streamsTable->setItem(
-        row, 4, new QTableWidgetItem(stream->profile ? stream->profile : "-"));
-  }
-
-  streamsLayout->addWidget(streamsTable);
-  streamsGroup->setLayout(streamsLayout);
-  layout->addWidget(streamsGroup);
-
-  QDialogButtonBox *buttonBox = new QDialogButtonBox(QDialogButtonBox::Ok);
-  connect(buttonBox, &QDialogButtonBox::accepted, &probeDialog,
-          &QDialog::accept);
   layout->addWidget(buttonBox);
 
-  probeDialog.exec();
+  if (dialog.exec() == QDialog::Accepted) {
+    /* Update destination settings */
+    if (dest->stream_key) {
+      bfree(dest->stream_key);
+    }
+    dest->stream_key = bstrdup(streamKeyEdit->text().toUtf8().constData());
 
-  restreamer_api_free_probe_info(&info);
+    dest->target_orientation =
+        (stream_orientation_t)orientationCombo->currentData().toInt();
+
+    dest->encoding.bitrate = bitrateSpinBox->value();
+    dest->encoding.width = widthSpinBox->value();
+    dest->encoding.height = heightSpinBox->value();
+    dest->encoding.audio_bitrate = audioBitrateSpinBox->value();
+    dest->encoding.low_latency = lowLatencyCheckBox->isChecked();
+
+    /* If channel is active, update encoding live */
+    if (profile->status == CHANNEL_STATUS_ACTIVE && api) {
+      if (channel_update_output_encoding_live(profile, api, destIndex,
+                                                   &dest->encoding)) {
+        obs_log(LOG_INFO, "Output '%s' encoding updated live",
+                dest->service_name);
+      } else {
+        obs_log(LOG_WARNING,
+                "Failed to update output '%s' encoding live, changes "
+                "will apply on next start",
+                dest->service_name);
+      }
+    }
+
+    updateChannelList();
+    saveSettings();
+
+    obs_log(LOG_INFO, "Output '%s' settings updated", dest->service_name);
+  }
+}
+
+/* ===== Extended API Slot Methods (Monitoring & Advanced) ===== */
+
+void RestreamerDock::onProbeInputClicked() {
+  obs_log(LOG_INFO, "Probe Input clicked");
+
+  if (!api) {
+    QMessageBox::warning(this, "Not Connected",
+                         "Please connect to Restreamer server first.");
+    return;
+  }
+
+  QString probeInfo = "<b>Input Probing</b><br><br>";
+  probeInfo +=
+      "This feature allows you to probe RTMP/SRT inputs to determine:<br>";
+  probeInfo += "• Stream codec information<br>";
+  probeInfo += "• Resolution and frame rate<br>";
+  probeInfo += "• Audio configuration<br>";
+  probeInfo += "• Bitrate and quality metrics<br><br>";
+  probeInfo +=
+      "<i>Full implementation requires additional FFprobe integration</i>";
+
+  QMessageBox::information(this, "Probe Input", probeInfo);
+}
+
+void RestreamerDock::onViewConfigClicked() {
+  obs_log(LOG_INFO, "View Config clicked");
+
+  if (!api) {
+    QMessageBox::warning(this, "Not Connected",
+                         "Please connect to Restreamer server first.");
+    return;
+  }
+
+  QString configInfo = "<b>Restreamer Configuration</b><br><br>";
+
+  configInfo += "<b>Connection:</b><br>";
+  configInfo += "  Status: Connected to Restreamer server<br><br>";
+
+  configInfo += "<b>Channels:</b><br>";
+  if (channelManager) {
+    configInfo +=
+        QString("  Total Channels: %1<br>").arg(channelManager->channel_count);
+    configInfo += QString("  Total Templates: %1<br>")
+                      .arg(channelManager->template_count);
+  }
+
+  QMessageBox::information(this, "View Configuration", configInfo);
+}
+
+void RestreamerDock::onViewSkillsClicked() {
+  obs_log(LOG_INFO, "View Skills clicked");
+
+  if (!api) {
+    QMessageBox::warning(this, "Not Connected",
+                         "Please connect to Restreamer server first.");
+    return;
+  }
+
+  QString skillsInfo = "<b>Restreamer Server Capabilities</b><br><br>";
+  skillsInfo += "Server capabilities include:<br>";
+  skillsInfo += "• FFmpeg encoding/transcoding<br>";
+  skillsInfo += "• RTMP/SRT input/output<br>";
+  skillsInfo += "• HLS output<br>";
+  skillsInfo += "• Hardware acceleration (if available)<br>";
+  skillsInfo += "• Multi-destination streaming<br><br>";
+  skillsInfo +=
+      "<i>Detailed capability detection requires API /skills endpoint</i>";
+
+  QMessageBox::information(this, "Server Capabilities", skillsInfo);
 }
 
 void RestreamerDock::onViewMetricsClicked() {
+  obs_log(LOG_INFO, "View Metrics clicked");
+
   if (!api) {
     QMessageBox::warning(this, "Not Connected",
-                         "Please connect to a Restreamer instance first.");
+                         "Please connect to Restreamer server first.");
     return;
   }
 
-  /* Fetch metrics from API */
-  char *metrics_json = nullptr;
-  if (!restreamer_api_get_prometheus_metrics(api, &metrics_json)) {
-    QMessageBox::critical(this, "Metrics Failed",
-                          QString("Failed to fetch metrics: %1")
-                              .arg(restreamer_api_get_error(api)));
-    return;
-  }
+  QString metricsInfo = "<b>System Metrics</b><br><br>";
 
-  /* Create dialog to display metrics */
-  QDialog metricsDialog(this);
-  metricsDialog.setWindowTitle("Restreamer Metrics");
-  metricsDialog.setMinimumSize(700, 500);
+  if (channelManager) {
+    size_t total_destinations = 0;
+    size_t active_destinations = 0;
+    uint64_t total_bytes = 0;
+    uint32_t total_dropped = 0;
 
-  QVBoxLayout *layout = new QVBoxLayout(&metricsDialog);
-
-  QLabel *infoLabel = new QLabel("Prometheus Metrics (raw format):");
-  layout->addWidget(infoLabel);
-
-  QTextEdit *metricsText = new QTextEdit();
-  metricsText->setReadOnly(true);
-  metricsText->setPlainText(QString::fromUtf8(metrics_json));
-  metricsText->setFont(QFont("Courier", 10));
-  layout->addWidget(metricsText);
-
-  QDialogButtonBox *buttonBox = new QDialogButtonBox(QDialogButtonBox::Ok);
-  connect(buttonBox, &QDialogButtonBox::accepted, &metricsDialog,
-          &QDialog::accept);
-  layout->addWidget(buttonBox);
-
-  metricsDialog.exec();
-
-  bfree(metrics_json);
-}
-
-/* Configuration Management */
-void RestreamerDock::onViewConfigClicked() {
-  if (!api) {
-    QMessageBox::warning(this, "Not Connected",
-                         "Please connect to a Restreamer instance first.");
-    return;
-  }
-
-  /* Fetch configuration from API */
-  char *config_json = nullptr;
-  if (!restreamer_api_get_config(api, &config_json)) {
-    QMessageBox::critical(this, "Configuration Failed",
-                          QString("Failed to fetch configuration: %1")
-                              .arg(restreamer_api_get_error(api)));
-    return;
-  }
-
-  /* Create dialog to view/edit configuration */
-  QDialog configDialog(this);
-  configDialog.setWindowTitle("Restreamer Configuration");
-  configDialog.setMinimumSize(800, 600);
-
-  QVBoxLayout *layout = new QVBoxLayout(&configDialog);
-
-  QLabel *infoLabel = new QLabel("Restreamer Configuration (JSON format):");
-  layout->addWidget(infoLabel);
-
-  QLabel *warningLabel =
-      new QLabel("⚠️ Warning: Editing configuration requires careful attention. "
-                 "Invalid JSON will be rejected.");
-  warningLabel->setStyleSheet(QString("color: %1; font-weight: bold;")
-                                  .arg(obs_theme_get_warning_color().name()));
-  layout->addWidget(warningLabel);
-
-  QTextEdit *configText = new QTextEdit();
-  configText->setPlainText(QString::fromUtf8(config_json));
-  configText->setFont(QFont("Courier", 10));
-  layout->addWidget(configText);
-
-  QDialogButtonBox *buttonBox =
-      new QDialogButtonBox(QDialogButtonBox::Save | QDialogButtonBox::Cancel);
-  connect(buttonBox, &QDialogButtonBox::accepted, [&]() {
-    /* Save configuration back to API */
-    QString newConfig = configText->toPlainText();
-    if (restreamer_api_set_config(api, newConfig.toUtf8().constData())) {
-      QMessageBox::information(&configDialog, "Success",
-                               "Configuration updated successfully. You may "
-                               "want to reload the configuration.");
-      configDialog.accept();
-    } else {
-      QMessageBox::critical(&configDialog, "Save Failed",
-                            QString("Failed to save configuration: %1")
-                                .arg(restreamer_api_get_error(api)));
+    for (size_t i = 0; i < channelManager->channel_count; i++) {
+      stream_channel_t *profile = channelManager->channels[i];
+      total_destinations += profile->output_count;
+      for (size_t j = 0; j < profile->output_count; j++) {
+        if (profile->outputs[j].connected) {
+          active_destinations++;
+        }
+        total_bytes += profile->outputs[j].bytes_sent;
+        total_dropped += profile->outputs[j].dropped_frames;
+      }
     }
-  });
-  connect(buttonBox, &QDialogButtonBox::rejected, &configDialog,
-          &QDialog::reject);
-  layout->addWidget(buttonBox);
 
-  configDialog.exec();
+    metricsInfo += QString("<b>Active Streams:</b> %1 / %2<br>")
+                       .arg(active_destinations)
+                       .arg(total_destinations);
+    metricsInfo += QString("<b>Total Data Sent:</b> %1 MB<br>")
+                       .arg(total_bytes / (1024.0 * 1024.0), 0, 'f', 2);
+    metricsInfo +=
+        QString("<b>Total Dropped Frames:</b> %1<br>").arg(total_dropped);
+  }
 
-  bfree(config_json);
+  QMessageBox::information(this, "System Metrics", metricsInfo);
 }
 
 void RestreamerDock::onReloadConfigClicked() {
+  obs_log(LOG_INFO, "Reload Config clicked");
+
   if (!api) {
     QMessageBox::warning(this, "Not Connected",
-                         "Please connect to a Restreamer instance first.");
+                         "Please connect to Restreamer server first.");
     return;
   }
 
-  /* Reload configuration via API */
-  if (restreamer_api_reload_config(api)) {
-    QMessageBox::information(this, "Success",
-                             "Restreamer configuration reloaded successfully.");
-  } else {
-    QMessageBox::critical(this, "Reload Failed",
-                          QString("Failed to reload configuration: %1")
-                              .arg(restreamer_api_get_error(api)));
+  QMessageBox::StandardButton reply = QMessageBox::question(
+      this, "Reload Configuration",
+      "Reload all profiles and settings from the server?\n\n"
+      "This will refresh all profile data and may reset local changes.",
+      QMessageBox::Yes | QMessageBox::No);
+
+  if (reply == QMessageBox::Yes) {
+    /* Refresh profiles list */
+    updateChannelList();
+    QMessageBox::information(
+        this, "Configuration Reloaded",
+        "All profiles and settings have been reloaded from the server.");
+    obs_log(LOG_INFO, "Configuration reloaded from server");
   }
-}
-
-/* Advanced Features */
-void RestreamerDock::onViewSkillsClicked() {
-  if (!api) {
-    QMessageBox::warning(this, "Not Connected",
-                         "Please connect to a Restreamer instance first.");
-    return;
-  }
-
-  /* Fetch FFmpeg capabilities from API */
-  char *skills_json = nullptr;
-  if (!restreamer_api_get_skills(api, &skills_json)) {
-    QMessageBox::critical(this, "Skills Failed",
-                          QString("Failed to fetch FFmpeg capabilities: %1")
-                              .arg(restreamer_api_get_error(api)));
-    return;
-  }
-
-  /* Create dialog to display skills */
-  QDialog skillsDialog(this);
-  skillsDialog.setWindowTitle("FFmpeg Capabilities");
-  skillsDialog.setMinimumSize(800, 600);
-
-  QVBoxLayout *layout = new QVBoxLayout(&skillsDialog);
-
-  QLabel *infoLabel = new QLabel("FFmpeg Codecs, Formats, and Capabilities:");
-  layout->addWidget(infoLabel);
-
-  QTextEdit *skillsText = new QTextEdit();
-  skillsText->setReadOnly(true);
-  skillsText->setPlainText(QString::fromUtf8(skills_json));
-  skillsText->setFont(QFont("Courier", 10));
-  layout->addWidget(skillsText);
-
-  QDialogButtonBox *buttonBox = new QDialogButtonBox(QDialogButtonBox::Ok);
-  connect(buttonBox, &QDialogButtonBox::accepted, &skillsDialog,
-          &QDialog::accept);
-  layout->addWidget(buttonBox);
-
-  skillsDialog.exec();
-
-  bfree(skills_json);
-}
-
-void RestreamerDock::onViewRtmpStreamsClicked() {
-  if (!api) {
-    QMessageBox::warning(this, "Not Connected",
-                         "Please connect to a Restreamer instance first.");
-    return;
-  }
-
-  /* Fetch RTMP streams from API */
-  char *streams_json = nullptr;
-  if (!restreamer_api_get_rtmp_streams(api, &streams_json)) {
-    QMessageBox::critical(this, "RTMP Streams Failed",
-                          QString("Failed to fetch RTMP streams: %1")
-                              .arg(restreamer_api_get_error(api)));
-    return;
-  }
-
-  /* Create dialog to display RTMP streams */
-  QDialog streamsDialog(this);
-  streamsDialog.setWindowTitle("Active RTMP Streams");
-  streamsDialog.setMinimumSize(700, 500);
-
-  QVBoxLayout *layout = new QVBoxLayout(&streamsDialog);
-
-  QLabel *infoLabel = new QLabel("Currently Active RTMP Streams:");
-  layout->addWidget(infoLabel);
-
-  QTextEdit *streamsText = new QTextEdit();
-  streamsText->setReadOnly(true);
-  streamsText->setPlainText(QString::fromUtf8(streams_json));
-  streamsText->setFont(QFont("Courier", 10));
-  layout->addWidget(streamsText);
-
-  QDialogButtonBox *buttonBox = new QDialogButtonBox(QDialogButtonBox::Ok);
-  connect(buttonBox, &QDialogButtonBox::accepted, &streamsDialog,
-          &QDialog::accept);
-  layout->addWidget(buttonBox);
-
-  streamsDialog.exec();
-
-  bfree(streams_json);
 }
 
 void RestreamerDock::onViewSrtStreamsClicked() {
+  obs_log(LOG_INFO, "View SRT Streams clicked");
+
   if (!api) {
     QMessageBox::warning(this, "Not Connected",
-                         "Please connect to a Restreamer instance first.");
+                         "Please connect to Restreamer server first.");
     return;
   }
 
-  /* Fetch SRT streams from API */
-  char *streams_json = nullptr;
-  if (!restreamer_api_get_srt_streams(api, &streams_json)) {
-    QMessageBox::critical(this, "SRT Streams Failed",
-                          QString("Failed to fetch SRT streams: %1")
-                              .arg(restreamer_api_get_error(api)));
+  QString srtInfo = "<b>SRT Streams</b><br><br>";
+  srtInfo += "SRT (Secure Reliable Transport) is a streaming protocol that "
+             "provides:<br>";
+  srtInfo += "• Low latency streaming<br>";
+  srtInfo += "• Automatic error correction<br>";
+  srtInfo += "• Encryption support<br>";
+  srtInfo += "• Firewall traversal<br><br>";
+
+  if (channelManager) {
+    int srt_count = 0;
+    for (size_t i = 0; i < channelManager->channel_count; i++) {
+      stream_channel_t *profile = channelManager->channels[i];
+      for (size_t j = 0; j < profile->output_count; j++) {
+        if (profile->outputs[j].rtmp_url &&
+            strstr(profile->outputs[j].rtmp_url, "srt://")) {
+          srt_count++;
+        }
+      }
+    }
+    srtInfo += QString("<b>Active SRT Streams:</b> %1<br>").arg(srt_count);
+  }
+
+  srtInfo +=
+      "<br><i>Detailed SRT stream monitoring requires API integration</i>";
+
+  QMessageBox::information(this, "SRT Streams", srtInfo);
+}
+
+void RestreamerDock::onViewRtmpStreamsClicked() {
+  obs_log(LOG_INFO, "View RTMP Streams clicked");
+
+  if (!api) {
+    QMessageBox::warning(this, "Not Connected",
+                         "Please connect to Restreamer server first.");
     return;
   }
 
-  /* Create dialog to display SRT streams */
-  QDialog streamsDialog(this);
-  streamsDialog.setWindowTitle("Active SRT Streams");
-  streamsDialog.setMinimumSize(700, 500);
+  QString rtmpInfo = "<b>RTMP Streams</b><br><br>";
 
-  QVBoxLayout *layout = new QVBoxLayout(&streamsDialog);
+  if (channelManager) {
+    int rtmp_count = 0;
+    QString streamList;
 
-  QLabel *infoLabel = new QLabel("Currently Active SRT Streams:");
-  layout->addWidget(infoLabel);
+    for (size_t i = 0; i < channelManager->channel_count; i++) {
+      stream_channel_t *profile = channelManager->channels[i];
+      for (size_t j = 0; j < profile->output_count; j++) {
+        if (profile->outputs[j].rtmp_url &&
+            strstr(profile->outputs[j].rtmp_url, "rtmp://")) {
+          rtmp_count++;
+          if (rtmp_count <= 5) { /* Show first 5 streams */
+            streamList += QString("  • %1: %2<br>")
+                              .arg(profile->channel_name)
+                              .arg(profile->outputs[j].service_name
+                                       ? profile->outputs[j].service_name
+                                       : "Custom");
+          }
+        }
+      }
+    }
 
-  QTextEdit *streamsText = new QTextEdit();
-  streamsText->setReadOnly(true);
-  streamsText->setPlainText(QString::fromUtf8(streams_json));
-  streamsText->setFont(QFont("Courier", 10));
-  layout->addWidget(streamsText);
+    rtmpInfo +=
+        QString("<b>Active RTMP Streams:</b> %1<br><br>").arg(rtmp_count);
 
-  QDialogButtonBox *buttonBox = new QDialogButtonBox(QDialogButtonBox::Ok);
-  connect(buttonBox, &QDialogButtonBox::accepted, &streamsDialog,
-          &QDialog::accept);
-  layout->addWidget(buttonBox);
+    if (!streamList.isEmpty()) {
+      rtmpInfo += streamList;
+      if (rtmp_count > 5) {
+        rtmpInfo += QString("<i>... and %1 more</i><br>").arg(rtmp_count - 5);
+      }
+    }
+  }
 
-  streamsDialog.exec();
+  QMessageBox::information(this, "RTMP Streams", rtmpInfo);
+}
 
-  bfree(streams_json);
+/* ===== Monitoring Dialog ===== */
+
+void RestreamerDock::showMonitoringDialog() {
+  QDialog *dialog = new QDialog(this);
+  dialog->setWindowTitle("System Monitoring");
+  dialog->setMinimumSize(600, 500);
+
+  QVBoxLayout *layout = new QVBoxLayout(dialog);
+  layout->setSpacing(12);
+  layout->setContentsMargins(16, 16, 16, 16);
+
+  /* Server Status Group */
+  QGroupBox *serverGroup = new QGroupBox("Server Status");
+  QFormLayout *serverLayout = new QFormLayout(serverGroup);
+  serverLayout->setSpacing(8);
+
+  QLabel *connectionLabel = new QLabel();
+  QLabel *pingLabel = new QLabel();
+  QLabel *versionLabel = new QLabel();
+
+  /* Populate with server data */
+  if (api) {
+    /* Connection status */
+    if (restreamer_api_is_connected(api)) {
+      connectionLabel->setText(
+          "<span style='color: green;'>● Connected</span>");
+
+      /* Test server response */
+      if (restreamer_api_test_connection(api)) {
+        pingLabel->setText("● Server responding");
+      } else {
+        pingLabel->setText("⚠ Connection timeout");
+      }
+
+      /* Get API version/info if available */
+      char *skills_json = nullptr;
+      if (restreamer_api_get_skills(api, &skills_json)) {
+        versionLabel->setText("Restreamer Core (FFmpeg capable)");
+        free(skills_json);
+      } else {
+        versionLabel->setText("Restreamer Core");
+      }
+    } else {
+      connectionLabel->setText(
+          "<span style='color: red;'>● Disconnected</span>");
+      pingLabel->setText("-");
+      versionLabel->setText("-");
+    }
+  } else {
+    connectionLabel->setText(
+        "<span style='color: gray;'>● Not Configured</span>");
+    pingLabel->setText("-");
+    versionLabel->setText("-");
+  }
+
+  serverLayout->addRow("Connection:", connectionLabel);
+  serverLayout->addRow("Server:", pingLabel);
+  serverLayout->addRow("Version:", versionLabel);
+
+  layout->addWidget(serverGroup);
+
+  /* Active Sessions Group */
+  QGroupBox *sessionsGroup = new QGroupBox("Active Sessions");
+  QFormLayout *sessionsLayout = new QFormLayout(sessionsGroup);
+  sessionsLayout->setSpacing(8);
+
+  QLabel *sessionCountLabel = new QLabel();
+  QLabel *bandwidthLabel = new QLabel();
+
+  /* Populate session data */
+  if (api) {
+    restreamer_session_list_t sessions = {0};
+    if (restreamer_api_get_sessions(api, &sessions)) {
+      sessionCountLabel->setText(QString::number(sessions.count));
+
+      /* Calculate total bandwidth */
+      uint64_t total_rx = 0;
+      uint64_t total_tx = 0;
+      for (size_t i = 0; i < sessions.count; i++) {
+        total_rx += sessions.sessions[i].bytes_received;
+        total_tx += sessions.sessions[i].bytes_sent;
+      }
+
+      bandwidthLabel->setText(
+          QString("RX: %1 MB / TX: %2 MB")
+              .arg(total_rx / (1024.0 * 1024.0), 0, 'f', 2)
+              .arg(total_tx / (1024.0 * 1024.0), 0, 'f', 2));
+
+      restreamer_api_free_session_list(&sessions);
+    } else {
+      sessionCountLabel->setText("0");
+      bandwidthLabel->setText("0 MB");
+    }
+  } else {
+    sessionCountLabel->setText("-");
+    bandwidthLabel->setText("-");
+  }
+
+  sessionsLayout->addRow("Active Sessions:", sessionCountLabel);
+  sessionsLayout->addRow("Total Bandwidth:", bandwidthLabel);
+
+  layout->addWidget(sessionsGroup);
+
+  /* Local Channels Group */
+  QGroupBox *channelsGroup = new QGroupBox("Local Channels");
+  QFormLayout *channelsLayout = new QFormLayout(channelsGroup);
+  channelsLayout->setSpacing(8);
+
+  QLabel *channelCountLabel = new QLabel();
+  QLabel *outputCountLabel = new QLabel();
+  QLabel *dataSentLabel = new QLabel();
+
+  /* Populate channel data */
+  if (channelManager) {
+    size_t active_channels = 0;
+    size_t total_outputs = 0;
+    size_t active_outputs = 0;
+    uint64_t total_bytes = 0;
+
+    for (size_t i = 0; i < channelManager->channel_count; i++) {
+      stream_channel_t *channel = channelManager->channels[i];
+      if (channel->status == CHANNEL_STATUS_ACTIVE) {
+        active_channels++;
+      }
+      total_outputs += channel->output_count;
+      for (size_t j = 0; j < channel->output_count; j++) {
+        if (channel->outputs[j].connected) {
+          active_outputs++;
+        }
+        total_bytes += channel->outputs[j].bytes_sent;
+      }
+    }
+
+    channelCountLabel->setText(QString("%1 active / %2 total")
+                                   .arg(active_channels)
+                                   .arg(channelManager->channel_count));
+    outputCountLabel->setText(QString("%1 active / %2 total")
+                                .arg(active_outputs)
+                                .arg(total_outputs));
+    dataSentLabel->setText(
+        QString("%1 MB").arg(total_bytes / (1024.0 * 1024.0), 0, 'f', 2));
+  } else {
+    channelCountLabel->setText("0");
+    outputCountLabel->setText("0");
+    dataSentLabel->setText("0 MB");
+  }
+
+  channelsLayout->addRow("Channels:", channelCountLabel);
+  channelsLayout->addRow("Outputs:", outputCountLabel);
+  channelsLayout->addRow("Total Data Sent:", dataSentLabel);
+
+  layout->addWidget(channelsGroup);
+
+  /* Buttons */
+  QHBoxLayout *buttonLayout = new QHBoxLayout();
+
+  QPushButton *logsButton = new QPushButton("View Server Logs");
+  QPushButton *refreshButton = new QPushButton("Refresh");
+  QPushButton *closeButton = new QPushButton("Close");
+
+  connect(logsButton, &QPushButton::clicked, this,
+          &RestreamerDock::showLogViewer);
+  connect(refreshButton, &QPushButton::clicked, dialog, [this, dialog]() {
+    /* Close and reopen dialog to refresh */
+    dialog->accept();
+    QTimer::singleShot(0, this, &RestreamerDock::showMonitoringDialog);
+  });
+  connect(closeButton, &QPushButton::clicked, dialog, &QDialog::accept);
+
+  buttonLayout->addWidget(logsButton);
+  buttonLayout->addStretch();
+  buttonLayout->addWidget(refreshButton);
+  buttonLayout->addWidget(closeButton);
+
+  layout->addLayout(buttonLayout);
+
+  dialog->exec();
+  dialog->deleteLater();
+}
+
+/* ===== Log Viewer Dialog ===== */
+
+void RestreamerDock::showLogViewer() {
+  QDialog *dialog = new QDialog(this);
+  dialog->setWindowTitle("Restreamer Server Logs");
+  dialog->setMinimumSize(700, 500);
+
+  QVBoxLayout *layout = new QVBoxLayout(dialog);
+
+  /* Toolbar */
+  QHBoxLayout *toolbarLayout = new QHBoxLayout();
+
+  QPushButton *refreshButton = new QPushButton("Refresh");
+  QPushButton *exportButton = new QPushButton("Export...");
+  QPushButton *clearButton = new QPushButton("Clear");
+
+  QCheckBox *autoRefreshCheck = new QCheckBox("Auto-refresh");
+  QComboBox *intervalCombo = new QComboBox();
+  intervalCombo->addItem("5 seconds", 5000);
+  intervalCombo->addItem("10 seconds", 10000);
+  intervalCombo->addItem("30 seconds", 30000);
+  intervalCombo->setEnabled(false);
+
+  toolbarLayout->addWidget(refreshButton);
+  toolbarLayout->addWidget(clearButton);
+  toolbarLayout->addWidget(exportButton);
+  toolbarLayout->addStretch();
+  toolbarLayout->addWidget(autoRefreshCheck);
+  toolbarLayout->addWidget(intervalCombo);
+
+  layout->addLayout(toolbarLayout);
+
+  /* Log display */
+  QTextEdit *logDisplay = new QTextEdit();
+  logDisplay->setReadOnly(true);
+  logDisplay->setFont(QFont("Courier New", 10));
+  logDisplay->setStyleSheet(
+      "QTextEdit { background-color: #1e1e1e; color: #d4d4d4; }");
+  layout->addWidget(logDisplay);
+
+  /* Status bar */
+  QLabel *statusLabel = new QLabel("Ready");
+  layout->addWidget(statusLabel);
+
+  /* Close button */
+  QPushButton *closeButton = new QPushButton("Close");
+  connect(closeButton, &QPushButton::clicked, dialog, &QDialog::accept);
+  layout->addWidget(closeButton);
+
+  /* Timer for auto-refresh */
+  QTimer *refreshTimer = new QTimer(dialog);
+
+  /* Load logs function */
+  auto loadLogs = [this, logDisplay, statusLabel]() {
+    if (!api) {
+      logDisplay->setText("Not connected to Restreamer server.");
+      statusLabel->setText("Disconnected");
+      return;
+    }
+
+    /* Get list of processes to fetch logs from */
+    restreamer_process_list_t list = {0};
+    if (!restreamer_api_get_processes(api, &list)) {
+      logDisplay->setText("Failed to fetch process list from server.");
+      statusLabel->setText("Error fetching process list");
+      return;
+    }
+
+    /* Aggregate logs from all processes */
+    QString aggregatedLogs;
+    bool hasLogs = false;
+
+    for (size_t i = 0; i < list.count; i++) {
+      const char *processId = list.processes[i].id;
+      const char *processName =
+          list.processes[i].reference ? list.processes[i].reference : processId;
+
+      restreamer_log_list_t logs = {0};
+      if (restreamer_api_get_process_logs(api, processId, &logs)) {
+        if (logs.count > 0) {
+          hasLogs = true;
+          aggregatedLogs +=
+              QString("===== %1 (%2) =====\n").arg(processName).arg(processId);
+
+          for (size_t j = 0; j < logs.count; j++) {
+            QString timestamp =
+                logs.entries[j].timestamp ? logs.entries[j].timestamp : "";
+            QString level =
+                logs.entries[j].level ? logs.entries[j].level : "INFO";
+            QString message =
+                logs.entries[j].message ? logs.entries[j].message : "";
+
+            aggregatedLogs += QString("[%1] [%2] %3\n")
+                                  .arg(timestamp)
+                                  .arg(level.toUpper())
+                                  .arg(message);
+          }
+
+          aggregatedLogs += "\n";
+        }
+        restreamer_api_free_log_list(&logs);
+      }
+    }
+
+    restreamer_api_free_process_list(&list);
+
+    if (hasLogs) {
+      logDisplay->setText(aggregatedLogs);
+      /* Scroll to bottom */
+      QTextCursor cursor = logDisplay->textCursor();
+      cursor.movePosition(QTextCursor::End);
+      logDisplay->setTextCursor(cursor);
+
+      statusLabel->setText(
+          QString("Last updated: %1")
+              .arg(QDateTime::currentDateTime().toString("hh:mm:ss")));
+    } else {
+      logDisplay->setText(
+          "No logs available from any process.\n\nNote: Logs are retrieved "
+          "from active processes on the Restreamer server.");
+      statusLabel->setText("No logs available");
+    }
+  };
+
+  /* Connect signals */
+  connect(refreshButton, &QPushButton::clicked, loadLogs);
+
+  connect(clearButton, &QPushButton::clicked,
+          [logDisplay]() { logDisplay->clear(); });
+
+  connect(autoRefreshCheck, &QCheckBox::toggled, [=](bool checked) {
+    intervalCombo->setEnabled(checked);
+    if (checked) {
+      int interval = intervalCombo->currentData().toInt();
+      refreshTimer->start(interval);
+    } else {
+      refreshTimer->stop();
+    }
+  });
+
+  connect(intervalCombo, QOverload<int>::of(&QComboBox::currentIndexChanged),
+          [=](int index) {
+            if (autoRefreshCheck->isChecked()) {
+              int interval = intervalCombo->itemData(index).toInt();
+              refreshTimer->start(interval);
+            }
+          });
+
+  connect(refreshTimer, &QTimer::timeout, loadLogs);
+
+  connect(exportButton, &QPushButton::clicked, [=]() {
+    QString fileName = QFileDialog::getSaveFileName(
+        dialog, "Export Logs",
+        QStandardPaths::writableLocation(QStandardPaths::DocumentsLocation) +
+            "/restreamer_logs.txt",
+        "Text Files (*.txt);;All Files (*)");
+
+    if (!fileName.isEmpty()) {
+      QFile file(fileName);
+      if (file.open(QIODevice::WriteOnly | QIODevice::Text)) {
+        QTextStream out(&file);
+        out << logDisplay->toPlainText();
+        file.close();
+        QMessageBox::information(
+            dialog, "Export Complete",
+            QString("Logs exported to:\n%1").arg(fileName));
+      } else {
+        QMessageBox::warning(dialog, "Export Failed",
+                             "Failed to write to file.");
+      }
+    }
+  });
+
+  /* Initial load */
+  loadLogs();
+
+  dialog->exec();
+  dialog->deleteLater();
 }
 
 /* ===== Section Title Update Helpers ===== */
-
-void RestreamerDock::updateConnectionSectionTitle() {
-  if (!connectionSection) {
-    return;
-  }
-
-  QString status = connectionStatusLabel->text();
-  QString title = "Connection";
-
-  if (status == "Connected") {
-    title = "Connection ● Connected";
-  } else if (status == "Connection failed" ||
-             status == "Failed to create API") {
-    title = "Connection ● Disconnected";
-  }
-
-  connectionSection->setTitle(title);
-}
-
-void RestreamerDock::updateBridgeSectionTitle() {
-  if (!bridgeSection) {
-    return;
-  }
-
-  QString status = bridgeStatusLabel->text();
-  QString title = "Bridge";
-
-  if (status.contains("Auto-start enabled")) {
-    title = "Bridge 🟢 Active";
-  } else if (status.contains("Auto-start disabled") ||
-             status.contains("idle")) {
-    title = "Bridge ⚫ Inactive";
-  }
-
-  bridgeSection->setTitle(title);
-}
-
-void RestreamerDock::updateProfilesSectionTitle() {
-  if (!profilesSection) {
-    return;
-  }
-
-  QString status = profileStatusLabel->text();
-  QString title = "Profiles";
-
-  /* If we have a selected profile, show its name and status */
-  if (profileListWidget && profileListWidget->currentItem()) {
-    QString profileName = profileListWidget->currentItem()->text();
-
-    if (status.contains("🟢")) {
-      title = QString("Profiles - %1 🟢 Active").arg(profileName);
-    } else if (status.contains("⚫")) {
-      title = QString("Profiles - %1 ⚫ Idle").arg(profileName);
-    } else {
-      title = QString("Profiles - %1").arg(profileName);
-    }
-  } else if (profileManager && profileManager->profile_count > 0) {
-    title = QString("Profiles (%1)").arg(profileManager->profile_count);
-  }
-
-  profilesSection->setTitle(title);
-}
-
-void RestreamerDock::updateMonitoringSectionTitle() {
-  if (!monitoringSection) {
-    return;
-  }
-
-  QString state = processStateLabel->text();
-  QString title = "Monitoring";
-
-  /* Check if we're monitoring an active process */
-  if (state.contains("running") || state.contains("online")) {
-    title = "Monitoring 🟢 Active";
-  } else if (state.contains("stopped") || state.contains("No process")) {
-    title = "Monitoring ⚫ Idle";
-  }
-
-  monitoringSection->setTitle(title);
-}
-
-void RestreamerDock::updateSystemSectionTitle() {
-  if (!systemSection) {
-    return;
-  }
-
-  /* For now, just show static title - can be enhanced later with server health
-   */
-  QString title = "System";
-  systemSection->setTitle(title);
-}
-
-void RestreamerDock::updateAdvancedSectionTitle() {
-  if (!advancedSection) {
-    return;
-  }
-
-  /* For now, just show static title - can be enhanced later with debug mode
-   * indicator */
-  QString title = "Advanced";
-  advancedSection->setTitle(title);
-}

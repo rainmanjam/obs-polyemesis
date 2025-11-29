@@ -19,7 +19,7 @@
 #include "obs-service-loader.h"
 #include "restreamer-api.h"
 #include "restreamer-multistream.h"
-#include "restreamer-output-profile.h"
+#include "restreamer-channel.h"
 
 /* Forward declare C types */
 extern "C" {
@@ -28,6 +28,8 @@ typedef struct obs_bridge obs_bridge_t;
 
 /* Forward declare Qt classes */
 class CollapsibleSection;
+class ChannelWidget;
+class ConnectionConfigDialog;
 
 class RestreamerDock : public QWidget {
   Q_OBJECT
@@ -37,7 +39,7 @@ public:
   ~RestreamerDock();
 
   /* Public accessors for WebSocket API */
-  profile_manager_t *getProfileManager() { return profileManager; }
+  channel_manager_t *getChannelManager() { return channelManager; }
   restreamer_api_t *getApiClient() { return api; }
   obs_bridge_t *getBridge() { return bridge; }
 
@@ -45,6 +47,7 @@ public:
 private slots:
   void onRefreshClicked();
   void onTestConnectionClicked();
+  void onConfigureConnectionClicked();
   void onProcessSelected();
   void onStartProcessClicked();
   void onStopProcessClicked();
@@ -55,17 +58,22 @@ private slots:
   void onSaveSettingsClicked();
   void onUpdateTimer();
 
-  /* Profile management slots */
-  void onCreateProfileClicked();
-  void onDeleteProfileClicked();
-  void onProfileSelected();
-  void onStartProfileClicked();
-  void onStopProfileClicked();
-  void onStartAllProfilesClicked();
-  void onStopAllProfilesClicked();
-  void onConfigureProfileClicked();
-  void onDuplicateProfileClicked();
-  void onProfileListContextMenu(const QPoint &pos);
+  /* Channel management slots */
+  void onCreateChannelClicked();
+  void onStartAllChannelsClicked();
+  void onStopAllChannelsClicked();
+
+  /* ChannelWidget signal handlers */
+  void onChannelStartRequested(const char *channelId);
+  void onChannelStopRequested(const char *channelId);
+  void onChannelEditRequested(const char *channelId);
+  void onChannelDeleteRequested(const char *channelId);
+  void onChannelDuplicateRequested(const char *channelId);
+
+  /* Output control signal handlers */
+  void onOutputStartRequested(const char *channelId, size_t outputIndex);
+  void onOutputStopRequested(const char *channelId, size_t outputIndex);
+  void onOutputEditRequested(const char *channelId, size_t outputIndex);
 
   /* Extended API slots */
   void onProbeInputClicked();
@@ -78,6 +86,10 @@ private slots:
 
   /* Bridge settings slots */
   void onSaveBridgeSettingsClicked();
+
+  /* Monitoring and Log viewer slots */
+  void showMonitoringDialog();
+  void showLogViewer();
 
 private slots:
   /* Dock state change handler */
@@ -95,18 +107,18 @@ private:
   void updateProcessDetails();
   void updateSessionList();
   void updateDestinationList();
-  void updateProfileList();
-  void updateProfileDetails();
+  void updateChannelList();
+  void updateConnectionStatus();
 
   restreamer_api_t *api;
   QTimer *updateTimer;
 
   /* Thread safety */
   std::recursive_mutex apiMutex;
-  std::recursive_mutex profileMutex;
+  std::recursive_mutex channelMutex;
 
-  /* Profile manager */
-  profile_manager_t *profileManager;
+  /* Channel manager */
+  channel_manager_t *channelManager;
 
   /* OBS Bridge */
   obs_bridge_t *bridge;
@@ -116,26 +128,19 @@ private:
   bool sizeInitialized;
 
   /* Connection group */
-  QLineEdit *hostEdit;
-  QLineEdit *portEdit;
-  QCheckBox *httpsCheckbox;
-  QLineEdit *usernameEdit;
-  QLineEdit *passwordEdit;
-  QPushButton *testConnectionButton;
+  /* Connection status bar */
+  QLabel *connectionIndicator;
   QLabel *connectionStatusLabel;
+  QPushButton *configureConnectionButton;
 
-  /* Output Profiles group */
-  QListWidget *profileListWidget;
-  QPushButton *createProfileButton;
-  QPushButton *deleteProfileButton;
-  QPushButton *duplicateProfileButton;
-  QPushButton *configureProfileButton;
-  QPushButton *startProfileButton;
-  QPushButton *stopProfileButton;
-  QPushButton *startAllProfilesButton;
-  QPushButton *stopAllProfilesButton;
-  QLabel *profileStatusLabel;
-  QTableWidget *profileDestinationsTable;
+  /* Output Channels group */
+  QWidget *channelListContainer;
+  QVBoxLayout *channelListLayout;
+  QList<ChannelWidget *> channelWidgets;
+  QPushButton *createChannelButton;
+  QPushButton *startAllChannelsButton;
+  QPushButton *stopAllChannelsButton;
+  QLabel *channelStatusLabel;
 
   /* Process list group */
   QListWidget *processList;
@@ -183,23 +188,4 @@ private:
 
   /* OBS Service Loader */
   OBSServiceLoader *serviceLoader;
-
-  /* Collapsible Section References */
-  CollapsibleSection *connectionSection;
-  CollapsibleSection *bridgeSection;
-  CollapsibleSection *profilesSection;
-  CollapsibleSection *monitoringSection;
-  CollapsibleSection *systemSection;
-  CollapsibleSection *advancedSection;
-
-  /* Quick Action Button References */
-  QPushButton *quickProfileToggleButton;
-
-  /* Helper methods for section titles */
-  void updateConnectionSectionTitle();
-  void updateBridgeSectionTitle();
-  void updateProfilesSectionTitle();
-  void updateMonitoringSectionTitle();
-  void updateSystemSectionTitle();
-  void updateAdvancedSectionTitle();
 };

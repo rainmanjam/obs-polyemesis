@@ -7,6 +7,33 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+- **UI Streamlining**
+  - Replaced collapsible connection section with persistent connection status bar
+    - Shows connection status with visual indicator (⚫ Connected/Disconnected)
+    - "Configure" button opens dedicated connection settings dialog
+    - More prominent and always-visible connection status
+  - Removed CollapsibleSection widget (no longer needed)
+    - Simplified codebase by removing ~200 lines of accordion UI code
+    - Profiles section now always visible for immediate access
+  - Connection Configuration Dialog
+    - Dedicated modal dialog for connection settings
+    - Fields: Restreamer URL, Username, Password, Connection Timeout
+    - Auto-test connection on dialog open if settings exist
+    - Real-time connection testing with detailed error messages
+    - Context-aware hints for common connection issues (port, auth, network)
+    - Support for custom ports (not just 443/80)
+    - Flexible URL formats: full URL, host:port, or hostname only
+    - Smart protocol detection (HTTPS for domains, HTTP for localhost)
+  - Improved port flexibility for non-Let's Encrypt users
+    - Tooltip shows port specification examples
+    - Help text reminds users about custom ports
+    - Default ports: 443 for HTTPS, 80 for HTTP
+
+### Fixed
+- Configure button text now fully visible (increased minimum width)
+- Connection settings properly isolated in dialog (no longer scattered in dock)
+
 ## [0.9.0] - 2025-11-12
 
 ### Added

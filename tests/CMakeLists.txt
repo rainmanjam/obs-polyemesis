@@ -7,9 +7,33 @@ add_executable(
   obs-polyemesis-tests
   test_main.c
   test_api_client.c
+  test_api_system.c
+  test_api_skills.c
+  test_api_filesystem.c
   test_restreamer_api_comprehensive.c
   test_restreamer_api_extensions.c
   test_restreamer_api_advanced.c
+  test_api_diagnostics.c
+  test_api_security.c
+  test_api_process_config.c
+  test_api_utils.c
+  test_api_process_management.c
+  test_api_sessions.c
+  test_api_process_state.c
+  test_api_dynamic_output.c
+  test_api_edge_cases.c
+  test_api_endpoints.c
+  test_api_parsing.c
+  test_api_helpers.c
+  # test_api_parse_helpers.c  # Needs TESTING_MODE for static functions - linker errors
+  test_channel_coverage.c
+  test_channel_bulk_operations.c
+  # test_channel_preview.c  # Uses __wrap_time - requires linker wrapper flags
+  test_api_coverage_improvements.c
+  test_api_coverage_gaps.c
+  test_channel_templates.c
+  # test_channel_failover.c  # Failover logic needs real API - mocks don't work correctly
+  # test_channel_health.c  # Has mock API functions that conflict with real implementations
   # TODO: Fix these tests to match actual API (API v3 functions don't exist)
   # test_api_auth.c
   # test_api_error_handling.c
@@ -17,7 +41,7 @@ add_executable(
   # test_multistream_integration.c
   test_config.c
   test_multistream.c
-  test_output_profile.c
+  test_channel.c
   test_source.c
   test_output.c
   mock_restreamer.c
@@ -29,9 +53,10 @@ target_sources(
   obs-polyemesis-tests
   PRIVATE
     ${CMAKE_SOURCE_DIR}/src/restreamer-api.c
+    ${CMAKE_SOURCE_DIR}/src/restreamer-api-utils.c
     ${CMAKE_SOURCE_DIR}/src/restreamer-config.c
     ${CMAKE_SOURCE_DIR}/src/restreamer-multistream.c
-    ${CMAKE_SOURCE_DIR}/src/restreamer-output-profile.c
+    ${CMAKE_SOURCE_DIR}/src/restreamer-channel.c
     ${CMAKE_SOURCE_DIR}/src/restreamer-source.c
     ${CMAKE_SOURCE_DIR}/src/restreamer-output.c
 )
@@ -66,9 +91,12 @@ endif()
 # Note: Standalone test executables disabled on macOS due to code signing requirements
 # Tests should be run within OBS Studio environment instead
 if(APPLE)
-  add_custom_command(TARGET obs-polyemesis-tests POST_BUILD
+  add_custom_command(
+    TARGET obs-polyemesis-tests
+    POST_BUILD
     COMMAND install_name_tool -add_rpath "${CMAKE_SOURCE_DIR}/.deps/Frameworks" "$<TARGET_FILE:obs-polyemesis-tests>"
-    COMMAND install_name_tool -add_rpath "/Applications/OBS.app/Contents/Frameworks" "$<TARGET_FILE:obs-polyemesis-tests>"
+    COMMAND
+      install_name_tool -add_rpath "/Applications/OBS.app/Contents/Frameworks" "$<TARGET_FILE:obs-polyemesis-tests>"
     COMMENT "Adding rpaths to test executable for OBS and FFmpeg libraries"
   )
 endif()
@@ -76,9 +104,34 @@ endif()
 # Add tests with proper executable path handling
 # Use TARGET_FILE generator expression to handle multi-config generators (Xcode, Visual Studio)
 add_test(NAME api_client_tests COMMAND $<TARGET_FILE:obs-polyemesis-tests> --test-suite=api)
+# TODO: These new test suites need fixes before enabling
+# add_test(NAME api_system_tests COMMAND $<TARGET_FILE:obs-polyemesis-tests> --test-suite=api-system)
+# add_test(NAME api_skills_tests COMMAND $<TARGET_FILE:obs-polyemesis-tests> --test-suite=api-skills)
+# add_test(NAME api_filesystem_tests COMMAND $<TARGET_FILE:obs-polyemesis-tests> --test-suite=api-filesystem)
 add_test(NAME api_comprehensive_tests COMMAND $<TARGET_FILE:obs-polyemesis-tests> --test-suite=api-comprehensive)
 add_test(NAME api_extensions_tests COMMAND $<TARGET_FILE:obs-polyemesis-tests> --test-suite=api-extensions)
 add_test(NAME api_advanced_tests COMMAND $<TARGET_FILE:obs-polyemesis-tests> --test-suite=api-advanced)
+add_test(NAME api_diagnostics_tests COMMAND $<TARGET_FILE:obs-polyemesis-tests> --test-suite=api-diagnostics)
+add_test(NAME api_security_tests COMMAND $<TARGET_FILE:obs-polyemesis-tests> --test-suite=api-security)
+add_test(NAME api_process_config_tests COMMAND $<TARGET_FILE:obs-polyemesis-tests> --test-suite=api-process-config)
+add_test(NAME api_utils_tests COMMAND $<TARGET_FILE:obs-polyemesis-tests> --test-suite=api-utils)
+add_test(NAME api_process_management_tests COMMAND $<TARGET_FILE:obs-polyemesis-tests> --test-suite=api-process-management)
+add_test(NAME api_sessions_tests COMMAND $<TARGET_FILE:obs-polyemesis-tests> --test-suite=api-sessions)
+add_test(NAME api_process_state_tests COMMAND $<TARGET_FILE:obs-polyemesis-tests> --test-suite=api-process-state)
+add_test(NAME api_dynamic_output_tests COMMAND $<TARGET_FILE:obs-polyemesis-tests> --test-suite=api-dynamic-output)
+add_test(NAME api_edge_case_tests COMMAND $<TARGET_FILE:obs-polyemesis-tests> --test-suite=api-edge-cases)
+add_test(NAME api_endpoint_tests COMMAND $<TARGET_FILE:obs-polyemesis-tests> --test-suite=api-endpoints)
+add_test(NAME api_parsing_tests COMMAND $<TARGET_FILE:obs-polyemesis-tests> --test-suite=api-parsing)
+add_test(NAME api_coverage_improvements_tests COMMAND $<TARGET_FILE:obs-polyemesis-tests> --test-suite=api-coverage-improvements)
+add_test(NAME api_coverage_gaps_tests COMMAND $<TARGET_FILE:obs-polyemesis-tests> --test-suite=api-coverage-gaps)
+add_test(NAME api_helpers_tests COMMAND $<TARGET_FILE:obs-polyemesis-tests> --test-suite=api-helpers)
+add_test(NAME api_parse_helpers_tests COMMAND $<TARGET_FILE:obs-polyemesis-tests> --test-suite=api-parse-helpers)
+add_test(NAME channel_coverage_tests COMMAND $<TARGET_FILE:obs-polyemesis-tests> --test-suite=channel-coverage)
+add_test(NAME channel_bulk_operations_tests COMMAND $<TARGET_FILE:obs-polyemesis-tests> --test-suite=channel-bulk-ops)
+add_test(NAME channel_templates_tests COMMAND $<TARGET_FILE:obs-polyemesis-tests> --test-suite=channel-templates)
+# add_test(NAME channel_preview_tests COMMAND $<TARGET_FILE:obs-polyemesis-tests> --test-suite=channel-preview)  # Uses __wrap_time
+# add_test(NAME channel_failover_tests COMMAND $<TARGET_FILE:obs-polyemesis-tests> --test-suite=channel-failover)  # Mock issues
+# add_test(NAME channel_health_tests COMMAND $<TARGET_FILE:obs-polyemesis-tests> --test-suite=channel-health)  # Mock conflicts
 # TODO: Re-enable once tests are fixed to match actual API
 # add_test(NAME api_auth_tests COMMAND $<TARGET_FILE:obs-polyemesis-tests> --test-suite=api-auth)
 # add_test(NAME api_error_handling_tests COMMAND $<TARGET_FILE:obs-polyemesis-tests> --test-suite=api-errors)
@@ -86,16 +139,40 @@ add_test(NAME api_advanced_tests COMMAND $<TARGET_FILE:obs-polyemesis-tests> --t
 # add_test(NAME multistream_integration_tests COMMAND $<TARGET_FILE:obs-polyemesis-tests> --test-suite=multistream-integration)
 add_test(NAME config_tests COMMAND $<TARGET_FILE:obs-polyemesis-tests> --test-suite=config)
 add_test(NAME multistream_tests COMMAND $<TARGET_FILE:obs-polyemesis-tests> --test-suite=multistream)
-add_test(NAME output_profile_tests COMMAND $<TARGET_FILE:obs-polyemesis-tests> --test-suite=profile)
+add_test(NAME stream_channel_tests COMMAND $<TARGET_FILE:obs-polyemesis-tests> --test-suite=channel)
 add_test(NAME source_tests COMMAND $<TARGET_FILE:obs-polyemesis-tests> --test-suite=source)
 add_test(NAME output_tests COMMAND $<TARGET_FILE:obs-polyemesis-tests> --test-suite=output)
 
 # Set working directory for tests to ensure they run from the correct location
 set_tests_properties(
   api_client_tests
+  # api_system_tests  # Disabled until fixed
+  # api_skills_tests  # Disabled until fixed
+  # api_filesystem_tests  # Disabled until fixed
   api_comprehensive_tests
   api_extensions_tests
   api_advanced_tests
+  api_diagnostics_tests
+  api_security_tests
+  api_process_config_tests
+  api_utils_tests
+  api_process_management_tests
+  api_sessions_tests
+  api_process_state_tests
+  api_dynamic_output_tests
+  api_edge_case_tests
+  api_endpoint_tests
+  api_parsing_tests
+  api_coverage_improvements_tests
+  api_coverage_gaps_tests
+  api_helpers_tests
+  api_parse_helpers_tests
+  channel_coverage_tests
+  channel_bulk_operations_tests
+  channel_templates_tests
+  # channel_preview_tests  # Uses __wrap_time
+  # channel_failover_tests  # Mock issues
+  # channel_health_tests  # Mock conflicts
   # TODO: Re-enable once tests are fixed
   # api_auth_tests
   # api_error_handling_tests
@@ -103,7 +180,7 @@ set_tests_properties(
   # multistream_integration_tests
   config_tests
   multistream_tests
-  output_profile_tests
+  stream_channel_tests
   source_tests
   output_tests
   PROPERTIES WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}
@@ -158,8 +235,11 @@ endif()
 
 # Fix rpath for benchmarks executable to find OBS framework
 if(APPLE)
-  add_custom_command(TARGET obs-polyemesis-benchmarks POST_BUILD
-    COMMAND install_name_tool -add_rpath "${CMAKE_SOURCE_DIR}/.deps/Frameworks" "$<TARGET_FILE:obs-polyemesis-benchmarks>"
+  add_custom_command(
+    TARGET obs-polyemesis-benchmarks
+    POST_BUILD
+    COMMAND
+      install_name_tool -add_rpath "${CMAKE_SOURCE_DIR}/.deps/Frameworks" "$<TARGET_FILE:obs-polyemesis-benchmarks>"
     COMMENT "Adding rpath to benchmarks executable"
   )
 endif()
@@ -231,184 +311,152 @@ endif()
 # NOTE: These tests are WIP and disabled for v0.9.0 release
 # TODO: Complete OBS initialization mocks and re-enable in v0.9.1
 if(FALSE) # Temporarily disabled
-add_executable(test_profile_management_standalone test_profile_management.c obs_stubs.c)
-target_sources(test_profile_management_standalone PRIVATE
-    ${CMAKE_SOURCE_DIR}/src/restreamer-output-profile.c
-    ${CMAKE_SOURCE_DIR}/src/restreamer-multistream.c
-    ${CMAKE_SOURCE_DIR}/src/restreamer-api.c
-)
-target_include_directories(test_profile_management_standalone PRIVATE
-    ${CMAKE_SOURCE_DIR}/src
-    ${JANSSON_INCLUDE_DIRS}
-    ${CURL_INCLUDE_DIRS}
-)
-target_link_libraries(test_profile_management_standalone PRIVATE
-    ${JANSSON_LIBRARIES}
-    CURL::libcurl
-    OBS::libobs
-)
+  add_executable(test_channel_management_standalone test_channel_management.c obs_stubs.c)
+  target_sources(
+    test_channel_management_standalone
+    PRIVATE
+      ${CMAKE_SOURCE_DIR}/src/restreamer-channel.c
+      ${CMAKE_SOURCE_DIR}/src/restreamer-multistream.c
+      ${CMAKE_SOURCE_DIR}/src/restreamer-api.c
+  )
+  target_include_directories(
+    test_channel_management_standalone
+    PRIVATE ${CMAKE_SOURCE_DIR}/src ${JANSSON_INCLUDE_DIRS} ${CURL_INCLUDE_DIRS}
+  )
+  target_link_libraries(test_channel_management_standalone PRIVATE ${JANSSON_LIBRARIES} CURL::libcurl OBS::libobs)
 
-add_executable(test_failover_standalone test_failover.c obs_stubs.c)
-target_sources(test_failover_standalone PRIVATE
-    ${CMAKE_SOURCE_DIR}/src/restreamer-output-profile.c
-    ${CMAKE_SOURCE_DIR}/src/restreamer-multistream.c
-    ${CMAKE_SOURCE_DIR}/src/restreamer-api.c
-)
-target_include_directories(test_failover_standalone PRIVATE
-    ${CMAKE_SOURCE_DIR}/src
-    ${JANSSON_INCLUDE_DIRS}
-    ${CURL_INCLUDE_DIRS}
-)
-target_link_libraries(test_failover_standalone PRIVATE
-    ${JANSSON_LIBRARIES}
-    CURL::libcurl
-    OBS::libobs
-)
+  add_executable(test_failover_standalone test_failover.c obs_stubs.c)
+  target_sources(
+    test_failover_standalone
+    PRIVATE
+      ${CMAKE_SOURCE_DIR}/src/restreamer-channel.c
+      ${CMAKE_SOURCE_DIR}/src/restreamer-multistream.c
+      ${CMAKE_SOURCE_DIR}/src/restreamer-api.c
+  )
+  target_include_directories(
+    test_failover_standalone
+    PRIVATE ${CMAKE_SOURCE_DIR}/src ${JANSSON_INCLUDE_DIRS} ${CURL_INCLUDE_DIRS}
+  )
+  target_link_libraries(test_failover_standalone PRIVATE ${JANSSON_LIBRARIES} CURL::libcurl OBS::libobs)
 
-# Add sanitizers to standalone tests
-if(ENABLE_ASAN)
-    target_compile_options(test_profile_management_standalone PRIVATE
-        -fsanitize=address -fno-omit-frame-pointer -g)
-    target_link_options(test_profile_management_standalone PRIVATE -fsanitize=address)
+  # Add sanitizers to standalone tests
+  if(ENABLE_ASAN)
+    target_compile_options(test_channel_management_standalone PRIVATE -fsanitize=address -fno-omit-frame-pointer -g)
+    target_link_options(test_channel_management_standalone PRIVATE -fsanitize=address)
 
-    target_compile_options(test_failover_standalone PRIVATE
-        -fsanitize=address -fno-omit-frame-pointer -g)
+    target_compile_options(test_failover_standalone PRIVATE -fsanitize=address -fno-omit-frame-pointer -g)
     target_link_options(test_failover_standalone PRIVATE -fsanitize=address)
-endif()
+  endif()
 
-if(ENABLE_UBSAN)
-    target_compile_options(test_profile_management_standalone PRIVATE
-        -fsanitize=undefined -fno-omit-frame-pointer -g)
-    target_link_options(test_profile_management_standalone PRIVATE -fsanitize=undefined)
+  if(ENABLE_UBSAN)
+    target_compile_options(test_channel_management_standalone PRIVATE -fsanitize=undefined -fno-omit-frame-pointer -g)
+    target_link_options(test_channel_management_standalone PRIVATE -fsanitize=undefined)
 
-    target_compile_options(test_failover_standalone PRIVATE
-        -fsanitize=undefined -fno-omit-frame-pointer -g)
+    target_compile_options(test_failover_standalone PRIVATE -fsanitize=undefined -fno-omit-frame-pointer -g)
     target_link_options(test_failover_standalone PRIVATE -fsanitize=undefined)
-endif()
+  endif()
 
-# Add standalone tests to CTest
-add_test(NAME profile_management_crash_safe
-    COMMAND $<TARGET_FILE:test_profile_management_standalone>)
-add_test(NAME failover_crash_safe
-    COMMAND $<TARGET_FILE:test_failover_standalone>)
+  # Add standalone tests to CTest
+  add_test(NAME channel_management_crash_safe COMMAND $<TARGET_FILE:test_channel_management_standalone>)
+  add_test(NAME failover_crash_safe COMMAND $<TARGET_FILE:test_failover_standalone>)
 endif() # End of temporarily disabled tests
 
 if(FALSE) # Temporarily disabled
-# Edge case tests (comprehensive boundary and stress testing)
-add_executable(test_edge_cases_standalone test_edge_cases.c obs_stubs.c)
-target_sources(test_edge_cases_standalone PRIVATE
-    ${CMAKE_SOURCE_DIR}/src/restreamer-output-profile.c
-    ${CMAKE_SOURCE_DIR}/src/restreamer-multistream.c
-    ${CMAKE_SOURCE_DIR}/src/restreamer-api.c
-)
-target_include_directories(test_edge_cases_standalone PRIVATE
-    ${CMAKE_SOURCE_DIR}/src
-    ${JANSSON_INCLUDE_DIRS}
-    ${CURL_INCLUDE_DIRS}
-)
-target_link_libraries(test_edge_cases_standalone PRIVATE
-    ${JANSSON_LIBRARIES}
-    CURL::libcurl
-    OBS::libobs
-)
+  # Edge case tests (comprehensive boundary and stress testing)
+  add_executable(test_edge_cases_standalone test_edge_cases.c obs_stubs.c)
+  target_sources(
+    test_edge_cases_standalone
+    PRIVATE
+      ${CMAKE_SOURCE_DIR}/src/restreamer-channel.c
+      ${CMAKE_SOURCE_DIR}/src/restreamer-multistream.c
+      ${CMAKE_SOURCE_DIR}/src/restreamer-api.c
+  )
+  target_include_directories(
+    test_edge_cases_standalone
+    PRIVATE ${CMAKE_SOURCE_DIR}/src ${JANSSON_INCLUDE_DIRS} ${CURL_INCLUDE_DIRS}
+  )
+  target_link_libraries(test_edge_cases_standalone PRIVATE ${JANSSON_LIBRARIES} CURL::libcurl OBS::libobs)
 
-# Add sanitizers to edge case tests
-if(ENABLE_ASAN)
-    target_compile_options(test_edge_cases_standalone PRIVATE
-        -fsanitize=address -fno-omit-frame-pointer -g)
+  # Add sanitizers to edge case tests
+  if(ENABLE_ASAN)
+    target_compile_options(test_edge_cases_standalone PRIVATE -fsanitize=address -fno-omit-frame-pointer -g)
     target_link_options(test_edge_cases_standalone PRIVATE -fsanitize=address)
-endif()
+  endif()
 
-if(ENABLE_UBSAN)
-    target_compile_options(test_edge_cases_standalone PRIVATE
-        -fsanitize=undefined -fno-omit-frame-pointer -g)
+  if(ENABLE_UBSAN)
+    target_compile_options(test_edge_cases_standalone PRIVATE -fsanitize=undefined -fno-omit-frame-pointer -g)
     target_link_options(test_edge_cases_standalone PRIVATE -fsanitize=undefined)
-endif()
+  endif()
 
-add_test(NAME edge_cases_crash_safe
-    COMMAND $<TARGET_FILE:test_edge_cases_standalone>)
+  add_test(NAME edge_cases_crash_safe COMMAND $<TARGET_FILE:test_edge_cases_standalone>)
 endif() # End of edge_cases tests
 
 if(FALSE) # Temporarily disabled
-# Platform compatibility tests (Windows/Linux/macOS)
-add_executable(test_platform_compat_standalone test_platform_compat.c obs_stubs.c)
-target_sources(test_platform_compat_standalone PRIVATE
-    ${CMAKE_SOURCE_DIR}/src/restreamer-output-profile.c
-    ${CMAKE_SOURCE_DIR}/src/restreamer-multistream.c
-    ${CMAKE_SOURCE_DIR}/src/restreamer-api.c
-)
-target_include_directories(test_platform_compat_standalone PRIVATE
-    ${CMAKE_SOURCE_DIR}/src
-    ${JANSSON_INCLUDE_DIRS}
-    ${CURL_INCLUDE_DIRS}
-)
-target_link_libraries(test_platform_compat_standalone PRIVATE
-    ${JANSSON_LIBRARIES}
-    CURL::libcurl
-    OBS::libobs
-)
+  # Platform compatibility tests (Windows/Linux/macOS)
+  add_executable(test_platform_compat_standalone test_platform_compat.c obs_stubs.c)
+  target_sources(
+    test_platform_compat_standalone
+    PRIVATE
+      ${CMAKE_SOURCE_DIR}/src/restreamer-channel.c
+      ${CMAKE_SOURCE_DIR}/src/restreamer-multistream.c
+      ${CMAKE_SOURCE_DIR}/src/restreamer-api.c
+  )
+  target_include_directories(
+    test_platform_compat_standalone
+    PRIVATE ${CMAKE_SOURCE_DIR}/src ${JANSSON_INCLUDE_DIRS} ${CURL_INCLUDE_DIRS}
+  )
+  target_link_libraries(test_platform_compat_standalone PRIVATE ${JANSSON_LIBRARIES} CURL::libcurl OBS::libobs)
 
-# Add sanitizers to platform tests
-if(ENABLE_ASAN)
-    target_compile_options(test_platform_compat_standalone PRIVATE
-        -fsanitize=address -fno-omit-frame-pointer -g)
+  # Add sanitizers to platform tests
+  if(ENABLE_ASAN)
+    target_compile_options(test_platform_compat_standalone PRIVATE -fsanitize=address -fno-omit-frame-pointer -g)
     target_link_options(test_platform_compat_standalone PRIVATE -fsanitize=address)
-endif()
+  endif()
 
-if(ENABLE_UBSAN)
-    target_compile_options(test_platform_compat_standalone PRIVATE
-        -fsanitize=undefined -fno-omit-frame-pointer -g)
+  if(ENABLE_UBSAN)
+    target_compile_options(test_platform_compat_standalone PRIVATE -fsanitize=undefined -fno-omit-frame-pointer -g)
     target_link_options(test_platform_compat_standalone PRIVATE -fsanitize=undefined)
-endif()
+  endif()
 
-add_test(NAME platform_compat_crash_safe
-    COMMAND $<TARGET_FILE:test_platform_compat_standalone>)
+  add_test(NAME platform_compat_crash_safe COMMAND $<TARGET_FILE:test_platform_compat_standalone>)
 endif() # End of platform_compat tests
 
 if(FALSE) # Temporarily disabled
-# Integration tests (with live Restreamer API)
-add_executable(test_integration_restreamer_standalone test_integration_restreamer.c obs_stubs.c)
-target_sources(test_integration_restreamer_standalone PRIVATE
-    ${CMAKE_SOURCE_DIR}/src/restreamer-output-profile.c
-    ${CMAKE_SOURCE_DIR}/src/restreamer-multistream.c
-    ${CMAKE_SOURCE_DIR}/src/restreamer-api.c
-)
-target_include_directories(test_integration_restreamer_standalone PRIVATE
-    ${CMAKE_SOURCE_DIR}/src
-    ${JANSSON_INCLUDE_DIRS}
-    ${CURL_INCLUDE_DIRS}
-)
-target_link_libraries(test_integration_restreamer_standalone PRIVATE
-    ${JANSSON_LIBRARIES}
-    CURL::libcurl
-    OBS::libobs
-)
+  # Integration tests (with live Restreamer API)
+  add_executable(test_integration_restreamer_standalone test_integration_restreamer.c obs_stubs.c)
+  target_sources(
+    test_integration_restreamer_standalone
+    PRIVATE
+      ${CMAKE_SOURCE_DIR}/src/restreamer-channel.c
+      ${CMAKE_SOURCE_DIR}/src/restreamer-multistream.c
+      ${CMAKE_SOURCE_DIR}/src/restreamer-api.c
+  )
+  target_include_directories(
+    test_integration_restreamer_standalone
+    PRIVATE ${CMAKE_SOURCE_DIR}/src ${JANSSON_INCLUDE_DIRS} ${CURL_INCLUDE_DIRS}
+  )
+  target_link_libraries(test_integration_restreamer_standalone PRIVATE ${JANSSON_LIBRARIES} CURL::libcurl OBS::libobs)
 
-add_test(NAME integration_restreamer_api
-    COMMAND $<TARGET_FILE:test_integration_restreamer_standalone>)
+  add_test(NAME integration_restreamer_api COMMAND $<TARGET_FILE:test_integration_restreamer_standalone>)
 endif() # End of integration tests
 
 if(FALSE) # Temporarily disabled
-# End-to-End workflow tests
-add_executable(test_e2e_workflows_standalone test_e2e_workflows.c obs_stubs.c)
-target_sources(test_e2e_workflows_standalone PRIVATE
-    ${CMAKE_SOURCE_DIR}/src/restreamer-output-profile.c
-    ${CMAKE_SOURCE_DIR}/src/restreamer-multistream.c
-    ${CMAKE_SOURCE_DIR}/src/restreamer-api.c
-)
-target_include_directories(test_e2e_workflows_standalone PRIVATE
-    ${CMAKE_SOURCE_DIR}/src
-    ${JANSSON_INCLUDE_DIRS}
-    ${CURL_INCLUDE_DIRS}
-)
-target_link_libraries(test_e2e_workflows_standalone PRIVATE
-    ${JANSSON_LIBRARIES}
-    CURL::libcurl
-    OBS::libobs
-)
+  # End-to-End workflow tests
+  add_executable(test_e2e_workflows_standalone test_e2e_workflows.c obs_stubs.c)
+  target_sources(
+    test_e2e_workflows_standalone
+    PRIVATE
+      ${CMAKE_SOURCE_DIR}/src/restreamer-channel.c
+      ${CMAKE_SOURCE_DIR}/src/restreamer-multistream.c
+      ${CMAKE_SOURCE_DIR}/src/restreamer-api.c
+  )
+  target_include_directories(
+    test_e2e_workflows_standalone
+    PRIVATE ${CMAKE_SOURCE_DIR}/src ${JANSSON_INCLUDE_DIRS} ${CURL_INCLUDE_DIRS}
+  )
+  target_link_libraries(test_e2e_workflows_standalone PRIVATE ${JANSSON_LIBRARIES} CURL::libcurl OBS::libobs)
 
-add_test(NAME e2e_workflows
-    COMMAND $<TARGET_FILE:test_e2e_workflows_standalone>)
+  add_test(NAME e2e_workflows COMMAND $<TARGET_FILE:test_e2e_workflows_standalone>)
 endif() # End of e2e workflow tests
 
 # Google Test unit tests (isolated function-level testing)

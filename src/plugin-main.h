@@ -1,17 +1,17 @@
 #pragma once
 
 #include "restreamer-api.h"
-#include "restreamer-output-profile.h"
+#include "restreamer-channel.h"
 
 #ifdef __cplusplus
 extern "C" {
 #endif
 
 /**
- * @brief Get the global profile manager instance
- * @return Profile manager pointer, or NULL if not initialized
+ * @brief Get the global channel manager instance
+ * @return Channel manager pointer, or NULL if not initialized
  */
-profile_manager_t *plugin_get_profile_manager(void);
+channel_manager_t *plugin_get_channel_manager(void);
 
 /**
  * @brief Get the global API client instance

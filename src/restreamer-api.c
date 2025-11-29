@@ -3,10 +3,23 @@
 #include <jansson.h>
 #include <obs-module.h>
 #include <plugin-support.h>
+#include <stdint.h>
 #include <string.h>
 #include <time.h>
 #include <util/bmem.h>
 #include <util/dstr.h>
+#include <util/platform.h>
+
+/* Login retry constants */
+#define MAX_LOGIN_RETRIES 3
+#define INITIAL_BACKOFF_MS 1000
+
+/* Testing support: Make internal functions visible when TESTING_MODE is defined */
+#ifdef TESTING_MODE
+#define STATIC_TESTABLE
+#else
+#define STATIC_TESTABLE static
+#endif
 
 struct restreamer_api {
   restreamer_connection_t connection;
@@ -16,7 +29,45 @@ struct restreamer_api {
   char *access_token;   /* JWT access token */
   char *refresh_token;  /* JWT refresh token */
   time_t token_expires; /* Token expiration timestamp */
+  /* Login retry with exponential backoff */
+  time_t last_login_attempt;
+  int login_backoff_ms;
+  int login_retry_count;
 };
+
+/* Security: Securely clear memory that won't be optimized away by compiler.
+ * Uses volatile pointer to prevent dead-store elimination. */
+STATIC_TESTABLE void secure_memzero(void *ptr, size_t len) {
+  volatile unsigned char *p = (volatile unsigned char *)ptr;
+  while (len--) {
+    *p++ = 0;
+  }
+}
+
+/* Security: Securely free sensitive string data by clearing memory first */
+STATIC_TESTABLE void secure_free(char *ptr) {
+  if (ptr) {
+    /* SECURITY: strlen is safe here - ptr is verified non-NULL by the if condition above */
+    size_t len = strlen(ptr);
+    if (len > 0) {
+      secure_memzero(ptr, len);
+    }
+    bfree(ptr);
+  }
+}
+
+/* Security: Securely free dstr containing sensitive data */
+/* Currently unused but kept for future use with sensitive dstr data */
+#if 0
+static void secure_dstr_free(struct dstr *str) {
+  if (str && str->array) {
+    if (str->len > 0) {
+      memset(str->array, 0, str->len);
+    }
+  }
+  dstr_free(str);
+}
+#endif
 
 /* Memory write callback for curl */
 struct memory_struct {
@@ -25,11 +76,12 @@ struct memory_struct {
 };
 
 /* Forward declaration for JSON parsing helper */
-static json_t *parse_json_response(restreamer_api_t *api, struct memory_struct *response);
+STATIC_TESTABLE json_t *parse_json_response(restreamer_api_t *api,
+                                            struct memory_struct *response);
 
 // cppcheck-suppress constParameterCallback
-static size_t write_callback(void *contents, size_t size, size_t nmemb,
-                             void *userp) {
+STATIC_TESTABLE size_t write_callback(void *contents, size_t size, size_t nmemb,
+                                      void *userp) {
   size_t realsize = size * nmemb;
   struct memory_struct *mem = (struct memory_struct *)userp;
 
@@ -40,6 +92,7 @@ static size_t write_callback(void *contents, size_t size, size_t nmemb,
   }
 
   mem->memory = ptr;
+  /* Security: memcpy is safe here - buffer size validated by realloc above */
   memcpy(&(mem->memory[mem->size]), contents, realsize);
   mem->size += realsize;
   mem->memory[mem->size] = 0;
@@ -77,6 +130,10 @@ restreamer_api_t *restreamer_api_create(restreamer_connection_t *connection) {
   curl_easy_setopt(api->curl, CURLOPT_WRITEFUNCTION, write_callback);
   curl_easy_setopt(api->curl, CURLOPT_TIMEOUT, 10L);
 
+  /* Security: Enable HTTPS certificate verification to prevent MITM attacks */
+  curl_easy_setopt(api->curl, CURLOPT_SSL_VERIFYPEER, 1L);
+  curl_easy_setopt(api->curl, CURLOPT_SSL_VERIFYHOST, 2L);
+
   /* Thread-safety options for multi-threaded environments */
   curl_easy_setopt(api->curl, CURLOPT_NOSIGNAL,
                    1L); /* Disable signals - required for thread safety */
@@ -85,6 +142,11 @@ restreamer_api_t *restreamer_api_create(restreamer_connection_t *connection) {
   api->access_token = NULL;
   api->refresh_token = NULL;
   api->token_expires = 0;
+
+  /* Initialize login retry fields */
+  api->last_login_attempt = 0;
+  api->login_backoff_ms = INITIAL_BACKOFF_MS;
+  api->login_retry_count = 0;
 
   return api;
 }
@@ -100,18 +162,69 @@ void restreamer_api_destroy(restreamer_api_t *api) {
 
   bfree(api->connection.host);
   bfree(api->connection.username);
-  bfree(api->connection.password);
-  bfree(api->access_token);
-  bfree(api->refresh_token);
+  secure_free(
+      api->connection.password);  /* Security: Clear password from memory */
+  secure_free(api->access_token); /* Security: Clear access token from memory */
+  secure_free(
+      api->refresh_token); /* Security: Clear refresh token from memory */
   dstr_free(&api->last_error);
 
   bfree(api);
 }
 
+/* Helper: Handle login failure with exponential backoff */
+STATIC_TESTABLE void handle_login_failure(restreamer_api_t *api, long http_code) {
+  api->login_retry_count++;
+  api->last_login_attempt = time(NULL);
+
+  if (api->login_retry_count < MAX_LOGIN_RETRIES) {
+    api->login_backoff_ms *= 2;
+    if (http_code > 0) {
+      obs_log(LOG_WARNING,
+              "[obs-polyemesis] Login failed with HTTP %ld (attempt %d/%d), "
+              "backing off %d ms",
+              http_code, api->login_retry_count, MAX_LOGIN_RETRIES,
+              api->login_backoff_ms);
+    } else {
+      obs_log(
+          LOG_WARNING,
+          "[obs-polyemesis] Login failed (attempt %d/%d), backing off %d ms",
+          api->login_retry_count, MAX_LOGIN_RETRIES, api->login_backoff_ms);
+    }
+  } else {
+    obs_log(LOG_ERROR, "[obs-polyemesis] Login failed after %d attempts",
+            MAX_LOGIN_RETRIES);
+  }
+}
+
+/* Helper: Check if login is throttled by backoff */
+STATIC_TESTABLE bool is_login_throttled(restreamer_api_t *api) {
+  if (api->login_retry_count > 0 && api->last_login_attempt > 0) {
+    time_t elapsed = time(NULL) - api->last_login_attempt;
+    time_t backoff_seconds = api->login_backoff_ms / 1000;
+    if (elapsed < backoff_seconds) {
+      dstr_printf(&api->last_error, "Login throttled, retry in %ld seconds",
+                  backoff_seconds - elapsed);
+      return true;
+    }
+  }
+  return false;
+}
+
 /* Login to get JWT token */
 static bool restreamer_api_login(restreamer_api_t *api) {
-  if (!api || !api->connection.username || !api->connection.password) {
+  /* Check api separately first to avoid NULL dereference */
+  if (!api) {
+    return false;
+  }
+
+  if (!api->connection.username || !api->connection.password) {
     dstr_copy(&api->last_error, "Username and password required for login");
+    return false;
+  }
+
+  /* Check if we need to apply backoff before attempting login */
+  if (is_login_throttled(api)) {
     return false;
   }
 
@@ -124,6 +237,11 @@ static bool restreamer_api_login(restreamer_api_t *api) {
 
   char *post_data = json_dumps(login_data, 0);
   json_decref(login_data);
+
+  if (!post_data) {
+    dstr_copy(&api->last_error, "Failed to encode login JSON");
+    return false;
+  }
 
   /* Make request without token (login doesn't need auth) */
   struct dstr url;
@@ -158,12 +276,16 @@ static bool restreamer_api_login(restreamer_api_t *api) {
   curl_easy_setopt(api->curl, CURLOPT_POSTFIELDS, NULL);
   curl_easy_setopt(api->curl, CURLOPT_POSTFIELDSIZE, 0L);
 
+  /* Security: Clear login credentials from memory before freeing */
+  /* SECURITY: strlen is safe - post_data is guaranteed non-NULL (checked at line 196) */
+  secure_memzero(post_data, strlen(post_data));
   free(post_data);
   dstr_free(&url);
 
   if (res != CURLE_OK) {
     dstr_copy(&api->last_error, api->error_buffer);
     free(response.memory);
+    handle_login_failure(api, 0);
     return false;
   }
 
@@ -173,6 +295,7 @@ static bool restreamer_api_login(restreamer_api_t *api) {
   if (http_code < 200 || http_code >= 300) {
     dstr_printf(&api->last_error, "Login failed: HTTP %ld", http_code);
     free(response.memory);
+    handle_login_failure(api, http_code);
     return false;
   }
 
@@ -193,11 +316,12 @@ static bool restreamer_api_login(restreamer_api_t *api) {
   }
 
   /* Store tokens */
-  bfree(api->access_token);
+  secure_free(api->access_token); /* Security: Clear access token from memory */
   api->access_token = bstrdup(json_string_value(access_token));
 
   if (refresh_token && json_is_string(refresh_token)) {
-    bfree(api->refresh_token);
+    secure_free(
+        api->refresh_token); /* Security: Clear refresh token from memory */
     api->refresh_token = bstrdup(json_string_value(refresh_token));
   }
 
@@ -209,6 +333,10 @@ static bool restreamer_api_login(restreamer_api_t *api) {
   }
 
   json_decref(root);
+
+  /* Reset retry tracking on successful login */
+  api->login_retry_count = 0;
+  api->login_backoff_ms = INITIAL_BACKOFF_MS;
 
   obs_log(LOG_INFO, "[obs-polyemesis] Successfully logged in to Restreamer");
 
@@ -323,16 +451,19 @@ bool restreamer_api_is_connected(restreamer_api_t *api) {
 }
 
 /* Forward declarations for helper functions */
-static void parse_process_fields(json_t *json_obj, restreamer_process_t *process);
-static void parse_log_entry_fields(json_t *json_obj, restreamer_log_entry_t *entry);
-static void parse_session_fields(json_t *json_obj, restreamer_session_t *session);
-static void parse_fs_entry_fields(json_t *json_obj, restreamer_fs_entry_t *entry);
+static void parse_process_fields(const json_t *json_obj,
+                                 restreamer_process_t *process);
+static void parse_log_entry_fields(const json_t *json_obj,
+                                   restreamer_log_entry_t *entry);
+static void parse_session_fields(const json_t *json_obj,
+                                 restreamer_session_t *session);
+static void parse_fs_entry_fields(const json_t *json_obj,
+                                  restreamer_fs_entry_t *entry);
 static bool process_command_helper(restreamer_api_t *api,
-                                    const char *process_id,
-                                    const char *command);
+                                   const char *process_id, const char *command);
 static bool get_protocol_streams_helper(restreamer_api_t *api,
-                                         const char *endpoint,
-                                         char **streams_json);
+                                        const char *endpoint,
+                                        char **streams_json);
 
 bool restreamer_api_get_processes(restreamer_api_t *api,
                                   restreamer_process_list_t *list) {
@@ -385,7 +516,7 @@ bool restreamer_api_get_processes(restreamer_api_t *api,
   list->count = count;
 
   for (size_t i = 0; i < count; i++) {
-    json_t *process_obj = json_array_get(root, i);
+    const json_t *process_obj = json_array_get(root, i);
     restreamer_process_t *process = &list->processes[i];
     parse_process_fields(process_obj, process);
   }
@@ -399,7 +530,8 @@ bool restreamer_api_get_processes(restreamer_api_t *api,
  * ======================================================================== */
 
 /* Helper function to parse JSON response and handle errors */
-static json_t *parse_json_response(restreamer_api_t *api, struct memory_struct *response) {
+STATIC_TESTABLE json_t *parse_json_response(restreamer_api_t *api,
+                                            struct memory_struct *response) {
   if (!api || !response || !response->memory) {
     return NULL;
   }
@@ -419,7 +551,8 @@ static json_t *parse_json_response(restreamer_api_t *api, struct memory_struct *
 }
 
 /* Helper function to parse JSON object into restreamer_process_t */
-static void parse_process_fields(json_t *json_obj, restreamer_process_t *process) {
+STATIC_TESTABLE void parse_process_fields(const json_t *json_obj,
+                                 restreamer_process_t *process) {
   if (!json_obj || !process) {
     return;
   }
@@ -461,7 +594,8 @@ static void parse_process_fields(json_t *json_obj, restreamer_process_t *process
 }
 
 /* Helper function to parse JSON object into restreamer_log_entry_t */
-static void parse_log_entry_fields(json_t *json_obj, restreamer_log_entry_t *entry) {
+STATIC_TESTABLE void parse_log_entry_fields(const json_t *json_obj,
+                                   restreamer_log_entry_t *entry) {
   if (!json_obj || !entry) {
     return;
   }
@@ -483,7 +617,8 @@ static void parse_log_entry_fields(json_t *json_obj, restreamer_log_entry_t *ent
 }
 
 /* Helper function to parse JSON object into restreamer_session_t */
-static void parse_session_fields(json_t *json_obj, restreamer_session_t *session) {
+STATIC_TESTABLE void parse_session_fields(const json_t *json_obj,
+                                 restreamer_session_t *session) {
   if (!json_obj || !session) {
     return;
   }
@@ -515,7 +650,8 @@ static void parse_session_fields(json_t *json_obj, restreamer_session_t *session
 }
 
 /* Helper function to parse JSON object into restreamer_fs_entry_t */
-static void parse_fs_entry_fields(json_t *json_obj, restreamer_fs_entry_t *entry) {
+STATIC_TESTABLE void parse_fs_entry_fields(const json_t *json_obj,
+                                  restreamer_fs_entry_t *entry) {
   if (!json_obj || !entry) {
     return;
   }
@@ -548,8 +684,8 @@ static void parse_fs_entry_fields(json_t *json_obj, restreamer_fs_entry_t *entry
 
 /* Helper function for process control commands (start/stop/restart) */
 static bool process_command_helper(restreamer_api_t *api,
-                                    const char *process_id,
-                                    const char *command) {
+                                   const char *process_id,
+                                   const char *command) {
   if (!api || !process_id || process_id[0] == '\0' || !command) {
     return false;
   }
@@ -629,7 +765,7 @@ bool restreamer_api_get_process(restreamer_api_t *api, const char *process_id,
 bool restreamer_api_get_process_logs(restreamer_api_t *api,
                                      const char *process_id,
                                      restreamer_log_list_t *logs) {
-  if (!api || !process_id || !logs) {
+  if (!api || !process_id || !logs || process_id[0] == '\0') {
     return false;
   }
 
@@ -658,7 +794,7 @@ bool restreamer_api_get_process_logs(restreamer_api_t *api,
   logs->count = count;
 
   for (size_t i = 0; i < count; i++) {
-    json_t *entry_obj = json_array_get(root, i);
+    const json_t *entry_obj = json_array_get(root, i);
     restreamer_log_entry_t *entry = &logs->entries[i];
     parse_log_entry_fields(entry_obj, entry);
   }
@@ -696,7 +832,7 @@ bool restreamer_api_get_sessions(restreamer_api_t *api,
   sessions->count = count;
 
   for (size_t i = 0; i < count; i++) {
-    json_t *session_obj = json_array_get(sessions_array, i);
+    const json_t *session_obj = json_array_get(sessions_array, i);
     restreamer_session_t *session = &sessions->sessions[i];
     parse_session_fields(session_obj, session);
   }
@@ -710,14 +846,16 @@ bool restreamer_api_create_process(restreamer_api_t *api, const char *reference,
                                    const char **output_urls,
                                    size_t output_count,
                                    const char *video_filter) {
-  if (!api || !reference || !input_url) {
+  if (!api || !reference || !input_url || !output_urls || output_count == 0) {
     return false;
   }
 
   json_t *root = json_object();
   json_object_set_new(root, "reference", json_string(reference));
 
-  /* Build FFmpeg command for multistreaming */
+  /* Build FFmpeg command for multistreaming
+   * Security: This command contains stream keys in output_urls - never log it
+   */
   struct dstr command;
   dstr_init(&command);
   dstr_printf(&command,
@@ -1089,12 +1227,14 @@ bool restreamer_api_get_output_encoding(restreamer_api_t *api,
   /* Extract encoding parameters */
   json_t *video_bitrate = json_object_get(root, "video_bitrate");
   if (json_is_integer(video_bitrate)) {
-    params->video_bitrate_kbps = (int)(json_integer_value(video_bitrate) / 1000);
+    params->video_bitrate_kbps =
+        (int)(json_integer_value(video_bitrate) / 1000);
   }
 
   json_t *audio_bitrate = json_object_get(root, "audio_bitrate");
   if (json_is_integer(audio_bitrate)) {
-    params->audio_bitrate_kbps = (int)(json_integer_value(audio_bitrate) / 1000);
+    params->audio_bitrate_kbps =
+        (int)(json_integer_value(audio_bitrate) / 1000);
   }
 
   json_t *resolution = json_object_get(root, "resolution");
@@ -1495,6 +1635,68 @@ void restreamer_api_free_process_state(restreamer_process_state_t *state) {
   memset(state, 0, sizeof(restreamer_process_state_t));
 }
 
+/* Helper to safely get a string from JSON and duplicate it */
+STATIC_TESTABLE char *json_get_string_dup(const json_t *obj, const char *key) {
+  const json_t *val = json_object_get(obj, key);
+  return (val && json_is_string(val)) ? bstrdup(json_string_value(val)) : NULL;
+}
+
+/* Helper to safely get an integer from JSON */
+STATIC_TESTABLE uint32_t json_get_uint32(const json_t *obj, const char *key) {
+  const json_t *val = json_object_get(obj, key);
+  return (val && json_is_integer(val)) ? (uint32_t)json_integer_value(val) : 0;
+}
+
+/* Helper to safely parse a string number from JSON */
+STATIC_TESTABLE uint32_t json_get_string_as_uint32(const json_t *obj,
+                                                   const char *key) {
+  const json_t *val = json_object_get(obj, key);
+  if (!val || !json_is_string(val)) {
+    return 0;
+  }
+  const char *str = json_string_value(val);
+  /* Skip whitespace and reject negative numbers */
+  while (*str == ' ' || *str == '\t') {
+    str++;
+  }
+  if (*str == '-') {
+    return 0;
+  }
+  char *endptr;
+  unsigned long num = strtoul(str, &endptr, 10);
+  /* Check for valid parse and within uint32_t range */
+  return (endptr != str && num <= UINT32_MAX) ? (uint32_t)num : 0;
+}
+
+/* Helper function to parse a single stream from probe response */
+static void parse_stream_info(const json_t *stream, restreamer_stream_info_t *s) {
+  if (!stream || !s) {
+    return;
+  }
+
+  /* Parse string fields */
+  s->codec_name = json_get_string_dup(stream, "codec_name");
+  s->codec_long_name = json_get_string_dup(stream, "codec_long_name");
+  s->codec_type = json_get_string_dup(stream, "codec_type");
+  s->pix_fmt = json_get_string_dup(stream, "pix_fmt");
+  s->profile = json_get_string_dup(stream, "profile");
+
+  /* Parse integer fields */
+  s->width = json_get_uint32(stream, "width");
+  s->height = json_get_uint32(stream, "height");
+  s->channels = json_get_uint32(stream, "channels");
+
+  /* Parse string-encoded numbers */
+  s->bitrate = json_get_string_as_uint32(stream, "bit_rate");
+  s->sample_rate = json_get_string_as_uint32(stream, "sample_rate");
+
+  /* Parse FPS from r_frame_rate */
+  const json_t *fps = json_object_get(stream, "r_frame_rate");
+  if (fps && json_is_string(fps)) {
+    sscanf(json_string_value(fps), "%u/%u", &s->fps_num, &s->fps_den);
+  }
+}
+
 /* Input Probe API */
 bool restreamer_api_probe_input(restreamer_api_t *api, const char *process_id,
                                 restreamer_probe_info_t *info) {
@@ -1541,7 +1743,12 @@ bool restreamer_api_probe_input(restreamer_api_t *api, const char *process_id,
 
     json_t *bitrate = json_object_get(format, "bit_rate");
     if (bitrate && json_is_string(bitrate)) {
-      info->bitrate = (uint32_t)atoi(json_string_value(bitrate));
+      /* Security: Use strtol instead of atoi for better error handling */
+      char *endptr;
+      long bitrate_val = strtol(json_string_value(bitrate), &endptr, 10);
+      if (endptr != json_string_value(bitrate) && bitrate_val >= 0) {
+        info->bitrate = (uint32_t)bitrate_val;
+      }
     }
   }
 
@@ -1554,64 +1761,7 @@ bool restreamer_api_probe_input(restreamer_api_t *api, const char *process_id,
 
     for (size_t i = 0; i < stream_count; i++) {
       json_t *stream = json_array_get(streams, i);
-      restreamer_stream_info_t *s = &info->streams[i];
-
-      json_t *codec_name = json_object_get(stream, "codec_name");
-      if (codec_name && json_is_string(codec_name)) {
-        s->codec_name = bstrdup(json_string_value(codec_name));
-      }
-
-      json_t *codec_long = json_object_get(stream, "codec_long_name");
-      if (codec_long && json_is_string(codec_long)) {
-        s->codec_long_name = bstrdup(json_string_value(codec_long));
-      }
-
-      json_t *codec_type = json_object_get(stream, "codec_type");
-      if (codec_type && json_is_string(codec_type)) {
-        s->codec_type = bstrdup(json_string_value(codec_type));
-      }
-
-      json_t *width = json_object_get(stream, "width");
-      if (width && json_is_integer(width)) {
-        s->width = (uint32_t)json_integer_value(width);
-      }
-
-      json_t *height = json_object_get(stream, "height");
-      if (height && json_is_integer(height)) {
-        s->height = (uint32_t)json_integer_value(height);
-      }
-
-      json_t *bitrate = json_object_get(stream, "bit_rate");
-      if (bitrate && json_is_string(bitrate)) {
-        s->bitrate = (uint32_t)atoi(json_string_value(bitrate));
-      }
-
-      json_t *sample_rate = json_object_get(stream, "sample_rate");
-      if (sample_rate && json_is_string(sample_rate)) {
-        s->sample_rate = (uint32_t)atoi(json_string_value(sample_rate));
-      }
-
-      json_t *channels = json_object_get(stream, "channels");
-      if (channels && json_is_integer(channels)) {
-        s->channels = (uint32_t)json_integer_value(channels);
-      }
-
-      json_t *pix_fmt = json_object_get(stream, "pix_fmt");
-      if (pix_fmt && json_is_string(pix_fmt)) {
-        s->pix_fmt = bstrdup(json_string_value(pix_fmt));
-      }
-
-      json_t *profile = json_object_get(stream, "profile");
-      if (profile && json_is_string(profile)) {
-        s->profile = bstrdup(json_string_value(profile));
-      }
-
-      /* Parse FPS from r_frame_rate */
-      json_t *fps = json_object_get(stream, "r_frame_rate");
-      if (fps && json_is_string(fps)) {
-        const char *fps_str = json_string_value(fps);
-        sscanf(fps_str, "%u/%u", &s->fps_num, &s->fps_den);
-      }
+      parse_stream_info(stream, &info->streams[i]);
     }
   }
 
@@ -1655,7 +1805,11 @@ bool restreamer_api_get_config(restreamer_api_t *api, char **config_json) {
   *config_json = json_dumps(response, JSON_INDENT(2));
   json_decref(response);
 
-  return *config_json != NULL;
+  if (!*config_json) {
+    dstr_copy(&api->last_error, "Failed to serialize config JSON");
+    return false;
+  }
+  return true;
 }
 
 bool restreamer_api_set_config(restreamer_api_t *api, const char *config_json) {
@@ -1694,7 +1848,11 @@ bool restreamer_api_get_metrics_list(restreamer_api_t *api,
   *metrics_json = json_dumps(response, JSON_INDENT(2));
   json_decref(response);
 
-  return *metrics_json != NULL;
+  if (!*metrics_json) {
+    dstr_copy(&api->last_error, "Failed to serialize metrics JSON");
+    return false;
+  }
+  return true;
 }
 
 bool restreamer_api_query_metrics(restreamer_api_t *api, const char *query_json,
@@ -1714,7 +1872,11 @@ bool restreamer_api_query_metrics(restreamer_api_t *api, const char *query_json,
   *result_json = json_dumps(response, JSON_INDENT(2));
   json_decref(response);
 
-  return *result_json != NULL;
+  if (!*result_json) {
+    dstr_copy(&api->last_error, "Failed to serialize result JSON");
+    return false;
+  }
+  return true;
 }
 
 bool restreamer_api_get_prometheus_metrics(restreamer_api_t *api,
@@ -1791,7 +1953,11 @@ bool restreamer_api_get_metadata(restreamer_api_t *api, const char *key,
   *value = json_dumps(response, JSON_INDENT(2));
   json_decref(response);
 
-  return *value != NULL;
+  if (!*value) {
+    dstr_copy(&api->last_error, "Failed to serialize value JSON");
+    return false;
+  }
+  return true;
 }
 
 bool restreamer_api_set_metadata(restreamer_api_t *api, const char *key,
@@ -1832,7 +1998,11 @@ bool restreamer_api_get_process_metadata(restreamer_api_t *api,
   *value = json_dumps(response, JSON_INDENT(2));
   json_decref(response);
 
-  return *value != NULL;
+  if (!*value) {
+    dstr_copy(&api->last_error, "Failed to serialize value JSON");
+    return false;
+  }
+  return true;
 }
 
 bool restreamer_api_set_process_metadata(restreamer_api_t *api,
@@ -2092,7 +2262,7 @@ bool restreamer_api_refresh_token(restreamer_api_t *api) {
   }
 
   /* Update access token */
-  bfree(api->access_token);
+  secure_free(api->access_token); /* Security: Clear access token from memory */
   api->access_token = bstrdup(json_string_value(access_token));
 
   if (expires_at && json_is_integer(expires_at)) {
@@ -2113,9 +2283,10 @@ bool restreamer_api_force_login(restreamer_api_t *api) {
   }
 
   /* Clear existing tokens */
-  bfree(api->access_token);
+  secure_free(api->access_token); /* Security: Clear access token from memory */
   api->access_token = NULL;
-  bfree(api->refresh_token);
+  secure_free(
+      api->refresh_token); /* Security: Clear refresh token from memory */
   api->refresh_token = NULL;
   api->token_expires = 0;
 
@@ -2143,7 +2314,11 @@ bool restreamer_api_list_filesystems(restreamer_api_t *api,
   *filesystems_json = json_dumps(response, JSON_INDENT(2));
   json_decref(response);
 
-  return *filesystems_json != NULL;
+  if (!*filesystems_json) {
+    dstr_copy(&api->last_error, "Failed to serialize filesystems JSON");
+    return false;
+  }
+  return true;
 }
 
 bool restreamer_api_list_files(restreamer_api_t *api, const char *storage,
@@ -2182,7 +2357,7 @@ bool restreamer_api_list_files(restreamer_api_t *api, const char *storage,
     files->entries = bzalloc(sizeof(restreamer_fs_entry_t) * count);
 
     for (size_t i = 0; i < count; i++) {
-      json_t *entry = json_array_get(response, i);
+      const json_t *entry = json_array_get(response, i);
       restreamer_fs_entry_t *f = &files->entries[i];
       parse_fs_entry_fields(entry, f);
     }
@@ -2344,8 +2519,8 @@ void restreamer_api_free_fs_list(restreamer_fs_list_t *list) {
 
 /* Helper function for getting protocol streams (RTMP/SRT) */
 static bool get_protocol_streams_helper(restreamer_api_t *api,
-                                         const char *endpoint,
-                                         char **streams_json) {
+                                        const char *endpoint,
+                                        char **streams_json) {
   if (!api || !streams_json || !endpoint) {
     return false;
   }
@@ -2360,7 +2535,11 @@ static bool get_protocol_streams_helper(restreamer_api_t *api,
   *streams_json = json_dumps(response, JSON_INDENT(2));
   json_decref(response);
 
-  return *streams_json != NULL;
+  if (!*streams_json) {
+    dstr_copy(&api->last_error, "Failed to serialize streams JSON");
+    return false;
+  }
+  return true;
 }
 
 bool restreamer_api_get_rtmp_streams(restreamer_api_t *api,
@@ -2392,7 +2571,11 @@ bool restreamer_api_get_skills(restreamer_api_t *api, char **skills_json) {
   *skills_json = json_dumps(response, JSON_INDENT(2));
   json_decref(response);
 
-  return *skills_json != NULL;
+  if (!*skills_json) {
+    dstr_copy(&api->last_error, "Failed to serialize skills JSON");
+    return false;
+  }
+  return true;
 }
 
 bool restreamer_api_reload_skills(restreamer_api_t *api) {
@@ -2401,4 +2584,198 @@ bool restreamer_api_reload_skills(restreamer_api_t *api) {
   }
 
   return api_request_json(api, "/api/v3/skills/reload", NULL);
+}
+
+/* ========================================================================
+ * Server Info & Diagnostics API
+ * ======================================================================== */
+
+bool restreamer_api_ping(restreamer_api_t *api) {
+  if (!api) {
+    return false;
+  }
+
+  json_t *response = NULL;
+  bool result = api_request_json(api, "/ping", &response);
+
+  if (!result || !response) {
+    return false;
+  }
+
+  /* Check if response contains "pong" */
+  const char *pong = json_string_value(response);
+  bool is_pong = (pong && strcmp(pong, "pong") == 0);
+
+  json_decref(response);
+
+  if (!is_pong) {
+    dstr_copy(&api->last_error, "Server did not respond with 'pong'");
+    return false;
+  }
+
+  return true;
+}
+
+bool restreamer_api_get_info(restreamer_api_t *api,
+                             restreamer_api_info_t *info) {
+  if (!api || !info) {
+    return false;
+  }
+
+  /* Initialize output structure */
+  memset(info, 0, sizeof(restreamer_api_info_t));
+
+  json_t *response = NULL;
+  bool result = api_request_json(api, "/api", &response);
+
+  if (!result || !response) {
+    return false;
+  }
+
+  /* Parse API info fields */
+  const json_t *name_obj = json_object_get(response, "name");
+  if (json_is_string(name_obj)) {
+    info->name = bstrdup(json_string_value(name_obj));
+  }
+
+  const json_t *version_obj = json_object_get(response, "version");
+  if (json_is_string(version_obj)) {
+    info->version = bstrdup(json_string_value(version_obj));
+  }
+
+  const json_t *build_date_obj = json_object_get(response, "build_date");
+  if (json_is_string(build_date_obj)) {
+    info->build_date = bstrdup(json_string_value(build_date_obj));
+  }
+
+  const json_t *commit_obj = json_object_get(response, "commit");
+  if (json_is_string(commit_obj)) {
+    info->commit = bstrdup(json_string_value(commit_obj));
+  }
+
+  json_decref(response);
+  return true;
+}
+
+void restreamer_api_free_info(restreamer_api_info_t *info) {
+  if (!info) {
+    return;
+  }
+
+  bfree(info->name);
+  bfree(info->version);
+  bfree(info->build_date);
+  bfree(info->commit);
+
+  memset(info, 0, sizeof(restreamer_api_info_t));
+}
+
+bool restreamer_api_get_logs(restreamer_api_t *api, char **logs_text) {
+  if (!api || !logs_text) {
+    return false;
+  }
+
+  json_t *response = NULL;
+  bool result = api_request_json(api, "/api/v3/log", &response);
+
+  if (!result || !response) {
+    return false;
+  }
+
+  /* If response is a string, use it directly */
+  if (json_is_string(response)) {
+    *logs_text = bstrdup(json_string_value(response));
+    json_decref(response);
+    return true;
+  }
+
+  /* Otherwise serialize JSON to string */
+  char *json_str = json_dumps(response, JSON_INDENT(2));
+  json_decref(response);
+
+  if (!json_str) {
+    dstr_copy(&api->last_error, "Failed to serialize logs JSON");
+    return false;
+  }
+
+  *logs_text = bstrdup(json_str);
+  free(json_str);
+  return true;
+}
+
+bool restreamer_api_get_active_sessions(
+    restreamer_api_t *api, restreamer_active_sessions_t *sessions) {
+  if (!api || !sessions) {
+    return false;
+  }
+
+  /* Initialize output structure */
+  memset(sessions, 0, sizeof(restreamer_active_sessions_t));
+
+  json_t *response = NULL;
+  bool result = api_request_json(api, "/api/v3/session/active", &response);
+
+  if (!result || !response) {
+    return false;
+  }
+
+  /* Parse session summary fields */
+  const json_t *session_count_obj = json_object_get(response, "session_count");
+  if (json_is_integer(session_count_obj)) {
+    sessions->session_count = (size_t)json_integer_value(session_count_obj);
+  } else if (json_is_number(session_count_obj)) {
+    sessions->session_count = (size_t)json_number_value(session_count_obj);
+  }
+
+  const json_t *rx_bytes_obj = json_object_get(response, "total_rx_bytes");
+  if (json_is_integer(rx_bytes_obj)) {
+    sessions->total_rx_bytes = (uint64_t)json_integer_value(rx_bytes_obj);
+  } else if (json_is_number(rx_bytes_obj)) {
+    sessions->total_rx_bytes = (uint64_t)json_number_value(rx_bytes_obj);
+  }
+
+  const json_t *tx_bytes_obj = json_object_get(response, "total_tx_bytes");
+  if (json_is_integer(tx_bytes_obj)) {
+    sessions->total_tx_bytes = (uint64_t)json_integer_value(tx_bytes_obj);
+  } else if (json_is_number(tx_bytes_obj)) {
+    sessions->total_tx_bytes = (uint64_t)json_number_value(tx_bytes_obj);
+  }
+
+  json_decref(response);
+  return true;
+}
+
+bool restreamer_api_get_process_config(restreamer_api_t *api,
+                                       const char *process_id,
+                                       char **config_json) {
+  if (!api || !process_id || !config_json) {
+    return false;
+  }
+
+  /* Build endpoint URL */
+  struct dstr endpoint;
+  dstr_init(&endpoint);
+  dstr_printf(&endpoint, "/api/v3/process/%s/config", process_id);
+
+  json_t *response = NULL;
+  bool result = api_request_json(api, endpoint.array, &response);
+
+  dstr_free(&endpoint);
+
+  if (!result || !response) {
+    return false;
+  }
+
+  /* Serialize JSON response to string */
+  char *json_str = json_dumps(response, JSON_INDENT(2));
+  json_decref(response);
+
+  if (!json_str) {
+    dstr_copy(&api->last_error, "Failed to serialize process config JSON");
+    return false;
+  }
+
+  *config_json = bstrdup(json_str);
+  free(json_str);
+  return true;
 }

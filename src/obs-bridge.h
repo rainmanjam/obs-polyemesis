@@ -8,7 +8,7 @@ OBS video/audio to Restreamer server.
 
 #pragma once
 
-#include "restreamer-output-profile.h"
+#include "restreamer-channel.h"
 #include <obs-frontend-api.h>
 #include <obs.h>
 #include <stdbool.h>
@@ -54,10 +54,10 @@ void obs_bridge_set_config(obs_bridge_t *bridge,
                            const obs_bridge_config_t *config);
 void obs_bridge_get_config(obs_bridge_t *bridge, obs_bridge_config_t *config);
 
-/* Integration with Restreamer API and Profile Manager */
+/* Integration with Restreamer API and Channel Manager */
 void obs_bridge_set_api_client(obs_bridge_t *bridge, restreamer_api_t *api);
-void obs_bridge_set_profile_manager(obs_bridge_t *bridge,
-                                    profile_manager_t *pm);
+void obs_bridge_set_channel_manager(obs_bridge_t *bridge,
+                                    channel_manager_t *cm);
 
 /* Status monitoring */
 obs_bridge_status_t obs_bridge_get_status(obs_bridge_t *bridge);

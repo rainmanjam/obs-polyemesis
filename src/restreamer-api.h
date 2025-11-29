@@ -443,6 +443,47 @@ bool restreamer_api_get_skills(restreamer_api_t *api, char **skills_json);
 /* Reload FFmpeg capabilities */
 bool restreamer_api_reload_skills(restreamer_api_t *api);
 
+/* ========================================================================
+ * Extended API - Server Info & Diagnostics
+ * ======================================================================== */
+
+/* Check server liveliness - returns true if server responds with "pong" */
+bool restreamer_api_ping(restreamer_api_t *api);
+
+/* API version information */
+typedef struct {
+  char *name;       /* API name */
+  char *version;    /* Version string */
+  char *build_date; /* Build date */
+  char *commit;     /* Git commit hash */
+} restreamer_api_info_t;
+
+/* Get API version info */
+bool restreamer_api_get_info(restreamer_api_t *api,
+                             restreamer_api_info_t *info);
+
+/* Free API info */
+void restreamer_api_free_info(restreamer_api_info_t *info);
+
+/* Get application logs */
+bool restreamer_api_get_logs(restreamer_api_t *api, char **logs_text);
+
+/* Active session summary */
+typedef struct {
+  size_t session_count;    /* Number of active sessions */
+  uint64_t total_rx_bytes; /* Total bytes received */
+  uint64_t total_tx_bytes; /* Total bytes transmitted */
+} restreamer_active_sessions_t;
+
+/* Get active session summary */
+bool restreamer_api_get_active_sessions(restreamer_api_t *api,
+                                        restreamer_active_sessions_t *sessions);
+
+/* Get process configuration as JSON string */
+bool restreamer_api_get_process_config(restreamer_api_t *api,
+                                       const char *process_id,
+                                       char **config_json);
+
 #ifdef __cplusplus
 }
 #endif
