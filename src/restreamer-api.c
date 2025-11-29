@@ -551,7 +551,7 @@ STATIC_TESTABLE json_t *parse_json_response(restreamer_api_t *api,
 }
 
 /* Helper function to parse JSON object into restreamer_process_t */
-static void parse_process_fields(const json_t *json_obj,
+STATIC_TESTABLE void parse_process_fields(const json_t *json_obj,
                                  restreamer_process_t *process) {
   if (!json_obj || !process) {
     return;
@@ -594,7 +594,7 @@ static void parse_process_fields(const json_t *json_obj,
 }
 
 /* Helper function to parse JSON object into restreamer_log_entry_t */
-static void parse_log_entry_fields(const json_t *json_obj,
+STATIC_TESTABLE void parse_log_entry_fields(const json_t *json_obj,
                                    restreamer_log_entry_t *entry) {
   if (!json_obj || !entry) {
     return;
@@ -617,7 +617,7 @@ static void parse_log_entry_fields(const json_t *json_obj,
 }
 
 /* Helper function to parse JSON object into restreamer_session_t */
-static void parse_session_fields(const json_t *json_obj,
+STATIC_TESTABLE void parse_session_fields(const json_t *json_obj,
                                  restreamer_session_t *session) {
   if (!json_obj || !session) {
     return;
@@ -650,7 +650,7 @@ static void parse_session_fields(const json_t *json_obj,
 }
 
 /* Helper function to parse JSON object into restreamer_fs_entry_t */
-static void parse_fs_entry_fields(const json_t *json_obj,
+STATIC_TESTABLE void parse_fs_entry_fields(const json_t *json_obj,
                                   restreamer_fs_entry_t *entry) {
   if (!json_obj || !entry) {
     return;

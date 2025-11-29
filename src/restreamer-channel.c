@@ -1297,6 +1297,35 @@ create_builtin_template(const char *name, const char *id,
   return tmpl;
 }
 
+/* Helper function to add a builtin template to the manager's template array.
+ * Handles memory allocation and array expansion internally. */
+static output_template_t *
+channel_manager_add_builtin_template(channel_manager_t *manager,
+                                     const char *name, const char *id,
+                                     streaming_service_t service,
+                                     stream_orientation_t orientation,
+                                     uint32_t bitrate, uint32_t width,
+                                     uint32_t height) {
+  if (!manager) {
+    return NULL;
+  }
+
+  output_template_t *tmpl = create_builtin_template(name, id, service,
+                                                     orientation, bitrate,
+                                                     width, height);
+  if (!tmpl) {
+    return NULL;
+  }
+
+  /* Expand templates array */
+  manager->templates =
+      brealloc(manager->templates, sizeof(output_template_t *) *
+                                       (manager->template_count + 1));
+  manager->templates[manager->template_count++] = tmpl;
+
+  return tmpl;
+}
+
 void channel_manager_load_builtin_templates(channel_manager_t *manager) {
   if (!manager) {
     return;
@@ -1305,50 +1334,38 @@ void channel_manager_load_builtin_templates(channel_manager_t *manager) {
   obs_log(LOG_INFO, "Loading built-in output templates");
 
   /* YouTube templates */
-  manager->templates =
-      brealloc(manager->templates, sizeof(output_template_t *) *
-                                       (manager->template_count + 1));
-  manager->templates[manager->template_count++] = create_builtin_template(
-      "YouTube 1080p60", "builtin_youtube_1080p60", SERVICE_YOUTUBE,
-      ORIENTATION_HORIZONTAL, 6000, 1920, 1080);
+  channel_manager_add_builtin_template(manager, "YouTube 1080p60",
+                                       "builtin_youtube_1080p60",
+                                       SERVICE_YOUTUBE, ORIENTATION_HORIZONTAL,
+                                       6000, 1920, 1080);
 
-  manager->templates =
-      brealloc(manager->templates, sizeof(output_template_t *) *
-                                       (manager->template_count + 1));
-  manager->templates[manager->template_count++] = create_builtin_template(
-      "YouTube 720p60", "builtin_youtube_720p60", SERVICE_YOUTUBE,
-      ORIENTATION_HORIZONTAL, 4500, 1280, 720);
+  channel_manager_add_builtin_template(manager, "YouTube 720p60",
+                                       "builtin_youtube_720p60",
+                                       SERVICE_YOUTUBE, ORIENTATION_HORIZONTAL,
+                                       4500, 1280, 720);
 
   /* Twitch templates */
-  manager->templates =
-      brealloc(manager->templates, sizeof(output_template_t *) *
-                                       (manager->template_count + 1));
-  manager->templates[manager->template_count++] = create_builtin_template(
-      "Twitch 1080p60", "builtin_twitch_1080p60", SERVICE_TWITCH,
-      ORIENTATION_HORIZONTAL, 6000, 1920, 1080);
+  channel_manager_add_builtin_template(manager, "Twitch 1080p60",
+                                       "builtin_twitch_1080p60",
+                                       SERVICE_TWITCH, ORIENTATION_HORIZONTAL,
+                                       6000, 1920, 1080);
 
-  manager->templates =
-      brealloc(manager->templates, sizeof(output_template_t *) *
-                                       (manager->template_count + 1));
-  manager->templates[manager->template_count++] = create_builtin_template(
-      "Twitch 720p60", "builtin_twitch_720p60", SERVICE_TWITCH,
-      ORIENTATION_HORIZONTAL, 4500, 1280, 720);
+  channel_manager_add_builtin_template(manager, "Twitch 720p60",
+                                       "builtin_twitch_720p60",
+                                       SERVICE_TWITCH, ORIENTATION_HORIZONTAL,
+                                       4500, 1280, 720);
 
   /* Facebook templates */
-  manager->templates =
-      brealloc(manager->templates, sizeof(output_template_t *) *
-                                       (manager->template_count + 1));
-  manager->templates[manager->template_count++] = create_builtin_template(
-      "Facebook 1080p", "builtin_facebook_1080p", SERVICE_FACEBOOK,
-      ORIENTATION_HORIZONTAL, 4000, 1920, 1080);
+  channel_manager_add_builtin_template(manager, "Facebook 1080p",
+                                       "builtin_facebook_1080p",
+                                       SERVICE_FACEBOOK, ORIENTATION_HORIZONTAL,
+                                       4000, 1920, 1080);
 
   /* TikTok vertical template */
-  manager->templates =
-      brealloc(manager->templates, sizeof(output_template_t *) *
-                                       (manager->template_count + 1));
-  manager->templates[manager->template_count++] = create_builtin_template(
-      "TikTok Vertical", "builtin_tiktok_vertical", SERVICE_TIKTOK,
-      ORIENTATION_VERTICAL, 3000, 1080, 1920);
+  channel_manager_add_builtin_template(manager, "TikTok Vertical",
+                                       "builtin_tiktok_vertical",
+                                       SERVICE_TIKTOK, ORIENTATION_VERTICAL,
+                                       3000, 1080, 1920);
 
   obs_log(LOG_INFO, "Loaded %zu built-in templates", manager->template_count);
 }
