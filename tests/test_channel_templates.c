@@ -64,7 +64,7 @@ static bool test_create_template_success(void) {
 
     /* Verify template is in the array */
     output_template_t *retrieved = manager->templates[manager->template_count - 1];
-    ASSERT_EQ(retrieved, tmpl, "Last template should be the one we created");
+    ASSERT(retrieved == tmpl, "Last template should be the one we created");
 
     channel_manager_destroy(manager);
     return true;
@@ -209,7 +209,7 @@ static bool test_get_template_success(void) {
     /* Retrieve template by ID */
     output_template_t *retrieved = channel_manager_get_template(manager, created->template_id);
     ASSERT_NOT_NULL(retrieved, "Template should be found");
-    ASSERT_EQ(retrieved, created, "Retrieved template should be the same object");
+    ASSERT(retrieved == created, "Retrieved template should be the same object");
     ASSERT_STR_EQ(retrieved->template_name, "Test Template", "Template name should match");
     ASSERT_EQ(retrieved->encoding.bitrate, 5000, "Bitrate should match");
 
@@ -253,7 +253,7 @@ static bool test_get_template_at_success(void) {
     for (size_t i = 0; i < manager->template_count; i++) {
         output_template_t *tmpl = channel_manager_get_template_at(manager, i);
         ASSERT_NOT_NULL(tmpl, "Template at index should exist");
-        ASSERT_EQ(tmpl, manager->templates[i], "Should return correct template");
+        ASSERT(tmpl == manager->templates[i], "Should return correct template");
     }
 
     /* Add custom template and get it by index */
@@ -264,7 +264,7 @@ static bool test_get_template_at_success(void) {
 
     size_t last_index = manager->template_count - 1;
     output_template_t *last = channel_manager_get_template_at(manager, last_index);
-    ASSERT_EQ(last, custom, "Last template should be the custom one");
+    ASSERT(last == custom, "Last template should be the custom one");
 
     channel_manager_destroy(manager);
     return true;
