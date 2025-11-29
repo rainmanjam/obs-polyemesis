@@ -1654,8 +1654,15 @@ STATIC_TESTABLE uint32_t json_get_string_as_uint32(const json_t *obj,
   if (!val || !json_is_string(val)) {
     return 0;
   }
-  char *endptr;
   const char *str = json_string_value(val);
+  /* Skip whitespace and reject negative numbers */
+  while (*str == ' ' || *str == '\t') {
+    str++;
+  }
+  if (*str == '-') {
+    return 0;
+  }
+  char *endptr;
   unsigned long num = strtoul(str, &endptr, 10);
   /* Check for valid parse and within uint32_t range */
   return (endptr != str && num <= UINT32_MAX) ? (uint32_t)num : 0;
