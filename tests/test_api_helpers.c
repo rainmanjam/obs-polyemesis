@@ -266,9 +266,9 @@ static void test_handle_login_failure_exponential_backoff(void) {
   handle_login_failure(api, 401);
   TEST_ASSERT(api->login_backoff_ms == 4000, "Second backoff should be 4000ms");
 
-  /* Third failure: 4000ms -> 8000ms */
+  /* Third failure: at MAX_LOGIN_RETRIES, backoff does NOT double */
   handle_login_failure(api, 401);
-  TEST_ASSERT(api->login_backoff_ms == 8000, "Third backoff should be 8000ms");
+  TEST_ASSERT(api->login_backoff_ms == 4000, "Third backoff stays at 4000ms (max retries reached)");
   TEST_ASSERT(api->login_retry_count == 3, "Retry count should be 3");
 
   destroy_test_api(api);
@@ -309,8 +309,8 @@ static void test_handle_login_failure_max_retries(void) {
   handle_login_failure(api, 401);
 
   TEST_ASSERT(api->login_retry_count == 3, "Should reach max retry count");
-  /* At max retries, backoff still doubles but we don't retry anymore */
-  TEST_ASSERT(api->login_backoff_ms == 8000, "Backoff should still double");
+  /* At max retries, backoff does NOT double (only doubles when < MAX_LOGIN_RETRIES) */
+  TEST_ASSERT(api->login_backoff_ms == 4000, "Backoff stays same at max retries");
 
   destroy_test_api(api);
 }
