@@ -50,9 +50,11 @@ static void crash_signal_handler(int sig) {
   case SIGILL:
     sig_name = "SIGILL (Illegal Instruction)";
     break;
+#ifdef SIGBUS
   case SIGBUS:
     sig_name = "SIGBUS (Bus Error)";
     break;
+#endif
   }
 
   fprintf(stderr, "%s[CRASH]%s Test crashed with signal: %s\n", COLOR_RED,
@@ -67,7 +69,9 @@ static void setup_crash_handlers(void) {
   signal(SIGABRT, crash_signal_handler);
   signal(SIGFPE, crash_signal_handler);
   signal(SIGILL, crash_signal_handler);
+#ifdef SIGBUS
   signal(SIGBUS, crash_signal_handler);
+#endif
 }
 
 /* Test assertion macros */

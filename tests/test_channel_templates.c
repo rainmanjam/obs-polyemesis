@@ -119,14 +119,19 @@ static bool test_delete_template_success(void) {
 
     size_t count_before = manager->template_count;
 
+    /* Save template ID before deleting (to avoid use-after-free) */
+    char *tmpl2_id = bstrdup(tmpl2->template_id);
+
     /* Delete middle template */
-    bool deleted = channel_manager_delete_template(manager, tmpl2->template_id);
+    bool deleted = channel_manager_delete_template(manager, tmpl2_id);
     ASSERT_TRUE(deleted, "Delete should succeed");
     ASSERT_EQ(manager->template_count, count_before - 1, "Template count should decrease by 1");
 
     /* Verify template was removed */
-    output_template_t *search = channel_manager_get_template(manager, tmpl2->template_id);
+    output_template_t *search = channel_manager_get_template(manager, tmpl2_id);
     ASSERT_NULL(search, "Deleted template should not be found");
+
+    bfree(tmpl2_id);
 
     /* Verify other templates still exist */
     output_template_t *found1 = channel_manager_get_template(manager, tmpl1->template_id);
