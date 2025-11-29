@@ -3,6 +3,7 @@
 #include <jansson.h>
 #include <obs-module.h>
 #include <plugin-support.h>
+#include <stdint.h>
 #include <string.h>
 #include <time.h>
 #include <util/bmem.h>
@@ -1655,8 +1656,9 @@ STATIC_TESTABLE uint32_t json_get_string_as_uint32(const json_t *obj,
   }
   char *endptr;
   const char *str = json_string_value(val);
-  long num = strtol(str, &endptr, 10);
-  return (endptr != str && num >= 0) ? (uint32_t)num : 0;
+  unsigned long num = strtoul(str, &endptr, 10);
+  /* Check for valid parse and within uint32_t range */
+  return (endptr != str && num <= UINT32_MAX) ? (uint32_t)num : 0;
 }
 
 /* Helper function to parse a single stream from probe response */
