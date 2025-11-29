@@ -19,8 +19,10 @@
 #include <time.h>
 #include <stdint.h>
 #include <jansson.h>
+#include <curl/curl.h>
 #include <util/bmem.h>
 #include <util/dstr.h>
+#include "restreamer-api.h"
 
 /* Test result tracking */
 static int tests_passed = 0;
@@ -54,15 +56,18 @@ static int tests_failed = 0;
  * Forward Declarations - Export internal functions for testing
  * ======================================================================== */
 
-/* Opaque API type for testing */
+/* Opaque API type for testing - must match actual struct in restreamer-api.c */
 typedef struct restreamer_api {
+  restreamer_connection_t connection;
+  CURL *curl;
+  char error_buffer[CURL_ERROR_SIZE];
+  struct dstr last_error;
   char *access_token;
   char *refresh_token;
   time_t token_expires;
   time_t last_login_attempt;
   int login_backoff_ms;
   int login_retry_count;
-  struct dstr last_error;
 } restreamer_api_t;
 
 /* Memory write callback structure */
@@ -94,7 +99,14 @@ static restreamer_api_t *create_test_api(void) {
   if (!api) {
     return NULL;
   }
+  /* Initialize connection struct */
+  memset(&api->connection, 0, sizeof(api->connection));
+  api->curl = NULL;
+  memset(api->error_buffer, 0, sizeof(api->error_buffer));
   dstr_init(&api->last_error);
+  api->access_token = NULL;
+  api->refresh_token = NULL;
+  api->token_expires = 0;
   api->login_backoff_ms = 1000; /* Start with 1 second */
   api->login_retry_count = 0;
   api->last_login_attempt = 0;
