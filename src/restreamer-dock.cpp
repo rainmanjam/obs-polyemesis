@@ -2,8 +2,8 @@
 #include "connection-config-dialog.h"
 #include "obs-helpers.hpp"
 #include "obs-theme-utils.h"
-#include "profile-edit-dialog.h"
-#include "profile-widget.h"
+#include "channel-edit-dialog.h"
+#include "channel-widget.h"
 #include "restreamer-config.h"
 #include <QApplication>
 #include <QCheckBox>
@@ -40,7 +40,7 @@ extern "C" {
 }
 
 RestreamerDock::RestreamerDock(QWidget *parent)
-    : QWidget(parent), api(nullptr), profileManager(nullptr),
+    : QWidget(parent), api(nullptr), channelManager(nullptr),
       multistreamConfig(nullptr), selectedProcessId(nullptr), bridge(nullptr),
       originalSize(600, 800), sizeInitialized(false), serviceLoader(nullptr) {
 
@@ -150,10 +150,10 @@ RestreamerDock::~RestreamerDock() {
   }
 
   {
-    std::lock_guard<std::recursive_mutex> lock(profileMutex);
-    if (profileManager) {
-      profile_manager_destroy(profileManager);
-      profileManager = nullptr;
+    std::lock_guard<std::recursive_mutex> lock(channelMutex);
+    if (channelManager) {
+      channel_manager_destroy(channelManager);
+      channelManager = nullptr;
     }
   }
 
@@ -239,16 +239,16 @@ void RestreamerDock::onFrontendSave(obs_data_t *save_data, bool saving) {
     }
 
     /* Enhanced: Save profile active states for restoration */
-    if (profileManager) {
+    if (channelManager) {
       OBSDataArrayAutoRelease profile_states(obs_data_array_create());
-      for (size_t i = 0; i < profileManager->profile_count; i++) {
-        if (profileManager->profiles[i]) {
+      for (size_t i = 0; i < channelManager->channel_count; i++) {
+        if (channelManager->channels[i]) {
           OBSDataAutoRelease profile_state(obs_data_create());
           obs_data_set_string(profile_state, "name",
-                              profileManager->profiles[i]->profile_name);
+                              channelManager->channels[i]->channel_name);
           obs_data_set_bool(profile_state, "was_active",
-                            profileManager->profiles[i]->status ==
-                                PROFILE_STATUS_ACTIVE);
+                            channelManager->channels[i]->status ==
+                                CHANNEL_STATUS_ACTIVE);
           obs_data_array_push_back(profile_states, profile_state);
         }
       }
@@ -256,8 +256,8 @@ void RestreamerDock::onFrontendSave(obs_data_t *save_data, bool saving) {
     }
 
     /* Save profiles */
-    if (profileManager) {
-      profile_manager_save_to_settings(profileManager, dock_settings);
+    if (channelManager) {
+      channel_manager_save_to_settings(channelManager, dock_settings);
     }
 
     /* Save multistream config */
@@ -298,9 +298,9 @@ void RestreamerDock::onFrontendSave(obs_data_t *save_data, bool saving) {
           obs_data_get_bool(dock_settings, "bridge_auto_start"));
 
       /* Restore profiles */
-      if (profileManager) {
-        profile_manager_load_from_settings(profileManager, dock_settings);
-        updateProfileList();
+      if (channelManager) {
+        channel_manager_load_from_settings(channelManager, dock_settings);
+        updateChannelList();
       }
 
       /* Restore multistream config */
@@ -399,52 +399,52 @@ void RestreamerDock::setupUI() {
   /* Profile management buttons at top */
   QHBoxLayout *profileManagementButtons = new QHBoxLayout();
 
-  createProfileButton = new QPushButton("+ New Profile");
-  createProfileButton->setToolTip("Create new streaming profile");
-  connect(createProfileButton, &QPushButton::clicked, this,
-          &RestreamerDock::onCreateProfileClicked);
+  createChannelButton = new QPushButton("+ New Channel");
+  createChannelButton->setToolTip("Create new streaming channel");
+  connect(createChannelButton, &QPushButton::clicked, this,
+          &RestreamerDock::onCreateChannelClicked);
 
-  startAllProfilesButton = new QPushButton("▶ Start All");
-  startAllProfilesButton->setToolTip("Start all profiles");
-  connect(startAllProfilesButton, &QPushButton::clicked, this,
-          &RestreamerDock::onStartAllProfilesClicked);
+  startAllChannelsButton = new QPushButton("▶ Start All");
+  startAllChannelsButton->setToolTip("Start all channels");
+  connect(startAllChannelsButton, &QPushButton::clicked, this,
+          &RestreamerDock::onStartAllChannelsClicked);
 
-  stopAllProfilesButton = new QPushButton("■ Stop All");
-  stopAllProfilesButton->setToolTip("Stop all profiles");
-  stopAllProfilesButton->setEnabled(false);
-  connect(stopAllProfilesButton, &QPushButton::clicked, this,
-          &RestreamerDock::onStopAllProfilesClicked);
+  stopAllChannelsButton = new QPushButton("■ Stop All");
+  stopAllChannelsButton->setToolTip("Stop all channels");
+  stopAllChannelsButton->setEnabled(false);
+  connect(stopAllChannelsButton, &QPushButton::clicked, this,
+          &RestreamerDock::onStopAllChannelsClicked);
 
-  profileManagementButtons->addWidget(createProfileButton);
+  profileManagementButtons->addWidget(createChannelButton);
   profileManagementButtons->addStretch();
-  profileManagementButtons->addWidget(startAllProfilesButton);
-  profileManagementButtons->addWidget(stopAllProfilesButton);
+  profileManagementButtons->addWidget(startAllChannelsButton);
+  profileManagementButtons->addWidget(stopAllChannelsButton);
 
   profilesTabLayout->addLayout(profileManagementButtons);
 
-  /* Profile status label */
-  profileStatusLabel = new QLabel("No profiles");
-  profileStatusLabel->setAlignment(Qt::AlignCenter);
-  profileStatusLabel->setStyleSheet(
+  /* Channel status label */
+  channelStatusLabel = new QLabel("No channels");
+  channelStatusLabel->setAlignment(Qt::AlignCenter);
+  channelStatusLabel->setStyleSheet(
       QString("QLabel { color: %1; font-size: 11px; font-style: italic; }")
           .arg(obs_theme_get_muted_color().name()));
-  profilesTabLayout->addWidget(profileStatusLabel);
+  profilesTabLayout->addWidget(channelStatusLabel);
 
-  /* Scrollable container for profile widgets */
-  QScrollArea *profileScrollArea = new QScrollArea();
-  profileScrollArea->setWidgetResizable(true);
-  profileScrollArea->setFrameShape(QFrame::NoFrame);
+  /* Scrollable container for channel widgets */
+  QScrollArea *channelScrollArea = new QScrollArea();
+  channelScrollArea->setWidgetResizable(true);
+  channelScrollArea->setFrameShape(QFrame::NoFrame);
 
-  profileListContainer = new QWidget();
-  profileListLayout = new QVBoxLayout(profileListContainer);
-  profileListLayout->setContentsMargins(0, 0, 0, 0);
-  profileListLayout->setSpacing(8);
-  profileListLayout->addStretch();
+  channelListContainer = new QWidget();
+  channelListLayout = new QVBoxLayout(channelListContainer);
+  channelListLayout->setContentsMargins(0, 0, 0, 0);
+  channelListLayout->setSpacing(8);
+  channelListLayout->addStretch();
 
-  profileScrollArea->setWidget(profileListContainer);
-  profilesTabLayout->addWidget(profileScrollArea);
+  channelScrollArea->setWidget(channelListContainer);
+  profilesTabLayout->addWidget(channelScrollArea);
 
-  /* Add Profiles section directly to main layout (always visible) */
+  /* Add Channels section directly to main layout (always visible) */
   verticalLayout->addWidget(profilesTab);
 
   /* Add stretch to push sections to the top */
@@ -460,30 +460,30 @@ void RestreamerDock::setupUI() {
     /* Build monitoring information from current profiles */
     QString monitorInfo = "<b>System Monitoring</b><br><br>";
 
-    if (profileManager) {
+    if (channelManager) {
       size_t active_profiles = 0;
       size_t total_destinations = 0;
       size_t active_destinations = 0;
       uint64_t total_bytes = 0;
 
-      for (size_t i = 0; i < profileManager->profile_count; i++) {
-        output_profile_t *profile = profileManager->profiles[i];
-        if (profile->status == PROFILE_STATUS_ACTIVE) {
+      for (size_t i = 0; i < channelManager->channel_count; i++) {
+        stream_channel_t *profile = channelManager->channels[i];
+        if (profile->status == CHANNEL_STATUS_ACTIVE) {
           active_profiles++;
         }
-        total_destinations += profile->destination_count;
-        for (size_t j = 0; j < profile->destination_count; j++) {
-          if (profile->destinations[j].connected) {
+        total_destinations += profile->output_count;
+        for (size_t j = 0; j < profile->output_count; j++) {
+          if (profile->outputs[j].connected) {
             active_destinations++;
           }
-          total_bytes += profile->destinations[j].bytes_sent;
+          total_bytes += profile->outputs[j].bytes_sent;
         }
       }
 
-      monitorInfo += QString("<b>Profiles:</b> %1 total, %2 active<br>")
-                         .arg(profileManager->profile_count)
+      monitorInfo += QString("<b>Channels:</b> %1 total, %2 active<br>")
+                         .arg(channelManager->channel_count)
                          .arg(active_profiles);
-      monitorInfo += QString("<b>Destinations:</b> %1 total, %2 active<br>")
+      monitorInfo += QString("<b>Outputs:</b> %1 total, %2 active<br>")
                          .arg(total_destinations)
                          .arg(active_destinations);
       monitorInfo += QString("<b>Total Data Sent:</b> %1 MB<br><br>")
@@ -777,14 +777,14 @@ void RestreamerDock::loadSettings() {
   restreamer_config_load(settings);
 
   /* Create profile manager if not already created */
-  if (!profileManager) {
-    profileManager = profile_manager_create(api);
+  if (!channelManager) {
+    channelManager = channel_manager_create(api);
   }
 
   /* Load profiles from settings */
-  if (profileManager) {
-    profile_manager_load_from_settings(profileManager, settings);
-    updateProfileList();
+  if (channelManager) {
+    channel_manager_load_from_settings(channelManager, settings);
+    updateChannelList();
   }
 
   /* Load multistream config */
@@ -837,8 +837,8 @@ void RestreamerDock::saveSettings() {
   /* Connection settings now handled by ConnectionConfigDialog */
 
   /* Save profiles */
-  if (profileManager) {
-    profile_manager_save_to_settings(profileManager, settings);
+  if (channelManager) {
+    channel_manager_save_to_settings(channelManager, settings);
   }
 
   /* Save multistream config */
@@ -1647,73 +1647,73 @@ void RestreamerDock::onSaveBridgeSettingsClicked() {
 
 /* Profile Management Functions */
 
-void RestreamerDock::updateProfileList() {
+void RestreamerDock::updateChannelList() {
   /* Clear existing profile widgets */
-  qDeleteAll(profileWidgets);
-  profileWidgets.clear();
+  qDeleteAll(channelWidgets);
+  channelWidgets.clear();
 
-  if (!profileManager || profileManager->profile_count == 0) {
-    profileStatusLabel->setText("No profiles");
-    stopAllProfilesButton->setEnabled(false);
+  if (!channelManager || channelManager->channel_count == 0) {
+    channelStatusLabel->setText("No channels");
+    stopAllChannelsButton->setEnabled(false);
     return;
   }
 
-  /* Iterate through all profiles and create ProfileWidgets */
+  /* Iterate through all profiles and create ChannelWidgets */
   bool hasActiveProfile = false;
-  for (size_t i = 0; i < profileManager->profile_count; i++) {
-    output_profile_t *profile = profileManager->profiles[i];
+  for (size_t i = 0; i < channelManager->channel_count; i++) {
+    stream_channel_t *profile = channelManager->channels[i];
 
     /* Track if any profile is active */
-    if (profile->status == PROFILE_STATUS_ACTIVE ||
-        profile->status == PROFILE_STATUS_STARTING) {
+    if (profile->status == CHANNEL_STATUS_ACTIVE ||
+        profile->status == CHANNEL_STATUS_STARTING) {
       hasActiveProfile = true;
     }
 
-    /* Create a new ProfileWidget for this profile */
-    ProfileWidget *profileWidget = new ProfileWidget(profile, this);
+    /* Create a new ChannelWidget for this profile */
+    ChannelWidget *profileWidget = new ChannelWidget(profile, this);
 
-    /* Connect ProfileWidget signals to dock slot methods */
-    connect(profileWidget, &ProfileWidget::startRequested, this,
-            &RestreamerDock::onProfileStartRequested);
-    connect(profileWidget, &ProfileWidget::stopRequested, this,
-            &RestreamerDock::onProfileStopRequested);
-    connect(profileWidget, &ProfileWidget::editRequested, this,
-            &RestreamerDock::onProfileEditRequested);
-    connect(profileWidget, &ProfileWidget::deleteRequested, this,
-            &RestreamerDock::onProfileDeleteRequested);
-    connect(profileWidget, &ProfileWidget::duplicateRequested, this,
-            &RestreamerDock::onProfileDuplicateRequested);
+    /* Connect ChannelWidget signals to dock slot methods */
+    connect(profileWidget, &ChannelWidget::startRequested, this,
+            &RestreamerDock::onChannelStartRequested);
+    connect(profileWidget, &ChannelWidget::stopRequested, this,
+            &RestreamerDock::onChannelStopRequested);
+    connect(profileWidget, &ChannelWidget::editRequested, this,
+            &RestreamerDock::onChannelEditRequested);
+    connect(profileWidget, &ChannelWidget::deleteRequested, this,
+            &RestreamerDock::onChannelDeleteRequested);
+    connect(profileWidget, &ChannelWidget::duplicateRequested, this,
+            &RestreamerDock::onChannelDuplicateRequested);
 
     /* Connect destination control signals */
-    connect(profileWidget, &ProfileWidget::destinationStartRequested, this,
-            &RestreamerDock::onDestinationStartRequested);
-    connect(profileWidget, &ProfileWidget::destinationStopRequested, this,
-            &RestreamerDock::onDestinationStopRequested);
-    connect(profileWidget, &ProfileWidget::destinationEditRequested, this,
-            &RestreamerDock::onDestinationEditRequested);
+    connect(profileWidget, &ChannelWidget::outputStartRequested, this,
+            &RestreamerDock::onOutputStartRequested);
+    connect(profileWidget, &ChannelWidget::outputStopRequested, this,
+            &RestreamerDock::onOutputStopRequested);
+    connect(profileWidget, &ChannelWidget::outputEditRequested, this,
+            &RestreamerDock::onOutputEditRequested);
 
     /* Add widget to layout and track it */
-    profileListLayout->addWidget(profileWidget);
-    profileWidgets.append(profileWidget);
+    channelListLayout->addWidget(profileWidget);
+    channelWidgets.append(profileWidget);
   }
 
   /* Update status label */
-  profileStatusLabel->setText(
-      QString("%1 profile(s)").arg(profileManager->profile_count));
+  channelStatusLabel->setText(
+      QString("%1 channel(s)").arg(channelManager->channel_count));
 
   /* Update button states */
-  stopAllProfilesButton->setEnabled(hasActiveProfile);
+  stopAllChannelsButton->setEnabled(hasActiveProfile);
 }
 
 /* Profile Slot Implementations */
 
-void RestreamerDock::onStartAllProfilesClicked() {
-  if (!profileManager) {
+void RestreamerDock::onStartAllChannelsClicked() {
+  if (!channelManager) {
     return;
   }
 
-  if (profile_manager_start_all(profileManager)) {
-    updateProfileList();
+  if (channel_manager_start_all(channelManager)) {
+    updateChannelList();
   } else {
     QMessageBox::warning(
         this, "Error",
@@ -1721,322 +1721,322 @@ void RestreamerDock::onStartAllProfilesClicked() {
   }
 }
 
-void RestreamerDock::onStopAllProfilesClicked() {
-  if (!profileManager) {
+void RestreamerDock::onStopAllChannelsClicked() {
+  if (!channelManager) {
     return;
   }
 
   /* Confirm stop all */
   QMessageBox::StandardButton reply = QMessageBox::question(
-      this, "Stop All Profiles",
-      "Are you sure you want to stop all active profiles?",
+      this, "Stop All Channels",
+      "Are you sure you want to stop all active channels?",
       QMessageBox::Yes | QMessageBox::No);
 
   if (reply == QMessageBox::Yes) {
-    if (profile_manager_stop_all(profileManager)) {
-      updateProfileList();
+    if (channel_manager_stop_all(channelManager)) {
+      updateChannelList();
     } else {
       QMessageBox::warning(this, "Error", "Failed to stop all profiles.");
     }
   }
 }
 
-void RestreamerDock::onCreateProfileClicked() {
-  if (!profileManager) {
+void RestreamerDock::onCreateChannelClicked() {
+  if (!channelManager) {
     return;
   }
 
-  /* Prompt for profile name */
+  /* Prompt for channel name */
   bool ok;
-  QString profileName = QInputDialog::getText(
-      this, "Create Profile", "Enter profile name:", QLineEdit::Normal,
-      "New Profile", &ok);
+  QString channelName = QInputDialog::getText(
+      this, "Create Channel", "Enter channel name:", QLineEdit::Normal,
+      "New Channel", &ok);
 
-  if (ok && !profileName.isEmpty()) {
-    output_profile_t *newProfile = profile_manager_create_profile(
-        profileManager, profileName.toUtf8().constData());
+  if (ok && !channelName.isEmpty()) {
+    stream_channel_t *newChannel = channel_manager_create_channel(
+        channelManager, channelName.toUtf8().constData());
 
-    if (newProfile) {
-      updateProfileList();
+    if (newChannel) {
+      updateChannelList();
       saveSettings();
 
-      /* Open configure dialog to set up destinations */
+      /* Open configure dialog to set up outputs */
       QMessageBox::information(
-          this, "Profile Created",
-          QString("Profile '%1' created successfully.\n\nUse the Edit "
-                  "button on the profile to add destinations and customize "
+          this, "Channel Created",
+          QString("Channel '%1' created successfully.\n\nUse the Edit "
+                  "button on the channel to add outputs and customize "
                   "settings.")
-              .arg(profileName));
+              .arg(channelName));
     } else {
-      QMessageBox::warning(this, "Error", "Failed to create profile.");
+      QMessageBox::warning(this, "Error", "Failed to create channel.");
     }
   }
 }
 
-/* ProfileWidget Signal Handlers */
+/* ChannelWidget Signal Handlers */
 
-void RestreamerDock::onProfileStartRequested(const char *profileId) {
-  if (!profileManager || !profileId) {
+void RestreamerDock::onChannelStartRequested(const char *profileId) {
+  if (!channelManager || !profileId) {
     return;
   }
 
-  if (output_profile_start(profileManager, profileId)) {
-    updateProfileList();
+  if (channel_start(channelManager, profileId)) {
+    updateChannelList();
   } else {
     QMessageBox::warning(
-        this, "Error", "Failed to start profile. Check Restreamer connection.");
+        this, "Error", "Failed to start channel. Check Restreamer connection.");
   }
 }
 
-void RestreamerDock::onProfileStopRequested(const char *profileId) {
-  if (!profileManager || !profileId) {
+void RestreamerDock::onChannelStopRequested(const char *profileId) {
+  if (!channelManager || !profileId) {
     return;
   }
 
-  if (output_profile_stop(profileManager, profileId)) {
-    updateProfileList();
+  if (channel_stop(channelManager, profileId)) {
+    updateChannelList();
   } else {
-    QMessageBox::warning(this, "Error", "Failed to stop profile.");
+    QMessageBox::warning(this, "Error", "Failed to stop channel.");
   }
 }
 
-void RestreamerDock::onProfileEditRequested(const char *profileId) {
-  if (!profileManager || !profileId) {
+void RestreamerDock::onChannelEditRequested(const char *profileId) {
+  if (!channelManager || !profileId) {
     return;
   }
 
-  output_profile_t *profile =
-      profile_manager_get_profile(profileManager, profileId);
+  stream_channel_t *profile =
+      channel_manager_get_channel(channelManager, profileId);
   if (!profile) {
     return;
   }
 
-  /* Open profile edit dialog */
-  ProfileEditDialog *dialog = new ProfileEditDialog(profile, this);
-  connect(dialog, &ProfileEditDialog::profileUpdated, this, [this]() {
-    obs_log(LOG_INFO, "Profile configuration updated, refreshing UI");
-    updateProfileList();
+  /* Open channel edit dialog */
+  ChannelEditDialog *dialog = new ChannelEditDialog(profile, this);
+  connect(dialog, &ChannelEditDialog::channelUpdated, this, [this]() {
+    obs_log(LOG_INFO, "Channel configuration updated, refreshing UI");
+    updateChannelList();
   });
 
   if (dialog->exec() == QDialog::Accepted) {
-    obs_log(LOG_INFO, "Profile '%s' updated successfully",
-            profile->profile_name);
-    updateProfileList();
+    obs_log(LOG_INFO, "Channel '%s' updated successfully",
+            profile->channel_name);
+    updateChannelList();
   }
 
   dialog->deleteLater();
 }
 
-void RestreamerDock::onProfileDeleteRequested(const char *profileId) {
-  if (!profileManager || !profileId) {
+void RestreamerDock::onChannelDeleteRequested(const char *profileId) {
+  if (!channelManager || !profileId) {
     return;
   }
 
-  output_profile_t *profile =
-      profile_manager_get_profile(profileManager, profileId);
+  stream_channel_t *profile =
+      channel_manager_get_channel(channelManager, profileId);
   if (!profile) {
     return;
   }
 
   /* Confirm deletion */
   QMessageBox::StandardButton reply = QMessageBox::question(
-      this, "Delete Profile",
-      QString("Are you sure you want to delete profile '%1'?")
-          .arg(profile->profile_name),
+      this, "Delete Channel",
+      QString("Are you sure you want to delete channel '%1'?")
+          .arg(profile->channel_name),
       QMessageBox::Yes | QMessageBox::No);
 
   if (reply == QMessageBox::Yes) {
-    if (profile_manager_delete_profile(profileManager, profileId)) {
-      /* Defer updateProfileList to allow context menu event to complete
-       * This prevents double-free crash when deleting the ProfileWidget
+    if (channel_manager_delete_channel(channelManager, profileId)) {
+      /* Defer updateChannelList to allow context menu event to complete
+       * This prevents double-free crash when deleting the ChannelWidget
        * that triggered this slot via its context menu */
       QTimer::singleShot(0, this, [this]() {
-        updateProfileList();
+        updateChannelList();
         saveSettings();
       });
     } else {
-      QMessageBox::warning(this, "Error", "Failed to delete profile.");
+      QMessageBox::warning(this, "Error", "Failed to delete channel.");
     }
   }
 }
 
-void RestreamerDock::onProfileDuplicateRequested(const char *profileId) {
-  if (!profileManager || !profileId) {
+void RestreamerDock::onChannelDuplicateRequested(const char *profileId) {
+  if (!channelManager || !profileId) {
     return;
   }
 
-  output_profile_t *sourceProfile =
-      profile_manager_get_profile(profileManager, profileId);
+  stream_channel_t *sourceProfile =
+      channel_manager_get_channel(channelManager, profileId);
   if (!sourceProfile) {
     return;
   }
 
-  /* Prompt for new profile name */
+  /* Prompt for new channel name */
   bool ok;
   QString newName = QInputDialog::getText(
-      this, "Duplicate Profile",
-      "Enter name for duplicated profile:", QLineEdit::Normal,
-      QString("%1 (Copy)").arg(sourceProfile->profile_name), &ok);
+      this, "Duplicate Channel",
+      "Enter name for duplicated channel:", QLineEdit::Normal,
+      QString("%1 (Copy)").arg(sourceProfile->channel_name), &ok);
 
   if (ok && !newName.isEmpty()) {
-    /* Create new profile with same settings */
-    output_profile_t *newProfile = profile_manager_create_profile(
-        profileManager, newName.toUtf8().constData());
+    /* Create new channel with same settings */
+    stream_channel_t *newChannel = channel_manager_create_channel(
+        channelManager, newName.toUtf8().constData());
 
-    if (newProfile) {
+    if (newChannel) {
       /* Copy settings */
-      newProfile->source_orientation = sourceProfile->source_orientation;
-      newProfile->auto_detect_orientation =
+      newChannel->source_orientation = sourceProfile->source_orientation;
+      newChannel->auto_detect_orientation =
           sourceProfile->auto_detect_orientation;
-      newProfile->source_width = sourceProfile->source_width;
-      newProfile->source_height = sourceProfile->source_height;
-      newProfile->auto_start = sourceProfile->auto_start;
-      newProfile->auto_reconnect = sourceProfile->auto_reconnect;
-      newProfile->reconnect_delay_sec = sourceProfile->reconnect_delay_sec;
+      newChannel->source_width = sourceProfile->source_width;
+      newChannel->source_height = sourceProfile->source_height;
+      newChannel->auto_start = sourceProfile->auto_start;
+      newChannel->auto_reconnect = sourceProfile->auto_reconnect;
+      newChannel->reconnect_delay_sec = sourceProfile->reconnect_delay_sec;
 
-      /* Copy destinations */
-      for (size_t i = 0; i < sourceProfile->destination_count; i++) {
-        profile_destination_t *srcDest = &sourceProfile->destinations[i];
-        profile_add_destination(
-            newProfile, srcDest->service, srcDest->stream_key,
+      /* Copy outputs */
+      for (size_t i = 0; i < sourceProfile->output_count; i++) {
+        channel_output_t *srcDest = &sourceProfile->outputs[i];
+        channel_add_output(
+            newChannel, srcDest->service, srcDest->stream_key,
             srcDest->target_orientation, &srcDest->encoding);
       }
 
-      /* Defer updateProfileList to allow context menu event to complete
-       * This prevents double-free crash when the ProfileWidget
+      /* Defer updateChannelList to allow context menu event to complete
+       * This prevents double-free crash when the ChannelWidget
        * that triggered this slot via its context menu is replaced */
       QTimer::singleShot(0, this, [this]() {
-        updateProfileList();
+        updateChannelList();
         saveSettings();
       });
     } else {
-      QMessageBox::warning(this, "Error", "Failed to duplicate profile.");
+      QMessageBox::warning(this, "Error", "Failed to duplicate channel.");
     }
   }
 }
 
-/* Destination Control Signal Handlers */
+/* Output Control Signal Handlers */
 
-void RestreamerDock::onDestinationStartRequested(const char *profileId,
+void RestreamerDock::onOutputStartRequested(const char *profileId,
                                                  size_t destIndex) {
-  if (!profileManager || !api || !profileId) {
+  if (!channelManager || !api || !profileId) {
     return;
   }
 
-  output_profile_t *profile =
-      profile_manager_get_profile(profileManager, profileId);
+  stream_channel_t *profile =
+      channel_manager_get_channel(channelManager, profileId);
   if (!profile) {
     obs_log(LOG_ERROR, "Profile not found: %s", profileId);
     return;
   }
 
-  if (destIndex >= profile->destination_count) {
+  if (destIndex >= profile->output_count) {
     obs_log(LOG_ERROR, "Invalid destination index: %zu", destIndex);
     return;
   }
 
-  profile_destination_t *dest = &profile->destinations[destIndex];
+  channel_output_t *dest = &profile->outputs[destIndex];
 
-  /* Check if profile is active */
-  if (profile->status != PROFILE_STATUS_ACTIVE) {
+  /* Check if channel is active */
+  if (profile->status != CHANNEL_STATUS_ACTIVE) {
     QMessageBox::warning(
-        this, "Cannot Start Destination",
-        QString("Profile '%1' must be active to start individual destinations.")
-            .arg(profile->profile_name));
+        this, "Cannot Start Output",
+        QString("Channel '%1' must be active to start individual outputs.")
+            .arg(profile->channel_name));
     return;
   }
 
   /* Check if already enabled */
   if (dest->enabled) {
-    obs_log(LOG_INFO, "Destination '%s' is already enabled",
+    obs_log(LOG_INFO, "Output '%s' is already enabled",
             dest->service_name);
     return;
   }
 
-  /* Use bulk start with single destination */
+  /* Use bulk start with single output */
   size_t indices[] = {destIndex};
-  if (profile_bulk_start_destinations(profile, api, indices, 1)) {
-    obs_log(LOG_INFO, "Started destination: %s", dest->service_name);
-    updateProfileList();
+  if (channel_bulk_start_outputs(profile, api, indices, 1)) {
+    obs_log(LOG_INFO, "Started output: %s", dest->service_name);
+    updateChannelList();
   } else {
     QMessageBox::warning(
         this, "Error",
-        QString("Failed to start destination '%1'.").arg(dest->service_name));
+        QString("Failed to start output '%1'.").arg(dest->service_name));
   }
 }
 
-void RestreamerDock::onDestinationStopRequested(const char *profileId,
+void RestreamerDock::onOutputStopRequested(const char *profileId,
                                                 size_t destIndex) {
-  if (!profileManager || !api || !profileId) {
+  if (!channelManager || !api || !profileId) {
     return;
   }
 
-  output_profile_t *profile =
-      profile_manager_get_profile(profileManager, profileId);
+  stream_channel_t *profile =
+      channel_manager_get_channel(channelManager, profileId);
   if (!profile) {
     obs_log(LOG_ERROR, "Profile not found: %s", profileId);
     return;
   }
 
-  if (destIndex >= profile->destination_count) {
+  if (destIndex >= profile->output_count) {
     obs_log(LOG_ERROR, "Invalid destination index: %zu", destIndex);
     return;
   }
 
-  profile_destination_t *dest = &profile->destinations[destIndex];
+  channel_output_t *dest = &profile->outputs[destIndex];
 
-  /* Check if profile is active */
-  if (profile->status != PROFILE_STATUS_ACTIVE) {
+  /* Check if channel is active */
+  if (profile->status != CHANNEL_STATUS_ACTIVE) {
     QMessageBox::warning(
-        this, "Cannot Stop Destination",
-        QString("Profile '%1' must be active to stop individual destinations.")
-            .arg(profile->profile_name));
+        this, "Cannot Stop Output",
+        QString("Channel '%1' must be active to stop individual outputs.")
+            .arg(profile->channel_name));
     return;
   }
 
   /* Check if already disabled */
   if (!dest->enabled) {
-    obs_log(LOG_INFO, "Destination '%s' is already disabled",
+    obs_log(LOG_INFO, "Output '%s' is already disabled",
             dest->service_name);
     return;
   }
 
-  /* Use bulk stop with single destination */
+  /* Use bulk stop with single output */
   size_t indices[] = {destIndex};
-  if (profile_bulk_stop_destinations(profile, api, indices, 1)) {
-    obs_log(LOG_INFO, "Stopped destination: %s", dest->service_name);
-    updateProfileList();
+  if (channel_bulk_stop_outputs(profile, api, indices, 1)) {
+    obs_log(LOG_INFO, "Stopped output: %s", dest->service_name);
+    updateChannelList();
   } else {
     QMessageBox::warning(
         this, "Error",
-        QString("Failed to stop destination '%1'.").arg(dest->service_name));
+        QString("Failed to stop output '%1'.").arg(dest->service_name));
   }
 }
 
-void RestreamerDock::onDestinationEditRequested(const char *profileId,
+void RestreamerDock::onOutputEditRequested(const char *profileId,
                                                 size_t destIndex) {
-  if (!profileManager || !profileId) {
+  if (!channelManager || !profileId) {
     return;
   }
 
-  output_profile_t *profile =
-      profile_manager_get_profile(profileManager, profileId);
+  stream_channel_t *profile =
+      channel_manager_get_channel(channelManager, profileId);
   if (!profile) {
     obs_log(LOG_ERROR, "Profile not found: %s", profileId);
     return;
   }
 
-  if (destIndex >= profile->destination_count) {
+  if (destIndex >= profile->output_count) {
     obs_log(LOG_ERROR, "Invalid destination index: %zu", destIndex);
     return;
   }
 
-  profile_destination_t *dest = &profile->destinations[destIndex];
+  channel_output_t *dest = &profile->outputs[destIndex];
 
-  /* Create a dialog to edit destination settings */
+  /* Create a dialog to edit output settings */
   QDialog dialog(this);
   dialog.setWindowTitle(
-      QString("Edit Destination - %1").arg(dest->service_name));
+      QString("Edit Output - %1").arg(dest->service_name));
   dialog.setMinimumWidth(500);
 
   QVBoxLayout *layout = new QVBoxLayout(&dialog);
@@ -2117,24 +2117,24 @@ void RestreamerDock::onDestinationEditRequested(const char *profileId,
     dest->encoding.audio_bitrate = audioBitrateSpinBox->value();
     dest->encoding.low_latency = lowLatencyCheckBox->isChecked();
 
-    /* If profile is active, update encoding live */
-    if (profile->status == PROFILE_STATUS_ACTIVE && api) {
-      if (profile_update_destination_encoding_live(profile, api, destIndex,
+    /* If channel is active, update encoding live */
+    if (profile->status == CHANNEL_STATUS_ACTIVE && api) {
+      if (channel_update_output_encoding_live(profile, api, destIndex,
                                                    &dest->encoding)) {
-        obs_log(LOG_INFO, "Destination '%s' encoding updated live",
+        obs_log(LOG_INFO, "Output '%s' encoding updated live",
                 dest->service_name);
       } else {
         obs_log(LOG_WARNING,
-                "Failed to update destination '%s' encoding live, changes "
+                "Failed to update output '%s' encoding live, changes "
                 "will apply on next start",
                 dest->service_name);
       }
     }
 
-    updateProfileList();
+    updateChannelList();
     saveSettings();
 
-    obs_log(LOG_INFO, "Destination '%s' settings updated", dest->service_name);
+    obs_log(LOG_INFO, "Output '%s' settings updated", dest->service_name);
   }
 }
 
@@ -2176,12 +2176,12 @@ void RestreamerDock::onViewConfigClicked() {
   configInfo += "<b>Connection:</b><br>";
   configInfo += "  Status: Connected to Restreamer server<br><br>";
 
-  configInfo += "<b>Profiles:</b><br>";
-  if (profileManager) {
+  configInfo += "<b>Channels:</b><br>";
+  if (channelManager) {
     configInfo +=
-        QString("  Total Profiles: %1<br>").arg(profileManager->profile_count);
+        QString("  Total Channels: %1<br>").arg(channelManager->channel_count);
     configInfo += QString("  Total Templates: %1<br>")
-                      .arg(profileManager->template_count);
+                      .arg(channelManager->template_count);
   }
 
   QMessageBox::information(this, "View Configuration", configInfo);
@@ -2220,21 +2220,21 @@ void RestreamerDock::onViewMetricsClicked() {
 
   QString metricsInfo = "<b>System Metrics</b><br><br>";
 
-  if (profileManager) {
+  if (channelManager) {
     size_t total_destinations = 0;
     size_t active_destinations = 0;
     uint64_t total_bytes = 0;
     uint32_t total_dropped = 0;
 
-    for (size_t i = 0; i < profileManager->profile_count; i++) {
-      output_profile_t *profile = profileManager->profiles[i];
-      total_destinations += profile->destination_count;
-      for (size_t j = 0; j < profile->destination_count; j++) {
-        if (profile->destinations[j].connected) {
+    for (size_t i = 0; i < channelManager->channel_count; i++) {
+      stream_channel_t *profile = channelManager->channels[i];
+      total_destinations += profile->output_count;
+      for (size_t j = 0; j < profile->output_count; j++) {
+        if (profile->outputs[j].connected) {
           active_destinations++;
         }
-        total_bytes += profile->destinations[j].bytes_sent;
-        total_dropped += profile->destinations[j].dropped_frames;
+        total_bytes += profile->outputs[j].bytes_sent;
+        total_dropped += profile->outputs[j].dropped_frames;
       }
     }
 
@@ -2267,7 +2267,7 @@ void RestreamerDock::onReloadConfigClicked() {
 
   if (reply == QMessageBox::Yes) {
     /* Refresh profiles list */
-    updateProfileList();
+    updateChannelList();
     QMessageBox::information(
         this, "Configuration Reloaded",
         "All profiles and settings have been reloaded from the server.");
@@ -2292,13 +2292,13 @@ void RestreamerDock::onViewSrtStreamsClicked() {
   srtInfo += "• Encryption support<br>";
   srtInfo += "• Firewall traversal<br><br>";
 
-  if (profileManager) {
+  if (channelManager) {
     int srt_count = 0;
-    for (size_t i = 0; i < profileManager->profile_count; i++) {
-      output_profile_t *profile = profileManager->profiles[i];
-      for (size_t j = 0; j < profile->destination_count; j++) {
-        if (profile->destinations[j].rtmp_url &&
-            strstr(profile->destinations[j].rtmp_url, "srt://")) {
+    for (size_t i = 0; i < channelManager->channel_count; i++) {
+      stream_channel_t *profile = channelManager->channels[i];
+      for (size_t j = 0; j < profile->output_count; j++) {
+        if (profile->outputs[j].rtmp_url &&
+            strstr(profile->outputs[j].rtmp_url, "srt://")) {
           srt_count++;
         }
       }
@@ -2323,21 +2323,21 @@ void RestreamerDock::onViewRtmpStreamsClicked() {
 
   QString rtmpInfo = "<b>RTMP Streams</b><br><br>";
 
-  if (profileManager) {
+  if (channelManager) {
     int rtmp_count = 0;
     QString streamList;
 
-    for (size_t i = 0; i < profileManager->profile_count; i++) {
-      output_profile_t *profile = profileManager->profiles[i];
-      for (size_t j = 0; j < profile->destination_count; j++) {
-        if (profile->destinations[j].rtmp_url &&
-            strstr(profile->destinations[j].rtmp_url, "rtmp://")) {
+    for (size_t i = 0; i < channelManager->channel_count; i++) {
+      stream_channel_t *profile = channelManager->channels[i];
+      for (size_t j = 0; j < profile->output_count; j++) {
+        if (profile->outputs[j].rtmp_url &&
+            strstr(profile->outputs[j].rtmp_url, "rtmp://")) {
           rtmp_count++;
           if (rtmp_count <= 5) { /* Show first 5 streams */
             streamList += QString("  • %1: %2<br>")
-                              .arg(profile->profile_name)
-                              .arg(profile->destinations[j].service_name
-                                       ? profile->destinations[j].service_name
+                              .arg(profile->channel_name)
+                              .arg(profile->outputs[j].service_name
+                                       ? profile->outputs[j].service_name
                                        : "Custom");
           }
         }
@@ -2461,55 +2461,55 @@ void RestreamerDock::showMonitoringDialog() {
 
   layout->addWidget(sessionsGroup);
 
-  /* Local Profiles Group */
-  QGroupBox *profilesGroup = new QGroupBox("Local Profiles");
-  QFormLayout *profilesLayout = new QFormLayout(profilesGroup);
-  profilesLayout->setSpacing(8);
+  /* Local Channels Group */
+  QGroupBox *channelsGroup = new QGroupBox("Local Channels");
+  QFormLayout *channelsLayout = new QFormLayout(channelsGroup);
+  channelsLayout->setSpacing(8);
 
-  QLabel *profileCountLabel = new QLabel();
-  QLabel *destCountLabel = new QLabel();
+  QLabel *channelCountLabel = new QLabel();
+  QLabel *outputCountLabel = new QLabel();
   QLabel *dataSentLabel = new QLabel();
 
-  /* Populate profile data */
-  if (profileManager) {
-    size_t active_profiles = 0;
-    size_t total_destinations = 0;
-    size_t active_destinations = 0;
+  /* Populate channel data */
+  if (channelManager) {
+    size_t active_channels = 0;
+    size_t total_outputs = 0;
+    size_t active_outputs = 0;
     uint64_t total_bytes = 0;
 
-    for (size_t i = 0; i < profileManager->profile_count; i++) {
-      output_profile_t *profile = profileManager->profiles[i];
-      if (profile->status == PROFILE_STATUS_ACTIVE) {
-        active_profiles++;
+    for (size_t i = 0; i < channelManager->channel_count; i++) {
+      stream_channel_t *channel = channelManager->channels[i];
+      if (channel->status == CHANNEL_STATUS_ACTIVE) {
+        active_channels++;
       }
-      total_destinations += profile->destination_count;
-      for (size_t j = 0; j < profile->destination_count; j++) {
-        if (profile->destinations[j].connected) {
-          active_destinations++;
+      total_outputs += channel->output_count;
+      for (size_t j = 0; j < channel->output_count; j++) {
+        if (channel->outputs[j].connected) {
+          active_outputs++;
         }
-        total_bytes += profile->destinations[j].bytes_sent;
+        total_bytes += channel->outputs[j].bytes_sent;
       }
     }
 
-    profileCountLabel->setText(QString("%1 active / %2 total")
-                                   .arg(active_profiles)
-                                   .arg(profileManager->profile_count));
-    destCountLabel->setText(QString("%1 active / %2 total")
-                                .arg(active_destinations)
-                                .arg(total_destinations));
+    channelCountLabel->setText(QString("%1 active / %2 total")
+                                   .arg(active_channels)
+                                   .arg(channelManager->channel_count));
+    outputCountLabel->setText(QString("%1 active / %2 total")
+                                .arg(active_outputs)
+                                .arg(total_outputs));
     dataSentLabel->setText(
         QString("%1 MB").arg(total_bytes / (1024.0 * 1024.0), 0, 'f', 2));
   } else {
-    profileCountLabel->setText("0");
-    destCountLabel->setText("0");
+    channelCountLabel->setText("0");
+    outputCountLabel->setText("0");
     dataSentLabel->setText("0 MB");
   }
 
-  profilesLayout->addRow("Profiles:", profileCountLabel);
-  profilesLayout->addRow("Destinations:", destCountLabel);
-  profilesLayout->addRow("Total Data Sent:", dataSentLabel);
+  channelsLayout->addRow("Channels:", channelCountLabel);
+  channelsLayout->addRow("Outputs:", outputCountLabel);
+  channelsLayout->addRow("Total Data Sent:", dataSentLabel);
 
-  layout->addWidget(profilesGroup);
+  layout->addWidget(channelsGroup);
 
   /* Buttons */
   QHBoxLayout *buttonLayout = new QHBoxLayout();

@@ -1,6 +1,6 @@
 /*
- * OBS Polyemesis Plugin - Destination Widget
- * Individual streaming destination display
+ * OBS Polyemesis Plugin - Output Widget
+ * Individual streaming output display
  */
 
 #pragma once
@@ -11,45 +11,45 @@
 #include <QPushButton>
 #include <QWidget>
 
-#include "restreamer-output-profile.h"
+#include "restreamer-channel.h"
 
 /*
- * DestinationWidget - Displays a single streaming destination
+ * OutputWidget - Displays a single streaming output
  *
  * Features:
- * - Destination status indicator (active/starting/error/inactive)
+ * - Output status indicator (active/starting/error/inactive)
  * - Service name, resolution, bitrate
  * - Live statistics (current bitrate, dropped frames, duration)
  * - Inline start/stop/settings actions (shown on hover)
  * - Right-click context menu
  * - Double-click for detailed stats
  */
-class DestinationWidget : public QWidget {
+class OutputWidget : public QWidget {
   Q_OBJECT
 
 public:
-  explicit DestinationWidget(profile_destination_t *destination,
-                             size_t destIndex, const char *profileId,
+  explicit OutputWidget(channel_output_t *output,
+                             size_t outputIndex, const char *channelId,
                              QWidget *parent = nullptr);
-  ~DestinationWidget() override;
+  ~OutputWidget() override;
 
-  /* Update widget from destination pointer */
-  void updateFromDestination();
+  /* Update widget from output pointer */
+  void updateFromOutput();
 
-  /* Get destination index */
-  size_t getDestinationIndex() const { return m_destinationIndex; }
+  /* Get output index */
+  size_t getOutputIndex() const { return m_outputIndex; }
 
 signals:
   /* Emitted when user requests actions */
-  void startRequested(size_t destIndex);
-  void stopRequested(size_t destIndex);
-  void restartRequested(size_t destIndex);
-  void editRequested(size_t destIndex);
-  void removeRequested(size_t destIndex);
+  void startRequested(size_t outputIndex);
+  void stopRequested(size_t outputIndex);
+  void restartRequested(size_t outputIndex);
+  void editRequested(size_t outputIndex);
+  void removeRequested(size_t outputIndex);
 
   /* Emitted when user wants to view details */
-  void viewStatsRequested(size_t destIndex);
-  void viewLogsRequested(size_t destIndex);
+  void viewStatsRequested(size_t outputIndex);
+  void viewLogsRequested(size_t outputIndex);
 
 protected:
   /* Event handlers */
@@ -77,10 +77,10 @@ private:
   QString formatBitrate(int kbps) const;
   QString formatDuration(int seconds) const;
 
-  /* Destination data */
-  char *m_profileId;
-  size_t m_destinationIndex;
-  profile_destination_t *m_destination; // Pointer to destination data
+  /* Output data */
+  char *m_channelId;
+  size_t m_outputIndex;
+  channel_output_t *m_output; // Pointer to output data
 
   /* UI components */
   QHBoxLayout *m_mainLayout;

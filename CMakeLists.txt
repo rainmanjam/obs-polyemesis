@@ -136,8 +136,8 @@ target_sources(
     src/restreamer-output.c
     src/restreamer-multistream.c
     src/restreamer-multistream.h
-    src/restreamer-output-profile.c
-    src/restreamer-output-profile.h
+    src/restreamer-channel.c
+    src/restreamer-channel.h
 )
 
 if(ENABLE_QT)
@@ -151,14 +151,14 @@ if(ENABLE_QT)
       src/obs-service-loader.h
       src/obs-theme-utils.cpp
       src/obs-theme-utils.h
-      src/profile-widget.cpp
-      src/profile-widget.h
-      src/destination-widget.cpp
-      src/destination-widget.h
+      src/channel-widget.cpp
+      src/channel-widget.h
+      src/output-widget.cpp
+      src/output-widget.h
       src/connection-config-dialog.cpp
       src/connection-config-dialog.h
-      src/profile-edit-dialog.cpp
-      src/profile-edit-dialog.h
+      src/channel-edit-dialog.cpp
+      src/channel-edit-dialog.h
       # Temporarily disabled - requires OBS WebSocket plugin headers
       # src/websocket-api.cpp
       # src/websocket-api.h

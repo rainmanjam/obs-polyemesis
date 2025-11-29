@@ -19,7 +19,7 @@
 #include "obs-service-loader.h"
 #include "restreamer-api.h"
 #include "restreamer-multistream.h"
-#include "restreamer-output-profile.h"
+#include "restreamer-channel.h"
 
 /* Forward declare C types */
 extern "C" {
@@ -28,7 +28,7 @@ typedef struct obs_bridge obs_bridge_t;
 
 /* Forward declare Qt classes */
 class CollapsibleSection;
-class ProfileWidget;
+class ChannelWidget;
 class ConnectionConfigDialog;
 
 class RestreamerDock : public QWidget {
@@ -39,7 +39,7 @@ public:
   ~RestreamerDock();
 
   /* Public accessors for WebSocket API */
-  profile_manager_t *getProfileManager() { return profileManager; }
+  channel_manager_t *getChannelManager() { return channelManager; }
   restreamer_api_t *getApiClient() { return api; }
   obs_bridge_t *getBridge() { return bridge; }
 
@@ -58,22 +58,22 @@ private slots:
   void onSaveSettingsClicked();
   void onUpdateTimer();
 
-  /* Profile management slots */
-  void onCreateProfileClicked();
-  void onStartAllProfilesClicked();
-  void onStopAllProfilesClicked();
+  /* Channel management slots */
+  void onCreateChannelClicked();
+  void onStartAllChannelsClicked();
+  void onStopAllChannelsClicked();
 
-  /* ProfileWidget signal handlers */
-  void onProfileStartRequested(const char *profileId);
-  void onProfileStopRequested(const char *profileId);
-  void onProfileEditRequested(const char *profileId);
-  void onProfileDeleteRequested(const char *profileId);
-  void onProfileDuplicateRequested(const char *profileId);
+  /* ChannelWidget signal handlers */
+  void onChannelStartRequested(const char *channelId);
+  void onChannelStopRequested(const char *channelId);
+  void onChannelEditRequested(const char *channelId);
+  void onChannelDeleteRequested(const char *channelId);
+  void onChannelDuplicateRequested(const char *channelId);
 
-  /* Destination control signal handlers */
-  void onDestinationStartRequested(const char *profileId, size_t destIndex);
-  void onDestinationStopRequested(const char *profileId, size_t destIndex);
-  void onDestinationEditRequested(const char *profileId, size_t destIndex);
+  /* Output control signal handlers */
+  void onOutputStartRequested(const char *channelId, size_t outputIndex);
+  void onOutputStopRequested(const char *channelId, size_t outputIndex);
+  void onOutputEditRequested(const char *channelId, size_t outputIndex);
 
   /* Extended API slots */
   void onProbeInputClicked();
@@ -107,7 +107,7 @@ private:
   void updateProcessDetails();
   void updateSessionList();
   void updateDestinationList();
-  void updateProfileList();
+  void updateChannelList();
   void updateConnectionStatus();
 
   restreamer_api_t *api;
@@ -115,10 +115,10 @@ private:
 
   /* Thread safety */
   std::recursive_mutex apiMutex;
-  std::recursive_mutex profileMutex;
+  std::recursive_mutex channelMutex;
 
-  /* Profile manager */
-  profile_manager_t *profileManager;
+  /* Channel manager */
+  channel_manager_t *channelManager;
 
   /* OBS Bridge */
   obs_bridge_t *bridge;
@@ -133,14 +133,14 @@ private:
   QLabel *connectionStatusLabel;
   QPushButton *configureConnectionButton;
 
-  /* Output Profiles group */
-  QWidget *profileListContainer;
-  QVBoxLayout *profileListLayout;
-  QList<ProfileWidget *> profileWidgets;
-  QPushButton *createProfileButton;
-  QPushButton *startAllProfilesButton;
-  QPushButton *stopAllProfilesButton;
-  QLabel *profileStatusLabel;
+  /* Output Channels group */
+  QWidget *channelListContainer;
+  QVBoxLayout *channelListLayout;
+  QList<ChannelWidget *> channelWidgets;
+  QPushButton *createChannelButton;
+  QPushButton *startAllChannelsButton;
+  QPushButton *stopAllChannelsButton;
+  QLabel *channelStatusLabel;
 
   /* Process list group */
   QListWidget *processList;

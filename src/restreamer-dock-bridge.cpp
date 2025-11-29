@@ -1,6 +1,6 @@
 #include "obs-bridge.h"
 #include "restreamer-dock.h"
-#include "restreamer-output-profile.h"
+#include "restreamer-channel.h"
 #include <QMainWindow>
 #include <obs-frontend-api.h>
 #include <obs-module.h>
@@ -47,10 +47,10 @@ void restreamer_dock_destroy(void *dock) {
   }
 }
 
-profile_manager_t *restreamer_dock_get_profile_manager(void *dock) {
+channel_manager_t *restreamer_dock_get_channel_manager(void *dock) {
   if (dock) {
     RestreamerDock *dockWidget = (RestreamerDock *)dock;
-    return dockWidget->getProfileManager();
+    return dockWidget->getChannelManager();
   }
   return nullptr;
 }

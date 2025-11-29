@@ -1,8 +1,8 @@
 /*
- * OBS Polyemesis Plugin - Profile Edit Dialog Implementation
+ * OBS Polyemesis Plugin - Channel Edit Dialog Implementation
  */
 
-#include "profile-edit-dialog.h"
+#include "channel-edit-dialog.h"
 #include "obs-helpers.hpp"
 #include <QFormLayout>
 #include <QGroupBox>
@@ -15,24 +15,24 @@ extern "C" {
 #include <plugin-support.h>
 }
 
-ProfileEditDialog::ProfileEditDialog(output_profile_t *profile, QWidget *parent)
-    : QDialog(parent), m_profile(profile) {
-  if (!m_profile) {
-    obs_log(LOG_ERROR, "ProfileEditDialog created with null profile");
+ChannelEditDialog::ChannelEditDialog(stream_channel_t *channel, QWidget *parent)
+    : QDialog(parent), m_channel(channel) {
+  if (!m_channel) {
+    obs_log(LOG_ERROR, "ChannelEditDialog created with null channel");
     reject();
     return;
   }
 
   setupUI();
-  loadProfileSettings();
+  loadChannelSettings();
 }
 
-ProfileEditDialog::~ProfileEditDialog() {
+ChannelEditDialog::~ChannelEditDialog() {
   /* Widgets are deleted automatically by Qt parent/child relationship */
 }
 
-void ProfileEditDialog::setupUI() {
-  setWindowTitle("Edit Profile");
+void ChannelEditDialog::setupUI() {
+  setWindowTitle("Edit Channel");
   setModal(true);
   setMinimumWidth(600);
   setMinimumHeight(500);
@@ -53,8 +53,8 @@ void ProfileEditDialog::setupUI() {
   QFormLayout *basicForm = new QFormLayout(basicGroup);
 
   m_nameEdit = new QLineEdit(this);
-  m_nameEdit->setPlaceholderText("Profile Name");
-  basicForm->addRow("Profile Name:", m_nameEdit);
+  m_nameEdit->setPlaceholderText("Channel Name");
+  basicForm->addRow("Channel Name:", m_nameEdit);
 
   QGroupBox *sourceGroup = new QGroupBox("Source Configuration");
   QFormLayout *sourceForm = new QFormLayout(sourceGroup);
@@ -66,12 +66,12 @@ void ProfileEditDialog::setupUI() {
   m_orientationCombo->addItem("Square (1:1)", ORIENTATION_SQUARE);
   connect(m_orientationCombo,
           QOverload<int>::of(&QComboBox::currentIndexChanged), this,
-          &ProfileEditDialog::onOrientationChanged);
+          &ChannelEditDialog::onOrientationChanged);
   sourceForm->addRow("Orientation:", m_orientationCombo);
 
   m_autoDetectCheckBox = new QCheckBox("Auto-detect orientation from source");
   connect(m_autoDetectCheckBox, &QCheckBox::toggled, this,
-          &ProfileEditDialog::onAutoDetectChanged);
+          &ChannelEditDialog::onAutoDetectChanged);
   sourceForm->addRow("", m_autoDetectCheckBox);
 
   QHBoxLayout *dimensionsLayout = new QHBoxLayout();
@@ -100,7 +100,7 @@ void ProfileEditDialog::setupUI() {
   sourceForm->addRow("Input URL:", m_inputUrlEdit);
 
   QLabel *inputHelpLabel =
-      new QLabel("<small style='color: #888;'>RTMP input URL for this profile "
+      new QLabel("<small style='color: #888;'>RTMP input URL for this channel "
                  "(optional)</small>");
   inputHelpLabel->setWordWrap(true);
   sourceForm->addRow("", inputHelpLabel);
@@ -118,12 +118,12 @@ void ProfileEditDialog::setupUI() {
   QVBoxLayout *autoStartLayout = new QVBoxLayout(autoStartGroup);
 
   m_autoStartCheckBox =
-      new QCheckBox("Auto-start profile when OBS streaming starts");
+      new QCheckBox("Auto-start channel when OBS streaming starts");
   autoStartLayout->addWidget(m_autoStartCheckBox);
 
   QLabel *autoStartHelp =
       new QLabel("<small style='color: #888;'>Automatically activate this "
-                 "profile when you start streaming in OBS</small>");
+                 "channel when you start streaming in OBS</small>");
   autoStartHelp->setWordWrap(true);
   autoStartLayout->addWidget(autoStartHelp);
 
@@ -133,7 +133,7 @@ void ProfileEditDialog::setupUI() {
   m_autoReconnectCheckBox =
       new QCheckBox("Enable auto-reconnect on disconnect");
   connect(m_autoReconnectCheckBox, &QCheckBox::toggled, this,
-          &ProfileEditDialog::onAutoReconnectChanged);
+          &ChannelEditDialog::onAutoReconnectChanged);
   reconnectLayout->addWidget(m_autoReconnectCheckBox);
 
   QFormLayout *reconnectForm = new QFormLayout();
@@ -172,7 +172,7 @@ void ProfileEditDialog::setupUI() {
 
   m_healthMonitoringCheckBox = new QCheckBox("Enable stream health monitoring");
   connect(m_healthMonitoringCheckBox, &QCheckBox::toggled, this,
-          &ProfileEditDialog::onHealthMonitoringChanged);
+          &ChannelEditDialog::onHealthMonitoringChanged);
   healthGroupLayout->addWidget(m_healthMonitoringCheckBox);
 
   QFormLayout *healthForm = new QFormLayout();
@@ -223,13 +223,13 @@ void ProfileEditDialog::setupUI() {
   m_cancelButton = new QPushButton("Cancel", this);
   m_cancelButton->setMinimumHeight(32);
   connect(m_cancelButton, &QPushButton::clicked, this,
-          &ProfileEditDialog::onCancel);
+          &ChannelEditDialog::onCancel);
 
   m_saveButton = new QPushButton("Save", this);
   m_saveButton->setMinimumHeight(32);
   m_saveButton->setDefault(true);
   connect(m_saveButton, &QPushButton::clicked, this,
-          &ProfileEditDialog::onSave);
+          &ChannelEditDialog::onSave);
 
   buttonLayout->addStretch();
   buttonLayout->addWidget(m_cancelButton);
@@ -240,37 +240,37 @@ void ProfileEditDialog::setupUI() {
   setLayout(mainLayout);
 }
 
-void ProfileEditDialog::loadProfileSettings() {
-  if (!m_profile) {
+void ChannelEditDialog::loadChannelSettings() {
+  if (!m_channel) {
     return;
   }
 
   /* Load basic info */
-  if (m_profile->profile_name) {
-    m_nameEdit->setText(m_profile->profile_name);
+  if (m_channel->channel_name) {
+    m_nameEdit->setText(m_channel->channel_name);
   }
 
   /* Load source configuration */
   m_orientationCombo->setCurrentIndex(
-      m_orientationCombo->findData(m_profile->source_orientation));
-  m_autoDetectCheckBox->setChecked(m_profile->auto_detect_orientation);
-  m_sourceWidthSpin->setValue(m_profile->source_width);
-  m_sourceHeightSpin->setValue(m_profile->source_height);
+      m_orientationCombo->findData(m_channel->source_orientation));
+  m_autoDetectCheckBox->setChecked(m_channel->auto_detect_orientation);
+  m_sourceWidthSpin->setValue(m_channel->source_width);
+  m_sourceHeightSpin->setValue(m_channel->source_height);
 
-  if (m_profile->input_url) {
-    m_inputUrlEdit->setText(m_profile->input_url);
+  if (m_channel->input_url) {
+    m_inputUrlEdit->setText(m_channel->input_url);
   }
 
   /* Load streaming settings */
-  m_autoStartCheckBox->setChecked(m_profile->auto_start);
-  m_autoReconnectCheckBox->setChecked(m_profile->auto_reconnect);
-  m_reconnectDelaySpin->setValue(m_profile->reconnect_delay_sec);
-  m_maxReconnectAttemptsSpin->setValue(m_profile->max_reconnect_attempts);
+  m_autoStartCheckBox->setChecked(m_channel->auto_start);
+  m_autoReconnectCheckBox->setChecked(m_channel->auto_reconnect);
+  m_reconnectDelaySpin->setValue(m_channel->reconnect_delay_sec);
+  m_maxReconnectAttemptsSpin->setValue(m_channel->max_reconnect_attempts);
 
   /* Load health monitoring settings */
-  m_healthMonitoringCheckBox->setChecked(m_profile->health_monitoring_enabled);
-  m_healthCheckIntervalSpin->setValue(m_profile->health_check_interval_sec);
-  m_failureThresholdSpin->setValue(m_profile->failure_threshold);
+  m_healthMonitoringCheckBox->setChecked(m_channel->health_monitoring_enabled);
+  m_healthCheckIntervalSpin->setValue(m_channel->health_check_interval_sec);
+  m_failureThresholdSpin->setValue(m_channel->failure_threshold);
 
   /* Update UI state */
   onAutoDetectChanged(m_autoDetectCheckBox->isChecked());
@@ -278,11 +278,11 @@ void ProfileEditDialog::loadProfileSettings() {
   onHealthMonitoringChanged(m_healthMonitoringCheckBox->isChecked());
 }
 
-void ProfileEditDialog::validateAndSave() {
+void ChannelEditDialog::validateAndSave() {
   QString name = m_nameEdit->text().trimmed();
 
   if (name.isEmpty()) {
-    m_statusLabel->setText("⚠️ Profile name cannot be empty");
+    m_statusLabel->setText("⚠️ Channel name cannot be empty");
     m_statusLabel->setStyleSheet("background-color: #5a3a00; color: #ffcc00; "
                                  "padding: 8px; border-radius: 4px;");
     m_statusLabel->show();
@@ -291,39 +291,39 @@ void ProfileEditDialog::validateAndSave() {
     return;
   }
 
-  /* Update profile settings */
-  bfree(m_profile->profile_name);
-  m_profile->profile_name = bstrdup(name.toUtf8().constData());
+  /* Update channel settings */
+  bfree(m_channel->channel_name);
+  m_channel->channel_name = bstrdup(name.toUtf8().constData());
 
-  m_profile->source_orientation = static_cast<stream_orientation_t>(
+  m_channel->source_orientation = static_cast<stream_orientation_t>(
       m_orientationCombo->currentData().toInt());
-  m_profile->auto_detect_orientation = m_autoDetectCheckBox->isChecked();
-  m_profile->source_width = m_sourceWidthSpin->value();
-  m_profile->source_height = m_sourceHeightSpin->value();
+  m_channel->auto_detect_orientation = m_autoDetectCheckBox->isChecked();
+  m_channel->source_width = m_sourceWidthSpin->value();
+  m_channel->source_height = m_sourceHeightSpin->value();
 
   QString inputUrl = m_inputUrlEdit->text().trimmed();
-  bfree(m_profile->input_url);
-  m_profile->input_url =
+  bfree(m_channel->input_url);
+  m_channel->input_url =
       inputUrl.isEmpty() ? nullptr : bstrdup(inputUrl.toUtf8().constData());
 
-  m_profile->auto_start = m_autoStartCheckBox->isChecked();
-  m_profile->auto_reconnect = m_autoReconnectCheckBox->isChecked();
-  m_profile->reconnect_delay_sec = m_reconnectDelaySpin->value();
-  m_profile->max_reconnect_attempts = m_maxReconnectAttemptsSpin->value();
+  m_channel->auto_start = m_autoStartCheckBox->isChecked();
+  m_channel->auto_reconnect = m_autoReconnectCheckBox->isChecked();
+  m_channel->reconnect_delay_sec = m_reconnectDelaySpin->value();
+  m_channel->max_reconnect_attempts = m_maxReconnectAttemptsSpin->value();
 
-  m_profile->health_monitoring_enabled =
+  m_channel->health_monitoring_enabled =
       m_healthMonitoringCheckBox->isChecked();
-  m_profile->health_check_interval_sec = m_healthCheckIntervalSpin->value();
-  m_profile->failure_threshold = m_failureThresholdSpin->value();
+  m_channel->health_check_interval_sec = m_healthCheckIntervalSpin->value();
+  m_channel->failure_threshold = m_failureThresholdSpin->value();
 
-  obs_log(LOG_INFO, "Profile updated: %s", m_profile->profile_name);
+  obs_log(LOG_INFO, "Channel updated: %s", m_channel->channel_name);
 
-  emit profileUpdated();
+  emit channelUpdated();
   accept();
 }
 
 /* Getters */
-bool ProfileEditDialog::getProfileName(char **name) const {
+bool ChannelEditDialog::getChannelName(char **name) const {
   QString text = m_nameEdit->text().trimmed();
   if (text.isEmpty()) {
     return false;
@@ -332,24 +332,24 @@ bool ProfileEditDialog::getProfileName(char **name) const {
   return true;
 }
 
-stream_orientation_t ProfileEditDialog::getSourceOrientation() const {
+stream_orientation_t ChannelEditDialog::getSourceOrientation() const {
   return static_cast<stream_orientation_t>(
       m_orientationCombo->currentData().toInt());
 }
 
-bool ProfileEditDialog::getAutoDetectOrientation() const {
+bool ChannelEditDialog::getAutoDetectOrientation() const {
   return m_autoDetectCheckBox->isChecked();
 }
 
-uint32_t ProfileEditDialog::getSourceWidth() const {
+uint32_t ChannelEditDialog::getSourceWidth() const {
   return m_sourceWidthSpin->value();
 }
 
-uint32_t ProfileEditDialog::getSourceHeight() const {
+uint32_t ChannelEditDialog::getSourceHeight() const {
   return m_sourceHeightSpin->value();
 }
 
-bool ProfileEditDialog::getInputUrl(char **url) const {
+bool ChannelEditDialog::getInputUrl(char **url) const {
   QString text = m_inputUrlEdit->text().trimmed();
   if (text.isEmpty()) {
     *url = nullptr;
@@ -359,40 +359,40 @@ bool ProfileEditDialog::getInputUrl(char **url) const {
   return true;
 }
 
-bool ProfileEditDialog::getAutoStart() const {
+bool ChannelEditDialog::getAutoStart() const {
   return m_autoStartCheckBox->isChecked();
 }
 
-bool ProfileEditDialog::getAutoReconnect() const {
+bool ChannelEditDialog::getAutoReconnect() const {
   return m_autoReconnectCheckBox->isChecked();
 }
 
-uint32_t ProfileEditDialog::getReconnectDelay() const {
+uint32_t ChannelEditDialog::getReconnectDelay() const {
   return m_reconnectDelaySpin->value();
 }
 
-uint32_t ProfileEditDialog::getMaxReconnectAttempts() const {
+uint32_t ChannelEditDialog::getMaxReconnectAttempts() const {
   return m_maxReconnectAttemptsSpin->value();
 }
 
-bool ProfileEditDialog::getHealthMonitoringEnabled() const {
+bool ChannelEditDialog::getHealthMonitoringEnabled() const {
   return m_healthMonitoringCheckBox->isChecked();
 }
 
-uint32_t ProfileEditDialog::getHealthCheckInterval() const {
+uint32_t ChannelEditDialog::getHealthCheckInterval() const {
   return m_healthCheckIntervalSpin->value();
 }
 
-uint32_t ProfileEditDialog::getFailureThreshold() const {
+uint32_t ChannelEditDialog::getFailureThreshold() const {
   return m_failureThresholdSpin->value();
 }
 
 /* Slots */
-void ProfileEditDialog::onSave() { validateAndSave(); }
+void ChannelEditDialog::onSave() { validateAndSave(); }
 
-void ProfileEditDialog::onCancel() { reject(); }
+void ChannelEditDialog::onCancel() { reject(); }
 
-void ProfileEditDialog::onOrientationChanged(int index) {
+void ChannelEditDialog::onOrientationChanged(int index) {
   stream_orientation_t orientation = static_cast<stream_orientation_t>(
       m_orientationCombo->itemData(index).toInt());
 
@@ -402,7 +402,7 @@ void ProfileEditDialog::onOrientationChanged(int index) {
   }
 }
 
-void ProfileEditDialog::onAutoDetectChanged(bool checked) {
+void ChannelEditDialog::onAutoDetectChanged(bool checked) {
   /* Disable manual dimension inputs when auto-detect is enabled */
   m_sourceWidthSpin->setEnabled(!checked);
   m_sourceHeightSpin->setEnabled(!checked);
@@ -413,12 +413,12 @@ void ProfileEditDialog::onAutoDetectChanged(bool checked) {
   }
 }
 
-void ProfileEditDialog::onAutoReconnectChanged(bool checked) {
+void ChannelEditDialog::onAutoReconnectChanged(bool checked) {
   m_reconnectDelaySpin->setEnabled(checked);
   m_maxReconnectAttemptsSpin->setEnabled(checked);
 }
 
-void ProfileEditDialog::onHealthMonitoringChanged(bool checked) {
+void ChannelEditDialog::onHealthMonitoringChanged(bool checked) {
   m_healthCheckIntervalSpin->setEnabled(checked);
   m_failureThresholdSpin->setEnabled(checked);
 }

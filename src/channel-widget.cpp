@@ -1,9 +1,9 @@
 /*
- * OBS Polyemesis Plugin - Profile Widget Implementation
+ * OBS Polyemesis Plugin - Channel Widget Implementation
  */
 
-#include "profile-widget.h"
-#include "destination-widget.h"
+#include "channel-widget.h"
+#include "output-widget.h"
 #include "obs-theme-utils.h"
 
 #include <QFileDialog>
@@ -19,27 +19,27 @@ extern "C" {
 #include <plugin-support.h>
 }
 
-ProfileWidget::ProfileWidget(output_profile_t *profile, QWidget *parent)
-    : QWidget(parent), m_profile(profile), m_expanded(false), m_hovered(false) {
-  obs_log(LOG_INFO, "[ProfileWidget] Creating ProfileWidget for profile: %s",
-          profile ? profile->profile_name : "NULL");
+ChannelWidget::ChannelWidget(stream_channel_t *channel, QWidget *parent)
+    : QWidget(parent), m_channel(channel), m_expanded(false), m_hovered(false) {
+  obs_log(LOG_INFO, "[ChannelWidget] Creating ChannelWidget for channel: %s",
+          channel ? channel->channel_name : "NULL");
   setupUI();
-  updateFromProfile();
-  obs_log(LOG_INFO, "[ProfileWidget] ProfileWidget created successfully");
+  updateFromChannel();
+  obs_log(LOG_INFO, "[ChannelWidget] ChannelWidget created successfully");
 }
 
-ProfileWidget::~ProfileWidget() {
+ChannelWidget::~ChannelWidget() {
   /* Widgets are deleted automatically by Qt parent/child relationship */
 }
 
-void ProfileWidget::setupUI() {
+void ChannelWidget::setupUI() {
   m_mainLayout = new QVBoxLayout(this);
   m_mainLayout->setContentsMargins(0, 0, 0, 0);
   m_mainLayout->setSpacing(0);
 
   /* === Header Widget === */
   m_headerWidget = new QWidget(this);
-  m_headerWidget->setObjectName("profileHeader");
+  m_headerWidget->setObjectName("channelHeader");
   m_headerWidget->setCursor(Qt::PointingHandCursor);
 
   m_headerLayout = new QHBoxLayout(m_headerWidget);
@@ -50,7 +50,7 @@ void ProfileWidget::setupUI() {
   m_statusIndicator = new QLabel(this);
   m_statusIndicator->setStyleSheet("font-size: 18px;");
 
-  /* Profile info */
+  /* Channel info */
   QWidget *infoWidget = new QWidget(this);
   QVBoxLayout *infoLayout = new QVBoxLayout(infoWidget);
   infoLayout->setContentsMargins(0, 0, 0, 0);
@@ -71,18 +71,18 @@ void ProfileWidget::setupUI() {
   m_startStopButton = new QPushButton(this);
   m_startStopButton->setFixedSize(70, 28);
   connect(m_startStopButton, &QPushButton::clicked, this,
-          &ProfileWidget::onStartStopClicked);
+          &ChannelWidget::onStartStopClicked);
 
   m_editButton = new QPushButton("Edit", this);
   m_editButton->setFixedSize(60, 28);
   connect(m_editButton, &QPushButton::clicked, this,
-          &ProfileWidget::onEditClicked);
+          &ChannelWidget::onEditClicked);
 
   m_menuButton = new QPushButton("⋮", this);
   m_menuButton->setFixedSize(28, 28);
   m_menuButton->setStyleSheet("font-size: 16px;");
   connect(m_menuButton, &QPushButton::clicked, this,
-          &ProfileWidget::onMenuClicked);
+          &ChannelWidget::onMenuClicked);
 
   /* Add to header layout */
   m_headerLayout->addWidget(m_statusIndicator);
@@ -96,7 +96,7 @@ void ProfileWidget::setupUI() {
 
   m_mainLayout->addWidget(m_headerWidget);
 
-  /* === Content Widget (Destinations) === */
+  /* === Content Widget (Outputs) === */
   m_contentWidget = new QWidget(this);
   m_contentWidget->setVisible(false);
 
@@ -111,39 +111,39 @@ void ProfileWidget::setupUI() {
   m_headerWidget->setMinimumHeight(60);
 
   /* Style the widget - BRIGHT GREEN BORDER FOR TESTING */
-  setStyleSheet("ProfileWidget { "
+  setStyleSheet("ChannelWidget { "
                 "  background-color: #2d2d30; "
                 "  border: 5px solid #00ff00; "
                 "  border-radius: 8px; "
                 "  margin: 8px; "
                 "  padding: 4px; "
                 "} "
-                "#profileHeader { "
+                "#channelHeader { "
                 "  background-color: #3d3d40; "
                 "  border-bottom: 2px solid #00ff00; "
                 "  padding: 8px; "
                 "} "
-                "#profileHeader:hover { "
+                "#channelHeader:hover { "
                 "  background-color: #4d4d50; "
                 "}");
 }
 
-void ProfileWidget::updateFromProfile() {
-  if (!m_profile) {
+void ChannelWidget::updateFromChannel() {
+  if (!m_channel) {
     return;
   }
 
   updateHeader();
-  updateDestinations();
+  updateOutputs();
 }
 
-void ProfileWidget::updateHeader() {
-  if (!m_profile) {
+void ChannelWidget::updateHeader() {
+  if (!m_channel) {
     return;
   }
 
   /* Update name */
-  m_nameLabel->setText(m_profile->profile_name);
+  m_nameLabel->setText(m_channel->channel_name);
 
   /* Update status indicator */
   QString statusIcon = getStatusIcon();
@@ -157,8 +157,8 @@ void ProfileWidget::updateHeader() {
   m_summaryLabel->setText(getSummaryText());
 
   /* Update start/stop button */
-  if (m_profile->status == PROFILE_STATUS_ACTIVE ||
-      m_profile->status == PROFILE_STATUS_STARTING) {
+  if (m_channel->status == CHANNEL_STATUS_ACTIVE ||
+      m_channel->status == CHANNEL_STATUS_STARTING) {
     m_startStopButton->setText("■ Stop");
     m_startStopButton->setProperty("danger", true);
   } else {
@@ -169,36 +169,36 @@ void ProfileWidget::updateHeader() {
   m_startStopButton->style()->polish(m_startStopButton);
 }
 
-void ProfileWidget::updateDestinations() {
-  if (!m_profile) {
+void ChannelWidget::updateOutputs() {
+  if (!m_channel) {
     return;
   }
 
-  /* Clear existing destination widgets */
-  qDeleteAll(m_destinationWidgets);
-  m_destinationWidgets.clear();
+  /* Clear existing output widgets */
+  qDeleteAll(m_outputWidgets);
+  m_outputWidgets.clear();
 
-  /* Create widget for each destination */
-  for (size_t i = 0; i < m_profile->destination_count; i++) {
-    profile_destination_t *dest = &m_profile->destinations[i];
+  /* Create widget for each output */
+  for (size_t i = 0; i < m_channel->output_count; i++) {
+    channel_output_t *dest = &m_channel->outputs[i];
 
-    DestinationWidget *destWidget =
-        new DestinationWidget(dest, i, m_profile->profile_id, this);
+    OutputWidget *outputWidget =
+        new OutputWidget(dest, i, m_channel->channel_id, this);
 
     /* Connect signals */
-    connect(destWidget, &DestinationWidget::startRequested, this,
-            &ProfileWidget::onDestinationStartRequested);
-    connect(destWidget, &DestinationWidget::stopRequested, this,
-            &ProfileWidget::onDestinationStopRequested);
-    connect(destWidget, &DestinationWidget::editRequested, this,
-            &ProfileWidget::onDestinationEditRequested);
+    connect(outputWidget, &OutputWidget::startRequested, this,
+            &ChannelWidget::onOutputStartRequested);
+    connect(outputWidget, &OutputWidget::stopRequested, this,
+            &ChannelWidget::onOutputStopRequested);
+    connect(outputWidget, &OutputWidget::editRequested, this,
+            &ChannelWidget::onOutputEditRequested);
 
-    m_contentLayout->addWidget(destWidget);
-    m_destinationWidgets.append(destWidget);
+    m_contentLayout->addWidget(outputWidget);
+    m_outputWidgets.append(outputWidget);
   }
 }
 
-void ProfileWidget::setExpanded(bool expanded) {
+void ChannelWidget::setExpanded(bool expanded) {
   if (m_expanded == expanded) {
     return;
   }
@@ -208,11 +208,11 @@ void ProfileWidget::setExpanded(bool expanded) {
 
   /* Update header border */
   if (m_expanded) {
-    m_headerWidget->setStyleSheet("#profileHeader { "
+    m_headerWidget->setStyleSheet("#channelHeader { "
                                   "  border-bottom: 1px solid palette(mid); "
                                   "}");
   } else {
-    m_headerWidget->setStyleSheet("#profileHeader { "
+    m_headerWidget->setStyleSheet("#channelHeader { "
                                   "  border-bottom: none; "
                                   "}");
   }
@@ -220,61 +220,61 @@ void ProfileWidget::setExpanded(bool expanded) {
   emit expandedChanged(m_expanded);
 }
 
-const char *ProfileWidget::getProfileId() const {
-  return m_profile ? m_profile->profile_id : nullptr;
+const char *ChannelWidget::getChannelId() const {
+  return m_channel ? m_channel->channel_id : nullptr;
 }
 
-QString ProfileWidget::getAggregateStatus() const {
-  if (!m_profile) {
+QString ChannelWidget::getAggregateStatus() const {
+  if (!m_channel) {
     return "inactive";
   }
 
-  if (m_profile->status == PROFILE_STATUS_ACTIVE) {
-    /* Check for errors in destinations (enabled but not connected) */
-    for (size_t i = 0; i < m_profile->destination_count; i++) {
-      if (m_profile->destinations[i].enabled &&
-          !m_profile->destinations[i].connected) {
+  if (m_channel->status == CHANNEL_STATUS_ACTIVE) {
+    /* Check for errors in outputs (enabled but not connected) */
+    for (size_t i = 0; i < m_channel->output_count; i++) {
+      if (m_channel->outputs[i].enabled &&
+          !m_channel->outputs[i].connected) {
         return "error";
       }
     }
 
     return "active";
-  } else if (m_profile->status == PROFILE_STATUS_STARTING) {
+  } else if (m_channel->status == CHANNEL_STATUS_STARTING) {
     return "starting";
-  } else if (m_profile->status == PROFILE_STATUS_ERROR) {
+  } else if (m_channel->status == CHANNEL_STATUS_ERROR) {
     return "error";
   }
 
   return "inactive";
 }
 
-QString ProfileWidget::getSummaryText() const {
-  if (!m_profile) {
+QString ChannelWidget::getSummaryText() const {
+  if (!m_channel) {
     return "";
   }
 
   int activeCount = 0;
   int errorCount = 0;
-  int totalCount = (int)m_profile->destination_count;
+  int totalCount = (int)m_channel->output_count;
 
-  for (size_t i = 0; i < m_profile->destination_count; i++) {
+  for (size_t i = 0; i < m_channel->output_count; i++) {
     /* Status based on connected and enabled flags */
-    if (m_profile->destinations[i].connected &&
-        m_profile->destinations[i].enabled) {
+    if (m_channel->outputs[i].connected &&
+        m_channel->outputs[i].enabled) {
       activeCount++;
-    } else if (m_profile->destinations[i].enabled &&
-               !m_profile->destinations[i].connected) {
+    } else if (m_channel->outputs[i].enabled &&
+               !m_channel->outputs[i].connected) {
       errorCount++;
     }
   }
 
-  if (m_profile->status == PROFILE_STATUS_INACTIVE) {
+  if (m_channel->status == CHANNEL_STATUS_INACTIVE) {
     if (totalCount == 1) {
-      return "1 destination";
+      return "1 output";
     }
-    return QString("%1 destinations").arg(totalCount);
-  } else if (m_profile->status == PROFILE_STATUS_STARTING) {
-    return QString("Starting %1 destination%2...")
+    return QString("%1 outputs").arg(totalCount);
+  } else if (m_channel->status == CHANNEL_STATUS_STARTING) {
+    return QString("Starting %1 output%2...")
         .arg(totalCount)
         .arg(totalCount != 1 ? "s" : "");
   } else {
@@ -290,11 +290,11 @@ QString ProfileWidget::getSummaryText() const {
     if (!parts.isEmpty()) {
       return parts.join(", ");
     }
-    return QString("%1 destinations").arg(totalCount);
+    return QString("%1 outputs").arg(totalCount);
   }
 }
 
-QColor ProfileWidget::getStatusColor() const {
+QColor ChannelWidget::getStatusColor() const {
   QString status = getAggregateStatus();
 
   if (status == "active") {
@@ -308,7 +308,7 @@ QColor ProfileWidget::getStatusColor() const {
   return obs_theme_get_muted_color();
 }
 
-QString ProfileWidget::getStatusIcon() const {
+QString ChannelWidget::getStatusIcon() const {
   QString status = getAggregateStatus();
 
   if (status == "active") {
@@ -322,12 +322,12 @@ QString ProfileWidget::getStatusIcon() const {
   return "⚫";
 }
 
-void ProfileWidget::contextMenuEvent(QContextMenuEvent *event) {
+void ChannelWidget::contextMenuEvent(QContextMenuEvent *event) {
   showContextMenu(event->pos());
   event->accept();
 }
 
-void ProfileWidget::mouseDoubleClickEvent(QMouseEvent *event) {
+void ChannelWidget::mouseDoubleClickEvent(QMouseEvent *event) {
   if (event->button() == Qt::LeftButton) {
     /* Toggle expansion on double-click */
     setExpanded(!m_expanded);
@@ -337,175 +337,175 @@ void ProfileWidget::mouseDoubleClickEvent(QMouseEvent *event) {
   }
 }
 
-void ProfileWidget::enterEvent(QEnterEvent *event) {
+void ChannelWidget::enterEvent(QEnterEvent *event) {
   m_hovered = true;
   QWidget::enterEvent(event);
 }
 
-void ProfileWidget::leaveEvent(QEvent *event) {
+void ChannelWidget::leaveEvent(QEvent *event) {
   m_hovered = false;
   QWidget::leaveEvent(event);
 }
 
-void ProfileWidget::onHeaderClicked() {
+void ChannelWidget::onHeaderClicked() {
   /* Toggle expansion */
   setExpanded(!m_expanded);
 }
 
-void ProfileWidget::onStartStopClicked() {
-  if (!m_profile) {
+void ChannelWidget::onStartStopClicked() {
+  if (!m_channel) {
     return;
   }
 
-  if (m_profile->status == PROFILE_STATUS_ACTIVE ||
-      m_profile->status == PROFILE_STATUS_STARTING) {
-    emit stopRequested(m_profile->profile_id);
+  if (m_channel->status == CHANNEL_STATUS_ACTIVE ||
+      m_channel->status == CHANNEL_STATUS_STARTING) {
+    emit stopRequested(m_channel->channel_id);
   } else {
-    emit startRequested(m_profile->profile_id);
+    emit startRequested(m_channel->channel_id);
   }
 }
 
-void ProfileWidget::onEditClicked() {
-  if (!m_profile) {
+void ChannelWidget::onEditClicked() {
+  if (!m_channel) {
     return;
   }
 
-  emit editRequested(m_profile->profile_id);
+  emit editRequested(m_channel->channel_id);
 }
 
-void ProfileWidget::onMenuClicked() {
+void ChannelWidget::onMenuClicked() {
   showContextMenu(m_menuButton->geometry().bottomLeft());
 }
 
-void ProfileWidget::onDestinationStartRequested(size_t destIndex) {
-  if (!m_profile || destIndex >= m_profile->destination_count) {
-    obs_log(LOG_ERROR, "Invalid destination index: %zu", destIndex);
+void ChannelWidget::onOutputStartRequested(size_t outputIndex) {
+  if (!m_channel || outputIndex >= m_channel->output_count) {
+    obs_log(LOG_ERROR, "Invalid output index: %zu", outputIndex);
     return;
   }
 
-  obs_log(LOG_INFO, "Start destination requested: profile=%s, index=%zu",
-          m_profile->profile_id, destIndex);
+  obs_log(LOG_INFO, "Start output requested: channel=%s, index=%zu",
+          m_channel->channel_id, outputIndex);
 
-  /* Emit signal for dock to handle (dock has access to API and profile manager)
+  /* Emit signal for dock to handle (dock has access to API and channel manager)
    */
-  emit destinationStartRequested(m_profile->profile_id, destIndex);
+  emit outputStartRequested(m_channel->channel_id, outputIndex);
 }
 
-void ProfileWidget::onDestinationStopRequested(size_t destIndex) {
-  if (!m_profile || destIndex >= m_profile->destination_count) {
-    obs_log(LOG_ERROR, "Invalid destination index: %zu", destIndex);
+void ChannelWidget::onOutputStopRequested(size_t outputIndex) {
+  if (!m_channel || outputIndex >= m_channel->output_count) {
+    obs_log(LOG_ERROR, "Invalid output index: %zu", outputIndex);
     return;
   }
 
-  obs_log(LOG_INFO, "Stop destination requested: profile=%s, index=%zu",
-          m_profile->profile_id, destIndex);
+  obs_log(LOG_INFO, "Stop output requested: channel=%s, index=%zu",
+          m_channel->channel_id, outputIndex);
 
-  /* Emit signal for dock to handle (dock has access to API and profile manager)
+  /* Emit signal for dock to handle (dock has access to API and channel manager)
    */
-  emit destinationStopRequested(m_profile->profile_id, destIndex);
+  emit outputStopRequested(m_channel->channel_id, outputIndex);
 }
 
-void ProfileWidget::onDestinationEditRequested(size_t destIndex) {
-  if (!m_profile || destIndex >= m_profile->destination_count) {
-    obs_log(LOG_ERROR, "Invalid destination index: %zu", destIndex);
+void ChannelWidget::onOutputEditRequested(size_t outputIndex) {
+  if (!m_channel || outputIndex >= m_channel->output_count) {
+    obs_log(LOG_ERROR, "Invalid output index: %zu", outputIndex);
     return;
   }
 
-  obs_log(LOG_INFO, "Edit destination requested: profile=%s, index=%zu",
-          m_profile->profile_id, destIndex);
+  obs_log(LOG_INFO, "Edit output requested: channel=%s, index=%zu",
+          m_channel->channel_id, outputIndex);
 
-  /* Emit signal for dock to handle (dock has access to API and profile manager)
+  /* Emit signal for dock to handle (dock has access to API and channel manager)
    */
-  emit destinationEditRequested(m_profile->profile_id, destIndex);
+  emit outputEditRequested(m_channel->channel_id, outputIndex);
 }
 
-void ProfileWidget::showContextMenu(const QPoint &pos) {
-  if (!m_profile) {
+void ChannelWidget::showContextMenu(const QPoint &pos) {
+  if (!m_channel) {
     return;
   }
 
   QMenu menu(this);
 
   /* Start/Stop actions */
-  bool isActive = (m_profile->status == PROFILE_STATUS_ACTIVE ||
-                   m_profile->status == PROFILE_STATUS_STARTING);
+  bool isActive = (m_channel->status == CHANNEL_STATUS_ACTIVE ||
+                   m_channel->status == CHANNEL_STATUS_STARTING);
 
-  QAction *startAction = menu.addAction("▶ Start Profile");
+  QAction *startAction = menu.addAction("▶ Start Channel");
   startAction->setEnabled(!isActive);
   connect(startAction, &QAction::triggered, this,
-          [this]() { emit startRequested(m_profile->profile_id); });
+          [this]() { emit startRequested(m_channel->channel_id); });
 
-  QAction *stopAction = menu.addAction("■ Stop Profile");
+  QAction *stopAction = menu.addAction("■ Stop Channel");
   stopAction->setEnabled(isActive);
   connect(stopAction, &QAction::triggered, this,
-          [this]() { emit stopRequested(m_profile->profile_id); });
+          [this]() { emit stopRequested(m_channel->channel_id); });
 
-  QAction *restartAction = menu.addAction("↻ Restart Profile");
+  QAction *restartAction = menu.addAction("↻ Restart Channel");
   restartAction->setEnabled(isActive);
   connect(restartAction, &QAction::triggered, this, [this]() {
-    emit stopRequested(m_profile->profile_id);
+    emit stopRequested(m_channel->channel_id);
 
-    // Store profile ID for lambda capture (m_profile may change)
-    QString profileId = QString::fromUtf8(m_profile->profile_id);
+    // Store channel ID for lambda capture (m_channel may change)
+    QString channelId = QString::fromUtf8(m_channel->channel_id);
 
     // Start after a 2-second delay to ensure clean stop
-    QTimer::singleShot(2000, this, [this, profileId]() {
-      // Verify profile still exists and widget is valid
-      if (m_profile && QString::fromUtf8(m_profile->profile_id) == profileId) {
-        emit startRequested(m_profile->profile_id);
-        obs_log(LOG_INFO, "Profile restart: starting %s after delay",
-                profileId.toUtf8().constData());
+    QTimer::singleShot(2000, this, [this, channelId]() {
+      // Verify channel still exists and widget is valid
+      if (m_channel && QString::fromUtf8(m_channel->channel_id) == channelId) {
+        emit startRequested(m_channel->channel_id);
+        obs_log(LOG_INFO, "Channel restart: starting %s after delay",
+                channelId.toUtf8().constData());
       }
     });
 
-    obs_log(LOG_INFO, "Profile restart initiated: %s", m_profile->profile_id);
+    obs_log(LOG_INFO, "Channel restart initiated: %s", m_channel->channel_id);
   });
 
   menu.addSeparator();
 
   /* Edit actions */
-  QAction *editAction = menu.addAction("✎ Edit Profile...");
+  QAction *editAction = menu.addAction("✎ Edit Channel...");
   connect(editAction, &QAction::triggered, this,
-          [this]() { emit editRequested(m_profile->profile_id); });
+          [this]() { emit editRequested(m_channel->channel_id); });
 
-  QAction *duplicateAction = menu.addAction("📋 Duplicate Profile");
+  QAction *duplicateAction = menu.addAction("📋 Duplicate Channel");
   connect(duplicateAction, &QAction::triggered, this,
-          [this]() { emit duplicateRequested(m_profile->profile_id); });
+          [this]() { emit duplicateRequested(m_channel->channel_id); });
 
-  QAction *deleteAction = menu.addAction("🗑️ Delete Profile");
+  QAction *deleteAction = menu.addAction("🗑️ Delete Channel");
   connect(deleteAction, &QAction::triggered, this,
-          [this]() { emit deleteRequested(m_profile->profile_id); });
+          [this]() { emit deleteRequested(m_channel->channel_id); });
 
   menu.addSeparator();
 
   /* Info actions */
   QAction *statsAction = menu.addAction("📊 View Statistics");
   connect(statsAction, &QAction::triggered, this, [this]() {
-    obs_log(LOG_INFO, "View stats for profile: %s", m_profile->profile_id);
+    obs_log(LOG_INFO, "View stats for channel: %s", m_channel->channel_id);
 
     /* Build comprehensive statistics message */
     QString stats;
-    stats += QString("<b>Profile: %1</b><br><br>").arg(m_profile->profile_name);
+    stats += QString("<b>Channel: %1</b><br><br>").arg(m_channel->channel_name);
 
-    /* Profile Status */
+    /* Channel Status */
     stats += "<b>Status:</b> ";
-    switch (m_profile->status) {
-    case PROFILE_STATUS_INACTIVE:
+    switch (m_channel->status) {
+    case CHANNEL_STATUS_INACTIVE:
       stats += "Inactive";
       break;
-    case PROFILE_STATUS_STARTING:
+    case CHANNEL_STATUS_STARTING:
       stats += "Starting";
       break;
-    case PROFILE_STATUS_ACTIVE:
+    case CHANNEL_STATUS_ACTIVE:
       stats += "Active";
       break;
-    case PROFILE_STATUS_STOPPING:
+    case CHANNEL_STATUS_STOPPING:
       stats += "Stopping";
       break;
-    case PROFILE_STATUS_PREVIEW:
+    case CHANNEL_STATUS_PREVIEW:
       stats += "Preview Mode";
       break;
-    case PROFILE_STATUS_ERROR:
+    case CHANNEL_STATUS_ERROR:
       stats += "Error";
       break;
     }
@@ -514,7 +514,7 @@ void ProfileWidget::showContextMenu(const QPoint &pos) {
     /* Source Configuration */
     stats += "<b>Source Configuration:</b><br>";
     stats += QString("  Orientation: ");
-    switch (m_profile->source_orientation) {
+    switch (m_channel->source_orientation) {
     case ORIENTATION_AUTO:
       stats += "Auto-Detect";
       break;
@@ -530,26 +530,26 @@ void ProfileWidget::showContextMenu(const QPoint &pos) {
     }
     stats += "<br>";
 
-    if (m_profile->source_width > 0 && m_profile->source_height > 0) {
+    if (m_channel->source_width > 0 && m_channel->source_height > 0) {
       stats += QString("  Resolution: %1x%2<br>")
-                   .arg(m_profile->source_width)
-                   .arg(m_profile->source_height);
+                   .arg(m_channel->source_width)
+                   .arg(m_channel->source_height);
     }
 
-    if (m_profile->input_url) {
-      stats += QString("  Input URL: %1<br>").arg(m_profile->input_url);
+    if (m_channel->input_url) {
+      stats += QString("  Input URL: %1<br>").arg(m_channel->input_url);
     }
     stats += "<br>";
 
-    /* Destinations */
-    stats += QString("<b>Destinations: %1</b><br>")
-                 .arg(m_profile->destination_count);
+    /* Outputs */
+    stats += QString("<b>Outputs: %1</b><br>")
+                 .arg(m_channel->output_count);
     size_t active_count = 0;
     uint64_t total_bytes = 0;
     uint32_t total_dropped = 0;
 
-    for (size_t i = 0; i < m_profile->destination_count; i++) {
-      profile_destination_t *dest = &m_profile->destinations[i];
+    for (size_t i = 0; i < m_channel->output_count; i++) {
+      channel_output_t *dest = &m_channel->outputs[i];
       if (dest->connected) {
         active_count++;
       }
@@ -565,54 +565,54 @@ void ProfileWidget::showContextMenu(const QPoint &pos) {
     /* Settings */
     stats += "<b>Settings:</b><br>";
     stats += QString("  Auto-Start: %1<br>")
-                 .arg(m_profile->auto_start ? "Yes" : "No");
+                 .arg(m_channel->auto_start ? "Yes" : "No");
     stats += QString("  Auto-Reconnect: %1<br>")
-                 .arg(m_profile->auto_reconnect ? "Yes" : "No");
+                 .arg(m_channel->auto_reconnect ? "Yes" : "No");
 
-    if (m_profile->auto_reconnect) {
+    if (m_channel->auto_reconnect) {
       stats += QString("  Reconnect Delay: %1 seconds<br>")
-                   .arg(m_profile->reconnect_delay_sec);
+                   .arg(m_channel->reconnect_delay_sec);
       stats +=
           QString("  Max Reconnect Attempts: %1<br>")
-              .arg(m_profile->max_reconnect_attempts == 0
+              .arg(m_channel->max_reconnect_attempts == 0
                        ? "Unlimited"
-                       : QString::number(m_profile->max_reconnect_attempts));
+                       : QString::number(m_channel->max_reconnect_attempts));
     }
 
     stats +=
         QString("  Health Monitoring: %1<br>")
-            .arg(m_profile->health_monitoring_enabled ? "Enabled" : "Disabled");
+            .arg(m_channel->health_monitoring_enabled ? "Enabled" : "Disabled");
 
-    QMessageBox::information(this, "Profile Statistics", stats);
+    QMessageBox::information(this, "Channel Statistics", stats);
   });
 
   QAction *exportAction = menu.addAction("📝 Export Configuration");
   connect(exportAction, &QAction::triggered, this, [this]() {
-    obs_log(LOG_INFO, "Export config for profile: %s", m_profile->profile_id);
+    obs_log(LOG_INFO, "Export config for channel: %s", m_channel->channel_id);
 
     /* Build JSON configuration */
     QString config = "{\n";
     config +=
-        QString("  \"profile_name\": \"%1\",\n").arg(m_profile->profile_name);
-    config += QString("  \"profile_id\": \"%1\",\n").arg(m_profile->profile_id);
+        QString("  \"channel_name\": \"%1\",\n").arg(m_channel->channel_name);
+    config += QString("  \"channel_id\": \"%1\",\n").arg(m_channel->channel_id);
 
     /* Source configuration */
     config += "  \"source\": {\n";
     config +=
         QString("    \"orientation\": \"%1\",\n")
-            .arg(m_profile->source_orientation == ORIENTATION_AUTO ? "auto"
-                 : m_profile->source_orientation == ORIENTATION_HORIZONTAL
+            .arg(m_channel->source_orientation == ORIENTATION_AUTO ? "auto"
+                 : m_channel->source_orientation == ORIENTATION_HORIZONTAL
                      ? "horizontal"
-                 : m_profile->source_orientation == ORIENTATION_VERTICAL
+                 : m_channel->source_orientation == ORIENTATION_VERTICAL
                      ? "vertical"
                      : "square");
     config += QString("    \"auto_detect\": %1,\n")
-                  .arg(m_profile->auto_detect_orientation ? "true" : "false");
-    config += QString("    \"width\": %1,\n").arg(m_profile->source_width);
-    config += QString("    \"height\": %1").arg(m_profile->source_height);
-    if (m_profile->input_url) {
+                  .arg(m_channel->auto_detect_orientation ? "true" : "false");
+    config += QString("    \"width\": %1,\n").arg(m_channel->source_width);
+    config += QString("    \"height\": %1").arg(m_channel->source_height);
+    if (m_channel->input_url) {
       config +=
-          QString(",\n    \"input_url\": \"%1\"\n").arg(m_profile->input_url);
+          QString(",\n    \"input_url\": \"%1\"\n").arg(m_channel->input_url);
     } else {
       config += "\n";
     }
@@ -621,32 +621,32 @@ void ProfileWidget::showContextMenu(const QPoint &pos) {
     /* Settings */
     config += "  \"settings\": {\n";
     config += QString("    \"auto_start\": %1,\n")
-                  .arg(m_profile->auto_start ? "true" : "false");
+                  .arg(m_channel->auto_start ? "true" : "false");
     config += QString("    \"auto_reconnect\": %1,\n")
-                  .arg(m_profile->auto_reconnect ? "true" : "false");
+                  .arg(m_channel->auto_reconnect ? "true" : "false");
     config += QString("    \"reconnect_delay_sec\": %1,\n")
-                  .arg(m_profile->reconnect_delay_sec);
+                  .arg(m_channel->reconnect_delay_sec);
     config += QString("    \"max_reconnect_attempts\": %1,\n")
-                  .arg(m_profile->max_reconnect_attempts);
+                  .arg(m_channel->max_reconnect_attempts);
     config += QString("    \"health_monitoring_enabled\": %1,\n")
-                  .arg(m_profile->health_monitoring_enabled ? "true" : "false");
+                  .arg(m_channel->health_monitoring_enabled ? "true" : "false");
     config += QString("    \"health_check_interval_sec\": %1,\n")
-                  .arg(m_profile->health_check_interval_sec);
+                  .arg(m_channel->health_check_interval_sec);
     config += QString("    \"failure_threshold\": %1\n")
-                  .arg(m_profile->failure_threshold);
+                  .arg(m_channel->failure_threshold);
     config += "  },\n";
 
-    /* Destinations */
-    config += QString("  \"destination_count\": %1\n")
-                  .arg(m_profile->destination_count);
+    /* Outputs */
+    config += QString("  \"output_count\": %1\n")
+                  .arg(m_channel->output_count);
     config += "}\n";
 
     /* Save to file */
     QString defaultPath =
         QStandardPaths::writableLocation(QStandardPaths::DocumentsLocation);
-    QString fileName = QString("%1_profile.json").arg(m_profile->profile_name);
+    QString fileName = QString("%1_channel.json").arg(m_channel->channel_name);
     QString filePath = QFileDialog::getSaveFileName(
-        this, "Export Profile Configuration", defaultPath + "/" + fileName,
+        this, "Export Channel Configuration", defaultPath + "/" + fileName,
         "JSON Files (*.json)");
 
     if (!filePath.isEmpty()) {
@@ -658,8 +658,8 @@ void ProfileWidget::showContextMenu(const QPoint &pos) {
 
         QMessageBox::information(
             this, "Export Successful",
-            QString("Profile configuration exported to:\n%1").arg(filePath));
-        obs_log(LOG_INFO, "Profile configuration exported to: %s",
+            QString("Channel configuration exported to:\n%1").arg(filePath));
+        obs_log(LOG_INFO, "Channel configuration exported to: %s",
                 filePath.toUtf8().constData());
       } else {
         QMessageBox::warning(
@@ -671,9 +671,9 @@ void ProfileWidget::showContextMenu(const QPoint &pos) {
 
   menu.addSeparator();
 
-  QAction *settingsAction = menu.addAction("⚙️ Profile Settings...");
+  QAction *settingsAction = menu.addAction("⚙️ Channel Settings...");
   connect(settingsAction, &QAction::triggered, this,
-          [this]() { emit editRequested(m_profile->profile_id); });
+          [this]() { emit editRequested(m_channel->channel_id); });
 
   /* Show menu at global position */
   QPoint globalPos = mapToGlobal(pos);

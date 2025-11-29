@@ -109,7 +109,7 @@ extern bool run_api_system_tests(void);
 extern bool run_api_filesystem_tests(void);
 extern bool run_config_tests(void);
 extern bool run_multistream_tests(void);
-extern bool run_output_profile_tests(void);
+extern bool run_stream_channel_tests(void);
 extern bool run_source_tests(void);
 extern bool run_output_tests(void);
 
@@ -165,8 +165,8 @@ extern bool run_api_parsing_tests(void);
 /* API helper function tests (returns bool: true=success, false=failure) */
 extern bool run_api_helper_tests(void);
 
-/* Profile coverage tests (returns bool: true=success, false=failure) */
-extern bool run_profile_coverage_tests(void);
+/* Channel coverage tests (returns bool: true=success, false=failure) */
+extern bool run_channel_coverage_tests(void);
 
 /* TODO: Add these test files if needed
 extern int run_api_coverage_gaps_tests(void);
@@ -386,8 +386,8 @@ int main(int argc, char **argv) {
     run_test_suite("API Helper Functions Tests", run_api_helper_tests);
   }
 
-  if (!suite_filter || strcmp(suite_filter, "profile-coverage") == 0) {
-    run_test_suite("Profile Coverage Tests", run_profile_coverage_tests);
+  if (!suite_filter || strcmp(suite_filter, "channel-coverage") == 0) {
+    run_test_suite("Channel Coverage Tests", run_channel_coverage_tests);
   }
 
   /* TODO: Add these test suites if test files are created
@@ -428,8 +428,8 @@ int main(int argc, char **argv) {
   }
   */
 
-  if (!suite_filter || strcmp(suite_filter, "profile") == 0) {
-    run_test_suite("Output Profile Tests", run_output_profile_tests);
+  if (!suite_filter || strcmp(suite_filter, "channel") == 0) {
+    run_test_suite("Stream Channel Tests", run_stream_channel_tests);
   }
 
   if (!suite_filter || strcmp(suite_filter, "source") == 0) {
