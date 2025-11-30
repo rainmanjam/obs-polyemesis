@@ -873,7 +873,7 @@ show_introduction() {
 # Main installation flow
 main() {
     print_header "╔═══════════════════════════════════════════════════════════╗"
-    print_header "║      Datarhei Restreamer - Interactive Installer         ║"
+    print_header "║      Datarhei Restreamer - Interactive Installer          ║"
     print_header "╚═══════════════════════════════════════════════════════════╝"
 
     show_introduction
