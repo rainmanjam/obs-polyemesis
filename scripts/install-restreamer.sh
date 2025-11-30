@@ -134,13 +134,13 @@ cleanup_on_exit() {
         if [[ $REPLY =~ ^[Yy]$ ]]; then
             print_info "Removing Docker..."
             case "$DISTRO" in
-                ubuntu|debian)
+                ubuntu|debian|raspbian|linuxmint|pop|elementary|zorin|neon)
                     apt-get purge -y docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin 2>/dev/null || true
                     ;;
-                rhel|centos|fedora)
+                rhel|centos|fedora|rocky|almalinux|ol|amzn)
                     yum remove -y docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin 2>/dev/null || true
                     ;;
-                arch)
+                arch|manjaro|endeavouros)
                     pacman -Rns --noconfirm docker docker-compose 2>/dev/null || true
                     ;;
             esac
@@ -234,8 +234,30 @@ install_docker() {
     print_info "Installing Docker..."
     DOCKER_INSTALLED_BY_US=true
 
+    # Map derivative distros to their Docker repo parent
     case "$DISTRO" in
-        ubuntu|debian)
+        linuxmint|pop|elementary|zorin|neon)
+            DOCKER_REPO="ubuntu"
+            ;;
+        raspbian)
+            DOCKER_REPO="raspbian"
+            ;;
+        rocky|almalinux|ol|amzn)
+            DOCKER_REPO="centos"
+            ;;
+        rhel)
+            DOCKER_REPO="rhel"
+            ;;
+        fedora)
+            DOCKER_REPO="fedora"
+            ;;
+        *)
+            DOCKER_REPO="$DISTRO"
+            ;;
+    esac
+
+    case "$DISTRO" in
+        ubuntu|debian|raspbian|linuxmint|pop|elementary|zorin|neon)
             # Remove old versions
             apt-get remove -y docker docker-engine docker.io containerd runc 2>/dev/null || true
 
@@ -251,20 +273,32 @@ install_docker() {
 
             # Add Docker's official GPG key
             install -m 0755 -d /etc/apt/keyrings
-            curl -fsSL https://download.docker.com/linux/$DISTRO/gpg | gpg --dearmor -o /etc/apt/keyrings/docker.gpg
+            curl -fsSL "https://download.docker.com/linux/${DOCKER_REPO}/gpg" | gpg --dearmor -o /etc/apt/keyrings/docker.gpg
             chmod a+r /etc/apt/keyrings/docker.gpg
 
-            # Set up repository
+            # Set up repository (use VERSION_CODENAME for derivatives, fall back to lsb_release)
+            CODENAME="${VERSION_CODENAME:-$(lsb_release -cs)}"
+            # Some derivatives use their own codename, map to parent's codename
+            case "$DISTRO" in
+                linuxmint)
+                    # Linux Mint uses Ubuntu codenames in UBUNTU_CODENAME
+                    CODENAME="${UBUNTU_CODENAME:-$CODENAME}"
+                    ;;
+                pop|elementary|zorin|neon)
+                    # These are Ubuntu-based, try UBUNTU_CODENAME
+                    CODENAME="${UBUNTU_CODENAME:-$CODENAME}"
+                    ;;
+            esac
             echo \
-                "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.gpg] https://download.docker.com/linux/$DISTRO \
-                $(lsb_release -cs) stable" | tee /etc/apt/sources.list.d/docker.list > /dev/null
+                "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.gpg] https://download.docker.com/linux/${DOCKER_REPO} \
+                ${CODENAME} stable" | tee /etc/apt/sources.list.d/docker.list > /dev/null
 
             # Install Docker
             apt-get update
             apt-get install -y docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin
             ;;
 
-        rhel|centos|fedora)
+        rhel|centos|fedora|rocky|almalinux|ol|amzn)
             # Remove old versions
             yum remove -y docker docker-client docker-client-latest docker-common docker-latest \
                 docker-latest-logrotate docker-logrotate docker-engine 2>/dev/null || true
@@ -273,13 +307,13 @@ install_docker() {
             yum install -y yum-utils
 
             # Set up repository
-            yum-config-manager --add-repo https://download.docker.com/linux/centos/docker-ce.repo
+            yum-config-manager --add-repo "https://download.docker.com/linux/${DOCKER_REPO}/docker-ce.repo"
 
             # Install Docker
             yum install -y docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin
             ;;
 
-        arch)
+        arch|manjaro|endeavouros)
             # Update package database
             pacman -Sy
 
