@@ -552,9 +552,10 @@ generate_docker_compose() {
         INTERNAL_HTTPS_PORT=8181
     fi
 
-    cat > "$INSTALL_DIR/docker-compose.yml" << EOF
-version: '3.8'
+    # Escape $ characters in password to prevent variable expansion
+    ADMIN_PASS_ESCAPED="${ADMIN_PASS//\$/\$\$}"
 
+    cat > "$INSTALL_DIR/docker-compose.yml" << EOF
 services:
   restreamer:
     image: datarhei/restreamer:latest
@@ -592,7 +593,7 @@ EOF
     cat >> "$INSTALL_DIR/docker-compose.yml" << EOF
       - CORE_API_AUTH_ENABLE=true
       - CORE_API_AUTH_USERNAME=${ADMIN_USER}
-      - CORE_API_AUTH_PASSWORD=${ADMIN_PASS}
+      - CORE_API_AUTH_PASSWORD=${ADMIN_PASS_ESCAPED}
       - CORE_STORAGE_DISK_DIR=/core/data
       - CORE_RTMP_ENABLE=true
       - CORE_RTMP_ADDRESS=:1935
