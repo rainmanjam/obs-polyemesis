@@ -81,6 +81,166 @@ safe_read() {
     fi
 }
 
+# Calculate password strength score (0-100)
+# Returns score and sets PASSWORD_STRENGTH_LABEL and PASSWORD_STRENGTH_COLOR
+calculate_password_strength() {
+    local password="$1"
+    local score=0
+    local length=${#password}
+
+    # Length scoring (up to 40 points)
+    if [ $length -ge 16 ]; then
+        score=$((score + 40))
+    elif [ $length -ge 12 ]; then
+        score=$((score + 30))
+    elif [ $length -ge 8 ]; then
+        score=$((score + 20))
+    elif [ $length -ge 6 ]; then
+        score=$((score + 10))
+    fi
+
+    # Character variety scoring (up to 60 points)
+    # Lowercase letters (15 points)
+    if [[ "$password" =~ [a-z] ]]; then
+        score=$((score + 15))
+    fi
+
+    # Uppercase letters (15 points)
+    if [[ "$password" =~ [A-Z] ]]; then
+        score=$((score + 15))
+    fi
+
+    # Numbers (15 points)
+    if [[ "$password" =~ [0-9] ]]; then
+        score=$((score + 15))
+    fi
+
+    # Special characters (15 points)
+    if [[ "$password" =~ [^a-zA-Z0-9] ]]; then
+        score=$((score + 15))
+    fi
+
+    # Set label and color based on score
+    if [ $score -ge 80 ]; then
+        PASSWORD_STRENGTH_LABEL="Strong"
+        PASSWORD_STRENGTH_COLOR="${GREEN}"
+    elif [ $score -ge 60 ]; then
+        PASSWORD_STRENGTH_LABEL="Good"
+        PASSWORD_STRENGTH_COLOR="${CYAN}"
+    elif [ $score -ge 40 ]; then
+        PASSWORD_STRENGTH_LABEL="Fair"
+        PASSWORD_STRENGTH_COLOR="${YELLOW}"
+    else
+        PASSWORD_STRENGTH_LABEL="Weak"
+        PASSWORD_STRENGTH_COLOR="${RED}"
+    fi
+
+    echo $score
+}
+
+# Read password with real-time strength feedback
+# Usage: read_password_with_feedback VARIABLE_NAME
+read_password_with_feedback() {
+    local varname="$1"
+    local password=""
+    local char=""
+    local strength_score=0
+
+    # Check if we have a TTY for interactive input
+    if [ ! -c /dev/tty ] && [ ! -t 0 ]; then
+        # Non-interactive mode, fall back to simple read
+        safe_read "-s" "$varname"
+        return
+    fi
+
+    # Determine input source
+    local input_src="/dev/tty"
+    if [ ! -c /dev/tty ]; then
+        input_src="/dev/stdin"
+    fi
+
+    # Display initial prompt
+    echo -ne "Password: "
+
+    # Read character by character
+    while true; do
+        # Read single character silently
+        IFS= read -r -s -n 1 char < "$input_src"
+
+        # Check for Enter key (empty read or newline)
+        if [[ -z "$char" ]] || [[ "$char" == $'\n' ]] || [[ "$char" == $'\r' ]]; then
+            echo  # New line after password entry
+            break
+        fi
+
+        # Check for backspace (various codes)
+        if [[ "$char" == $'\177' ]] || [[ "$char" == $'\b' ]]; then
+            if [ ${#password} -gt 0 ]; then
+                # Remove last character
+                password="${password%?}"
+                # Move cursor back, print space, move back again
+                echo -ne "\b \b"
+            fi
+        else
+            # Add character to password
+            password="${password}${char}"
+            # Print asterisk
+            echo -ne "*"
+        fi
+
+        # Calculate and display strength (update on same line)
+        if [ ${#password} -gt 0 ]; then
+            strength_score=$(calculate_password_strength "$password")
+            # Save cursor, move to column 50, print strength, restore cursor
+            echo -ne "\033[s\033[50G${PASSWORD_STRENGTH_COLOR}[${PASSWORD_STRENGTH_LABEL}]${NC}  \033[u"
+        else
+            # Clear strength indicator
+            echo -ne "\033[s\033[50G              \033[u"
+        fi
+    done
+
+    # Final strength display
+    if [ ${#password} -gt 0 ]; then
+        strength_score=$(calculate_password_strength "$password")
+        echo -e "  Strength: ${PASSWORD_STRENGTH_COLOR}${PASSWORD_STRENGTH_LABEL}${NC} (${strength_score}/100)"
+    fi
+
+    # Set the variable
+    eval "$varname=\$password"
+}
+
+# Validate password meets minimum requirements
+validate_password() {
+    local password="$1"
+    local min_length=8
+    local errors=()
+
+    # Check length
+    if [ ${#password} -lt $min_length ]; then
+        errors+=("Password must be at least ${min_length} characters")
+    fi
+
+    # Check for at least one letter
+    if [[ ! "$password" =~ [a-zA-Z] ]]; then
+        errors+=("Password must contain at least one letter")
+    fi
+
+    # Check for at least one number or special character
+    if [[ ! "$password" =~ [0-9] ]] && [[ ! "$password" =~ [^a-zA-Z0-9] ]]; then
+        errors+=("Password must contain at least one number or special character")
+    fi
+
+    # Print errors and return status
+    if [ ${#errors[@]} -gt 0 ]; then
+        for error in "${errors[@]}"; do
+            print_error "$error"
+        done
+        return 1
+    fi
+
+    return 0
+}
+
 # Cleanup function for rollback
 cleanup_on_exit() {
     local exit_code=$?
@@ -579,24 +739,41 @@ gather_configuration() {
     safe_read "" "ADMIN_USER"
     ADMIN_USER=${ADMIN_USER:-admin}
 
-    # Admin password
+    # Admin password with strength feedback
+    echo
+    echo -e "${CYAN}Create admin password${NC}"
+    echo -e "${YELLOW}Requirements: 8+ characters, letters, and numbers/symbols${NC}"
+    echo
+
     while true; do
-        echo -e "${CYAN}Enter admin password:${NC}"
-        safe_read "-s" "ADMIN_PASS"
-        echo
+        # Read password with real-time strength feedback
+        read_password_with_feedback ADMIN_PASS
+
+        # Check if empty
         if [ -z "$ADMIN_PASS" ]; then
             print_error "Password cannot be empty"
+            echo
             continue
         fi
 
-        echo -e "${CYAN}Confirm admin password:${NC}"
+        # Validate password requirements
+        if ! validate_password "$ADMIN_PASS"; then
+            echo
+            continue
+        fi
+
+        # Confirm password
+        echo
+        echo -e "${CYAN}Confirm password:${NC}"
         safe_read "-s" "ADMIN_PASS_CONFIRM"
         echo
 
         if [ "$ADMIN_PASS" = "$ADMIN_PASS_CONFIRM" ]; then
+            print_success "Password accepted"
             break
         else
             print_error "Passwords do not match. Please try again."
+            echo
         fi
     done
 
