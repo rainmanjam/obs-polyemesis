@@ -543,6 +543,15 @@ create_directories() {
 generate_docker_compose() {
     print_info "Generating docker-compose configuration..."
 
+    # Determine internal ports based on SSL configuration
+    if [[ $ENABLE_SSL =~ ^[Yy]$ ]]; then
+        INTERNAL_HTTP_PORT=80
+        INTERNAL_HTTPS_PORT=8181
+    else
+        INTERNAL_HTTP_PORT=8080
+        INTERNAL_HTTPS_PORT=8181
+    fi
+
     cat > "$INSTALL_DIR/docker-compose.yml" << EOF
 version: '3.8'
 
@@ -552,8 +561,8 @@ services:
     container_name: restreamer
     restart: unless-stopped
     ports:
-      - "${HTTP_PORT}:8080"
-      - "${HTTPS_PORT}:8181"
+      - "${HTTP_PORT}:${INTERNAL_HTTP_PORT}"
+      - "${HTTPS_PORT}:${INTERNAL_HTTPS_PORT}"
       - "${RTMP_PORT}:1935"
       - "${SRT_PORT}:6000/udp"
     volumes:
@@ -565,17 +574,17 @@ EOF
     # Add SSL/TLS configuration if enabled
     if [[ $ENABLE_SSL =~ ^[Yy]$ ]]; then
         cat >> "$INSTALL_DIR/docker-compose.yml" << EOF
-      - CORE_ADDRESS=:80
-      - CORE_HOST_NAME=["${DOMAIN_NAME}"]
+      - CORE_ADDRESS=:${INTERNAL_HTTP_PORT}
+      - CORE_HOST_NAME=${DOMAIN_NAME}
       - CORE_HOST_AUTO=false
-      - CORE_TLS_ADDRESS=:8181
+      - CORE_TLS_ADDRESS=:${INTERNAL_HTTPS_PORT}
       - CORE_TLS_ENABLE=true
       - CORE_TLS_AUTO=true
       - CORE_TLS_EMAIL=${LETSENCRYPT_EMAIL}
 EOF
     else
         cat >> "$INSTALL_DIR/docker-compose.yml" << EOF
-      - CORE_ADDRESS=:8080
+      - CORE_ADDRESS=:${INTERNAL_HTTP_PORT}
 EOF
     fi
 
