@@ -205,6 +205,47 @@ check_requirements() {
     print_success "System requirements check passed"
 }
 
+# Update system packages
+update_system() {
+    print_header "\n=== System Update ==="
+
+    echo -e "${CYAN}Update and upgrade system packages before installation? [Y/n]:${NC}"
+    safe_read "-n 1 -r" "REPLY"
+    echo
+
+    if [[ $REPLY =~ ^[Nn]$ ]]; then
+        print_info "Skipping system update"
+        return 0
+    fi
+
+    print_info "Updating system packages..."
+
+    case "$DISTRO" in
+        ubuntu|debian|raspbian|linuxmint|pop|elementary|zorin|neon)
+            apt-get update
+            apt-get upgrade -y
+            ;;
+        rhel|centos|rocky|almalinux|ol)
+            yum update -y
+            ;;
+        fedora)
+            dnf update -y
+            ;;
+        amzn)
+            yum update -y
+            ;;
+        arch|manjaro|endeavouros)
+            pacman -Syu --noconfirm
+            ;;
+        *)
+            print_warning "Unknown distribution, skipping system update"
+            return 0
+            ;;
+    esac
+
+    print_success "System packages updated"
+}
+
 # Install Docker
 install_docker() {
     print_header "\n=== Docker Installation ==="
@@ -258,22 +299,33 @@ install_docker() {
 
     case "$DISTRO" in
         ubuntu|debian|raspbian|linuxmint|pop|elementary|zorin|neon)
-            # Remove old versions
+            # Remove old versions and conflicting packages
+            print_info "Removing old Docker versions..."
             apt-get remove -y docker docker-engine docker.io containerd runc 2>/dev/null || true
+            apt-get remove -y docker-ce docker-ce-cli containerd.io 2>/dev/null || true
+
+            # Clean up old Docker repository configuration
+            rm -f /etc/apt/sources.list.d/docker.list
+            rm -f /etc/apt/keyrings/docker.gpg
+            rm -f /usr/share/keyrings/docker-archive-keyring.gpg
 
             # Update package index
             apt-get update
 
             # Install dependencies
+            print_info "Installing dependencies..."
             apt-get install -y \
                 ca-certificates \
                 curl \
                 gnupg \
-                lsb-release
+                lsb-release \
+                apt-transport-https \
+                software-properties-common
 
             # Add Docker's official GPG key
+            print_info "Adding Docker GPG key..."
             install -m 0755 -d /etc/apt/keyrings
-            curl -fsSL "https://download.docker.com/linux/${DOCKER_REPO}/gpg" | gpg --dearmor -o /etc/apt/keyrings/docker.gpg
+            curl -fsSL "https://download.docker.com/linux/${DOCKER_REPO}/gpg" | gpg --batch --yes --dearmor -o /etc/apt/keyrings/docker.gpg
             chmod a+r /etc/apt/keyrings/docker.gpg
 
             # Set up repository (use VERSION_CODENAME for derivatives, fall back to lsb_release)
@@ -289,35 +341,56 @@ install_docker() {
                     CODENAME="${UBUNTU_CODENAME:-$CODENAME}"
                     ;;
             esac
+
+            print_info "Setting up Docker repository for ${DOCKER_REPO} (${CODENAME})..."
             echo \
                 "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.gpg] https://download.docker.com/linux/${DOCKER_REPO} \
                 ${CODENAME} stable" | tee /etc/apt/sources.list.d/docker.list > /dev/null
 
             # Install Docker
+            print_info "Installing Docker packages..."
             apt-get update
             apt-get install -y docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin
             ;;
 
         rhel|centos|fedora|rocky|almalinux|ol|amzn)
-            # Remove old versions
+            # Remove old versions and conflicting packages
+            print_info "Removing old Docker versions..."
             yum remove -y docker docker-client docker-client-latest docker-common docker-latest \
                 docker-latest-logrotate docker-logrotate docker-engine 2>/dev/null || true
+            yum remove -y docker-ce docker-ce-cli containerd.io 2>/dev/null || true
+
+            # Clean up old repository configuration
+            rm -f /etc/yum.repos.d/docker-ce.repo
 
             # Install dependencies
-            yum install -y yum-utils
+            print_info "Installing dependencies..."
+            if command -v dnf &> /dev/null; then
+                dnf install -y dnf-plugins-core
+            else
+                yum install -y yum-utils
+            fi
 
             # Set up repository
+            print_info "Setting up Docker repository for ${DOCKER_REPO}..."
             yum-config-manager --add-repo "https://download.docker.com/linux/${DOCKER_REPO}/docker-ce.repo"
 
             # Install Docker
+            print_info "Installing Docker packages..."
             yum install -y docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin
             ;;
 
         arch|manjaro|endeavouros)
+            # Remove old Docker if installed
+            print_info "Removing old Docker versions..."
+            pacman -Rns --noconfirm docker docker-compose 2>/dev/null || true
+
             # Update package database
+            print_info "Updating package database..."
             pacman -Sy
 
             # Install Docker
+            print_info "Installing Docker packages..."
             pacman -S --noconfirm docker docker-compose
             ;;
 
@@ -873,6 +946,7 @@ show_introduction() {
     echo
     echo -e "${GREEN}What this installer will do:${NC}"
     echo "  • Detect your Linux distribution and version"
+    echo "  • Update system packages (optional)"
     echo "  • Install Docker (if not already installed)"
     echo "  • Configure Restreamer with your custom settings"
     echo "  • Set up SSL/TLS with Let's Encrypt (optional)"
@@ -915,6 +989,7 @@ main() {
     check_root
     detect_distro
     check_requirements
+    update_system
     install_docker
     gather_configuration
     create_directories
