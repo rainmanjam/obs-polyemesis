@@ -4,8 +4,9 @@
 # An interactive installer for datarhei/restreamer on Linux
 #
 # Usage:
-#   curl -fsSL https://raw.githubusercontent.com/rainmanjam/obs-polyemesis/main/scripts/install-restreamer.sh | bash
-#
+#   curl -fsSL https://raw.githubusercontent.com/rainmanjam/obs-polyemesis/main/scripts/install-restreamer.sh | sudo bash
+#   OR
+#   curl -fsSL https://tinyurl.com/restreamer | sudo bash
 
 set -e
 
