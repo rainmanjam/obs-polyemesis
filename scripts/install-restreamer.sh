@@ -388,13 +388,16 @@ update_system() {
             apt-get upgrade -y -o Dpkg::Options::="--force-confdef" -o Dpkg::Options::="--force-confold"
             ;;
         rhel|centos|rocky|almalinux|ol)
-            yum update -y
+            # -y assumes yes, yum handles config conflicts with .rpmnew/.rpmsave
+            yum update -y --skip-broken
             ;;
         fedora)
-            dnf update -y
+            # -y assumes yes, dnf handles config conflicts with .rpmnew/.rpmsave
+            dnf update -y --skip-broken
             ;;
         amzn)
-            yum update -y
+            # -y assumes yes, yum handles config conflicts with .rpmnew/.rpmsave
+            yum update -y --skip-broken
             ;;
         arch|manjaro|endeavouros)
             pacman -Syu --noconfirm
