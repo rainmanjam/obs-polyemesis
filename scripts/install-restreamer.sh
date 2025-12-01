@@ -382,8 +382,10 @@ update_system() {
 
     case "$DISTRO" in
         ubuntu|debian|raspbian|linuxmint|pop|elementary|zorin|neon)
+            # Set non-interactive mode to prevent config file prompts
+            export DEBIAN_FRONTEND=noninteractive
             apt-get update
-            apt-get upgrade -y
+            apt-get upgrade -y -o Dpkg::Options::="--force-confdef" -o Dpkg::Options::="--force-confold"
             ;;
         rhel|centos|rocky|almalinux|ol)
             yum update -y
@@ -459,6 +461,9 @@ install_docker() {
 
     case "$DISTRO" in
         ubuntu|debian|raspbian|linuxmint|pop|elementary|zorin|neon)
+            # Set non-interactive mode to prevent config file prompts
+            export DEBIAN_FRONTEND=noninteractive
+
             # Remove old versions and conflicting packages
             print_info "Removing old Docker versions..."
             apt-get remove -y docker docker-engine docker.io containerd runc 2>/dev/null || true
