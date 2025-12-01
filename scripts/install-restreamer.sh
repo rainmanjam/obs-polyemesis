@@ -1099,8 +1099,9 @@ print_final_instructions() {
 
     echo
     echo -e "${GREEN}RTMP/SRT Endpoints:${NC}"
-    echo -e "  RTMP:        ${CYAN}rtmp://$(hostname -I | awk '{print $1}'):${RTMP_PORT}/live${NC}"
+    echo -e "  RTMP:        ${CYAN}rtmp://$(hostname -I | awk '{print $1}'):${RTMP_PORT}/<stream-key>${NC}"
     echo -e "  SRT:         ${CYAN}srt://$(hostname -I | awk '{print $1}'):${SRT_PORT}${NC}"
+    echo -e "  ${YELLOW}(Configure stream keys in Restreamer UI → Channel → Settings → Ingest)${NC}"
 
     echo
     echo -e "${GREEN}Useful Commands:${NC}"
