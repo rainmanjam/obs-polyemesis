@@ -317,7 +317,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Contributors
 
 - rainmanjam - Initial development and implementation
-- Claude (Anthropic) - Development assistance
 
 ### Bug Fixes
 

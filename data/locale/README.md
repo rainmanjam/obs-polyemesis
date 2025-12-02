@@ -7,16 +7,16 @@ This directory contains localization files for OBS Polyemesis in multiple langua
 | Language | Code | Status | Translator |
 |----------|------|--------|------------|
 | English (US) | en-US | ✅ Complete | Official |
-| Japanese | ja-JP | ✅ Complete | Claude (AI Translation) |
-| Korean | ko-KR | ✅ Complete | Claude (AI Translation) |
-| Simplified Chinese | zh-CN | ✅ Complete | Claude (AI Translation) |
-| Traditional Chinese | zh-TW | ✅ Complete | Claude (AI Translation) |
-| Spanish | es-ES | ✅ Complete | Claude (AI Translation) |
-| Brazilian Portuguese | pt-BR | ✅ Complete | Claude (AI Translation) |
-| German | de-DE | ✅ Complete | Claude (AI Translation) |
-| French | fr-FR | ✅ Complete | Claude (AI Translation) |
-| Russian | ru-RU | ✅ Complete | Claude (AI Translation) |
-| Italian | it-IT | ✅ Complete | Claude (AI Translation) |
+| Japanese | ja-JP | ✅ Complete | AI Translation |
+| Korean | ko-KR | ✅ Complete | AI Translation |
+| Simplified Chinese | zh-CN | ✅ Complete | AI Translation |
+| Traditional Chinese | zh-TW | ✅ Complete | AI Translation |
+| Spanish | es-ES | ✅ Complete | AI Translation |
+| Brazilian Portuguese | pt-BR | ✅ Complete | AI Translation |
+| German | de-DE | ✅ Complete | AI Translation |
+| French | fr-FR | ✅ Complete | AI Translation |
+| Russian | ru-RU | ✅ Complete | AI Translation |
+| Italian | it-IT | ✅ Complete | AI Translation |
 
 **Note:** All translations are AI-generated and may benefit from native speaker review. Community contributions to refine translations are welcome!
 
