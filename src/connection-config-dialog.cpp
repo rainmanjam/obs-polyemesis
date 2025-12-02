@@ -4,6 +4,7 @@
 
 #include "connection-config-dialog.h"
 #include "obs-helpers.hpp"
+#include "obs-theme-utils.h"
 #include "restreamer-config.h"
 #include <QFormLayout>
 #include <QGroupBox>
@@ -68,9 +69,10 @@ void ConnectionConfigDialog::setupUI() {
 
   /* Help text for URL field */
   QLabel *urlHelpLabel =
-      new QLabel("<small style='color: #888;'>Tip: Include port number if not "
-                 "using standard ports (80/443)</small>");
+      new QLabel("<small>Tip: Include port number if not using standard ports (80/443)</small>");
   urlHelpLabel->setWordWrap(true);
+  urlHelpLabel->setStyleSheet(
+      QString("color: %1; font-size: 11px;").arg(obs_theme_get_muted_color().name()));
   formLayout->addRow("", urlHelpLabel);
 
   /* Username Input */

@@ -10,6 +10,7 @@
 #include <QDialog>
 #include <QLabel>
 #include <QLineEdit>
+#include <QListWidget>
 #include <QPushButton>
 #include <QSpinBox>
 #include <QTabWidget>
@@ -47,11 +48,20 @@ private slots:
   void onAutoDetectChanged(bool checked);
   void onAutoReconnectChanged(bool checked);
   void onHealthMonitoringChanged(bool checked);
+  void onOutputSelectionChanged();
+  void onAddOutput();
+  void onEditOutput();
+  void onRemoveOutput();
 
 private:
   void setupUI();
   void loadChannelSettings();
   void validateAndSave();
+  bool isValidRtmpUrl(const QString &url);
+  void populateOutputsList();
+  void updateOutputDetails(int index);
+  QString getServiceName(int service) const;
+  QString getOrientationName(int orientation) const;
 
   /* Channel being edited */
   stream_channel_t *m_channel;
@@ -74,6 +84,13 @@ private:
   QCheckBox *m_healthMonitoringCheckBox;
   QSpinBox *m_healthCheckIntervalSpin;
   QSpinBox *m_failureThresholdSpin;
+
+  /* UI Elements - Outputs Tab */
+  QListWidget *m_outputsList;
+  QPushButton *m_addOutputButton;
+  QPushButton *m_editOutputButton;
+  QPushButton *m_removeOutputButton;
+  QLabel *m_outputDetailsLabel;
 
   /* Dialog buttons */
   QPushButton *m_saveButton;

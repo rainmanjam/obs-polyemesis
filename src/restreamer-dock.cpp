@@ -588,6 +588,51 @@ void RestreamerDock::setupUI() {
 
     mainLayout->addWidget(settingsGroup);
 
+    /* ===== Bridge Settings Group ===== */
+    QGroupBox *bridgeGroup = new QGroupBox("OBS Bridge Settings");
+    QFormLayout *bridgeForm = new QFormLayout(bridgeGroup);
+    bridgeForm->setSpacing(12);
+    bridgeForm->setContentsMargins(16, 16, 16, 16);
+
+    /* Horizontal URL */
+    QLineEdit *bridgeHorizontalEdit = new QLineEdit();
+    const char *hUrl = obs_data_get_string(settings, "bridge_horizontal_url");
+    bridgeHorizontalEdit->setText(
+        hUrl && strlen(hUrl) > 0 ? hUrl : "rtmp://localhost/live/obs_horizontal");
+    bridgeHorizontalEdit->setPlaceholderText("rtmp://localhost/live/obs_horizontal");
+    bridgeHorizontalEdit->setToolTip(
+        "RTMP URL for horizontal (16:9) output from OBS to Restreamer");
+    bridgeForm->addRow("Horizontal RTMP URL:", bridgeHorizontalEdit);
+
+    /* Vertical URL */
+    QLineEdit *bridgeVerticalEdit = new QLineEdit();
+    const char *vUrl = obs_data_get_string(settings, "bridge_vertical_url");
+    bridgeVerticalEdit->setText(
+        vUrl && strlen(vUrl) > 0 ? vUrl : "rtmp://localhost/live/obs_vertical");
+    bridgeVerticalEdit->setPlaceholderText("rtmp://localhost/live/obs_vertical");
+    bridgeVerticalEdit->setToolTip(
+        "RTMP URL for vertical (9:16) output from OBS to Restreamer");
+    bridgeForm->addRow("Vertical RTMP URL:", bridgeVerticalEdit);
+
+    /* Auto-start checkbox */
+    QCheckBox *bridgeAutoStartCheck = new QCheckBox("Auto-start bridge when OBS starts streaming");
+    bridgeAutoStartCheck->setChecked(
+        obs_data_get_bool(settings, "bridge_auto_start"));
+    bridgeAutoStartCheck->setToolTip(
+        "Automatically start the OBS bridge when you begin streaming in OBS");
+    bridgeForm->addRow("", bridgeAutoStartCheck);
+
+    /* Bridge status info */
+    QLabel *bridgeStatusInfo = new QLabel(
+        "<small>The OBS Bridge routes video from OBS to Restreamer for multi-platform streaming. "
+        "Configure URLs to match your Restreamer inputs.</small>");
+    bridgeStatusInfo->setWordWrap(true);
+    bridgeStatusInfo->setStyleSheet(
+        QString("color: %1; font-size: 11px;").arg(obs_theme_get_muted_color().name()));
+    bridgeForm->addRow("", bridgeStatusInfo);
+
+    mainLayout->addWidget(bridgeGroup);
+
     /* Info Label */
     QLabel *infoLabel = new QLabel(
         "Note: Changes to these settings will take effect after restarting "
@@ -620,6 +665,33 @@ void RestreamerDock::setupUI() {
       obs_data_set_string(
           settings, "buffer_size",
           bufferSizeCombo->currentData().toString().toUtf8().constData());
+
+      /* Save bridge settings */
+      obs_data_set_string(
+          settings, "bridge_horizontal_url",
+          bridgeHorizontalEdit->text().trimmed().toUtf8().constData());
+      obs_data_set_string(
+          settings, "bridge_vertical_url",
+          bridgeVerticalEdit->text().trimmed().toUtf8().constData());
+      obs_data_set_bool(settings, "bridge_auto_start",
+                        bridgeAutoStartCheck->isChecked());
+
+      /* Update bridge configuration if bridge exists */
+      if (bridge) {
+        obs_bridge_config_t bridgeConfig = {0};
+        bridgeConfig.rtmp_horizontal_url = bstrdup(
+            bridgeHorizontalEdit->text().trimmed().toUtf8().constData());
+        bridgeConfig.rtmp_vertical_url = bstrdup(
+            bridgeVerticalEdit->text().trimmed().toUtf8().constData());
+        bridgeConfig.auto_start_enabled = bridgeAutoStartCheck->isChecked();
+        bridgeConfig.show_vertical_notification = true;
+        bridgeConfig.show_preflight_check = true;
+
+        obs_bridge_set_config(bridge, &bridgeConfig);
+
+        bfree(bridgeConfig.rtmp_horizontal_url);
+        bfree(bridgeConfig.rtmp_vertical_url);
+      }
 
       /* Save to config file */
       const char *config_path = obs_module_config_path("config.json");
@@ -684,6 +756,44 @@ void RestreamerDock::setupUI() {
             ? obs_data_get_bool(settings, "show_notifications")
             : true); /* Default: enabled */
 
+    /* Reset All Settings button */
+    QPushButton *resetButton = new QPushButton("Reset All Settings");
+    resetButton->setStyleSheet("color: #ff6b6b;");
+    resetButton->setToolTip(
+        "Delete all plugin settings and restore defaults.\n"
+        "This will clear connection settings, channels, and preferences.");
+    connect(resetButton, &QPushButton::clicked, dialog, [this, dialog]() {
+      QMessageBox::StandardButton reply = QMessageBox::warning(
+          dialog, "Reset All Settings",
+          "This will delete ALL plugin settings including:\n\n"
+          "• Connection configuration\n"
+          "• All channels and outputs\n"
+          "• Preferences and saved states\n\n"
+          "OBS will need to be restarted after reset.\n\n"
+          "Are you sure you want to continue?",
+          QMessageBox::Yes | QMessageBox::No, QMessageBox::No);
+
+      if (reply == QMessageBox::Yes) {
+        const char *config_dir = obs_module_config_path("");
+
+        /* Delete config files using Qt */
+        QFile::remove(obs_module_config_path("config.json"));
+        QFile::remove(obs_module_config_path("config.json.bak"));
+        QFile::remove(obs_module_config_path("config.json.tmp"));
+
+        obs_log(LOG_INFO, "Plugin settings reset - config deleted from %s",
+                config_dir);
+
+        QMessageBox::information(
+            dialog, "Settings Reset",
+            "All settings have been deleted.\n\n"
+            "Please restart OBS for changes to take effect.");
+
+        dialog->accept();
+      }
+    });
+    formLayout->addRow("", resetButton);
+
     /* Add buttons */
     QDialogButtonBox *buttonBox =
         new QDialogButtonBox(QDialogButtonBox::Ok | QDialogButtonBox::Cancel);
@@ -730,6 +840,8 @@ void RestreamerDock::setupUI() {
     layout->addWidget(buttonBox);
 
     dialog->exec();
+    /* Disconnect all signals from dialog and its children to this before deletion */
+    disconnect(dialog, nullptr, this, nullptr);
     dialog->deleteLater();
   });
 
@@ -832,7 +944,13 @@ void RestreamerDock::loadSettings() {
 }
 
 void RestreamerDock::saveSettings() {
-  OBSDataAutoRelease settings(obs_data_create());
+  /* Load existing settings first to preserve connection config */
+  OBSDataAutoRelease settings(obs_data_create_from_json_file_safe(
+      obs_module_config_path("config.json"), "bak"));
+
+  if (!settings) {
+    settings = OBSDataAutoRelease(obs_data_create());
+  }
 
   /* Connection settings now handled by ConnectionConfigDialog */
 
@@ -1685,12 +1803,30 @@ void RestreamerDock::updateChannelList() {
             &RestreamerDock::onChannelDuplicateRequested);
 
     /* Connect destination control signals */
+    connect(profileWidget, &ChannelWidget::outputAddRequested, this,
+            &RestreamerDock::onOutputAddRequested);
     connect(profileWidget, &ChannelWidget::outputStartRequested, this,
             &RestreamerDock::onOutputStartRequested);
     connect(profileWidget, &ChannelWidget::outputStopRequested, this,
             &RestreamerDock::onOutputStopRequested);
+    connect(profileWidget, &ChannelWidget::outputRestartRequested, this,
+            &RestreamerDock::onOutputRestartRequested);
     connect(profileWidget, &ChannelWidget::outputEditRequested, this,
             &RestreamerDock::onOutputEditRequested);
+    connect(profileWidget, &ChannelWidget::outputRemoveRequested, this,
+            &RestreamerDock::onOutputRemoveRequested);
+    connect(profileWidget, &ChannelWidget::outputViewStatsRequested, this,
+            &RestreamerDock::onOutputViewStatsRequested);
+    connect(profileWidget, &ChannelWidget::outputViewLogsRequested, this,
+            &RestreamerDock::onOutputViewLogsRequested);
+
+    /* Connect preview mode signals */
+    connect(profileWidget, &ChannelWidget::previewStartRequested, this,
+            &RestreamerDock::onPreviewStartRequested);
+    connect(profileWidget, &ChannelWidget::previewGoLiveRequested, this,
+            &RestreamerDock::onPreviewGoLiveRequested);
+    connect(profileWidget, &ChannelWidget::previewCancelRequested, this,
+            &RestreamerDock::onPreviewCancelRequested);
 
     /* Add widget to layout and track it */
     channelListLayout->addWidget(profileWidget);
@@ -1713,7 +1849,8 @@ void RestreamerDock::onStartAllChannelsClicked() {
   }
 
   if (channel_manager_start_all(channelManager)) {
-    updateChannelList();
+    /* Defer update to allow any pending event processing */
+    QTimer::singleShot(0, this, [this]() { updateChannelList(); });
   } else {
     QMessageBox::warning(
         this, "Error",
@@ -1734,7 +1871,8 @@ void RestreamerDock::onStopAllChannelsClicked() {
 
   if (reply == QMessageBox::Yes) {
     if (channel_manager_stop_all(channelManager)) {
-      updateChannelList();
+      /* Defer update to allow any pending event processing */
+      QTimer::singleShot(0, this, [this]() { updateChannelList(); });
     } else {
       QMessageBox::warning(this, "Error", "Failed to stop all profiles.");
     }
@@ -1781,7 +1919,8 @@ void RestreamerDock::onChannelStartRequested(const char *profileId) {
   }
 
   if (channel_start(channelManager, profileId)) {
-    updateChannelList();
+    /* Defer update to allow event processing (context menu may still be active) */
+    QTimer::singleShot(0, this, [this]() { updateChannelList(); });
   } else {
     QMessageBox::warning(
         this, "Error", "Failed to start channel. Check Restreamer connection.");
@@ -1794,7 +1933,8 @@ void RestreamerDock::onChannelStopRequested(const char *profileId) {
   }
 
   if (channel_stop(channelManager, profileId)) {
-    updateChannelList();
+    /* Defer update to allow event processing (context menu may still be active) */
+    QTimer::singleShot(0, this, [this]() { updateChannelList(); });
   } else {
     QMessageBox::warning(this, "Error", "Failed to stop channel.");
   }
@@ -1815,15 +1955,19 @@ void RestreamerDock::onChannelEditRequested(const char *profileId) {
   ChannelEditDialog *dialog = new ChannelEditDialog(profile, this);
   connect(dialog, &ChannelEditDialog::channelUpdated, this, [this]() {
     obs_log(LOG_INFO, "Channel configuration updated, refreshing UI");
-    updateChannelList();
+    /* Defer update to allow event processing (context menu may still be active) */
+    QTimer::singleShot(0, this, [this]() { updateChannelList(); });
   });
 
   if (dialog->exec() == QDialog::Accepted) {
     obs_log(LOG_INFO, "Channel '%s' updated successfully",
             profile->channel_name);
-    updateChannelList();
+    /* Defer update to allow event processing (context menu may still be active) */
+    QTimer::singleShot(0, this, [this]() { updateChannelList(); });
   }
 
+  /* Disconnect all signals from dialog before deletion to prevent dangling connections */
+  disconnect(dialog, nullptr, this, nullptr);
   dialog->deleteLater();
 }
 
@@ -1917,6 +2061,325 @@ void RestreamerDock::onChannelDuplicateRequested(const char *profileId) {
 
 /* Output Control Signal Handlers */
 
+void RestreamerDock::onOutputAddRequested(const char *channelId) {
+  if (!channelManager || !channelId) {
+    return;
+  }
+
+  stream_channel_t *channel =
+      channel_manager_get_channel(channelManager, channelId);
+  if (!channel) {
+    obs_log(LOG_ERROR, "Channel not found: %s", channelId);
+    return;
+  }
+
+  /* Create dialog to add a new output */
+  QDialog dialog(this);
+  dialog.setWindowTitle(
+      QString("Add Output to %1").arg(channel->channel_name));
+  dialog.setMinimumWidth(500);
+
+  QVBoxLayout *layout = new QVBoxLayout(&dialog);
+
+  QGroupBox *formGroup = new QGroupBox("Output Settings");
+  QGridLayout *formLayout = new QGridLayout();
+  formLayout->setColumnStretch(1, 1);
+  formLayout->setHorizontalSpacing(10);
+  formLayout->setVerticalSpacing(10);
+
+  /* Service selection combo box */
+  QComboBox *serviceCombo = new QComboBox();
+  serviceCombo->setMinimumWidth(300);
+
+  /* Show common services first, then a separator, then all services */
+  QStringList commonServices = serviceLoader->getCommonServiceNames();
+  QStringList allServices = serviceLoader->getServiceNames();
+
+  /* Add common services */
+  for (const QString &serviceName : commonServices) {
+    serviceCombo->addItem(serviceName, serviceName);
+  }
+
+  /* Add separator if we have common services */
+  if (!commonServices.isEmpty() && commonServices.size() < allServices.size()) {
+    serviceCombo->insertSeparator(serviceCombo->count());
+    serviceCombo->addItem("-- Show All Services --", QString());
+    serviceCombo->insertSeparator(serviceCombo->count());
+
+    /* Add remaining services */
+    for (const QString &serviceName : allServices) {
+      if (!commonServices.contains(serviceName)) {
+        serviceCombo->addItem(serviceName, serviceName);
+      }
+    }
+  }
+
+  /* Add Custom RTMP option */
+  serviceCombo->insertSeparator(serviceCombo->count());
+  serviceCombo->addItem("Custom RTMP Server", "custom");
+
+  /* Create labels */
+  QLabel *serviceLabel = new QLabel("Service:");
+  serviceLabel->setAlignment(Qt::AlignRight | Qt::AlignVCenter);
+
+  QLabel *serverLabel = new QLabel("Server:");
+  serverLabel->setAlignment(Qt::AlignRight | Qt::AlignVCenter);
+
+  QLabel *customUrlLabel = new QLabel("RTMP URL:");
+  customUrlLabel->setAlignment(Qt::AlignRight | Qt::AlignVCenter);
+
+  QLabel *streamKeyLabel = new QLabel("Stream Key:");
+  streamKeyLabel->setAlignment(Qt::AlignRight | Qt::AlignVCenter);
+
+  QLabel *orientationLabel = new QLabel("Orientation:");
+  orientationLabel->setAlignment(Qt::AlignRight | Qt::AlignVCenter);
+
+  /* Server selection combo box */
+  QComboBox *serverCombo = new QComboBox();
+  serverCombo->setMinimumWidth(300);
+
+  /* Custom server URL field */
+  QLineEdit *customUrlEdit = new QLineEdit();
+  customUrlEdit->setPlaceholderText("rtmp://your-server/live");
+  customUrlEdit->setMinimumWidth(300);
+
+  /* Stream key field */
+  QLineEdit *streamKeyEdit = new QLineEdit();
+  streamKeyEdit->setPlaceholderText("Enter your stream key");
+  streamKeyEdit->setMinimumWidth(300);
+
+  /* Stream key help label */
+  QLabel *streamKeyHelpLabel = new QLabel();
+  streamKeyHelpLabel->setOpenExternalLinks(true);
+  streamKeyHelpLabel->setWordWrap(true);
+  streamKeyHelpLabel->setStyleSheet(
+      QString("QLabel { color: %1; font-size: 11px; }")
+          .arg(obs_theme_get_info_color().name()));
+
+  /* Orientation selection */
+  QComboBox *orientationCombo = new QComboBox();
+  orientationCombo->addItem("Auto", ORIENTATION_AUTO);
+  orientationCombo->addItem("Horizontal (16:9)", ORIENTATION_HORIZONTAL);
+  orientationCombo->addItem("Vertical (9:16)", ORIENTATION_VERTICAL);
+  orientationCombo->addItem("Square (1:1)", ORIENTATION_SQUARE);
+  orientationCombo->setMinimumWidth(300);
+
+  /* Update server list when service changes */
+  auto updateServerList = [this, serviceCombo, serverCombo, streamKeyHelpLabel,
+                           customUrlEdit, streamKeyEdit, serverLabel,
+                           customUrlLabel, streamKeyLabel]() {
+    QString selectedService = serviceCombo->currentData().toString();
+    serverCombo->clear();
+    streamKeyHelpLabel->clear();
+
+    if (selectedService == "custom") {
+      /* Custom RTMP mode */
+      serverLabel->setVisible(false);
+      serverCombo->setVisible(false);
+      streamKeyLabel->setVisible(true);
+      streamKeyEdit->setVisible(true);
+      customUrlLabel->setVisible(true);
+      customUrlEdit->setVisible(true);
+      streamKeyHelpLabel->setText(
+          "Enter the RTMP server URL (without stream key)");
+    } else if (!selectedService.isEmpty() &&
+               selectedService != "-- Show All Services --") {
+      /* Regular service mode */
+      customUrlLabel->setVisible(false);
+      customUrlEdit->setVisible(false);
+      serverLabel->setVisible(true);
+      serverCombo->setVisible(true);
+      streamKeyLabel->setVisible(true);
+      streamKeyEdit->setVisible(true);
+
+      /* Load servers for the selected service */
+      const StreamingService *service =
+          serviceLoader->getService(selectedService);
+      if (service) {
+        for (const StreamingServer &server : service->servers) {
+          serverCombo->addItem(server.name, server.url);
+        }
+
+        /* Update stream key help link */
+        if (!service->stream_key_link.isEmpty()) {
+          streamKeyHelpLabel->setText(
+              QString("<a href=\"%1\">Get your stream key</a>")
+                  .arg(service->stream_key_link));
+        }
+      }
+    }
+  };
+
+  connect(serviceCombo, QOverload<int>::of(&QComboBox::currentIndexChanged),
+          updateServerList);
+
+  /* Add widgets to grid layout */
+  int row = 0;
+  formLayout->addWidget(serviceLabel, row, 0);
+  formLayout->addWidget(serviceCombo, row, 1);
+  row++;
+
+  formLayout->addWidget(serverLabel, row, 0);
+  formLayout->addWidget(serverCombo, row, 1);
+  row++;
+
+  formLayout->addWidget(customUrlLabel, row, 0);
+  formLayout->addWidget(customUrlEdit, row, 1);
+  row++;
+
+  formLayout->addWidget(streamKeyLabel, row, 0);
+  formLayout->addWidget(streamKeyEdit, row, 1);
+  row++;
+
+  formLayout->addWidget(streamKeyHelpLabel, row, 1);
+  row++;
+
+  formLayout->addWidget(orientationLabel, row, 0);
+  formLayout->addWidget(orientationCombo, row, 1);
+
+  /* Initially hide custom URL fields */
+  customUrlLabel->setVisible(false);
+  customUrlEdit->setVisible(false);
+
+  formGroup->setLayout(formLayout);
+  layout->addWidget(formGroup);
+
+  /* Encoding Settings Group */
+  QGroupBox *encodingGroup = new QGroupBox("Encoding Settings (Optional)");
+  QFormLayout *encodingLayout = new QFormLayout(encodingGroup);
+
+  QSpinBox *bitrateSpinBox = new QSpinBox();
+  bitrateSpinBox->setRange(0, 50000);
+  bitrateSpinBox->setSuffix(" kbps");
+  bitrateSpinBox->setValue(0);
+  bitrateSpinBox->setSpecialValueText("Default");
+  encodingLayout->addRow("Video Bitrate:", bitrateSpinBox);
+
+  QSpinBox *widthSpinBox = new QSpinBox();
+  widthSpinBox->setRange(0, 7680);
+  widthSpinBox->setValue(0);
+  widthSpinBox->setSpecialValueText("Source");
+  encodingLayout->addRow("Width:", widthSpinBox);
+
+  QSpinBox *heightSpinBox = new QSpinBox();
+  heightSpinBox->setRange(0, 4320);
+  heightSpinBox->setValue(0);
+  heightSpinBox->setSpecialValueText("Source");
+  encodingLayout->addRow("Height:", heightSpinBox);
+
+  QSpinBox *audioBitrateSpinBox = new QSpinBox();
+  audioBitrateSpinBox->setRange(0, 320);
+  audioBitrateSpinBox->setSuffix(" kbps");
+  audioBitrateSpinBox->setValue(0);
+  audioBitrateSpinBox->setSpecialValueText("Default");
+  encodingLayout->addRow("Audio Bitrate:", audioBitrateSpinBox);
+
+  layout->addWidget(encodingGroup);
+
+  /* Info label */
+  QLabel *infoLabel = new QLabel(
+      "Tip: Select a streaming service and enter your stream key. "
+      "Leave encoding settings at default to use channel settings.");
+  infoLabel->setWordWrap(true);
+  infoLabel->setStyleSheet(
+      QString("QLabel { color: %1; font-size: 10px; padding: 10px; }")
+          .arg(obs_theme_get_muted_color().name()));
+  layout->addWidget(infoLabel);
+
+  QDialogButtonBox *buttonBox =
+      new QDialogButtonBox(QDialogButtonBox::Ok | QDialogButtonBox::Cancel);
+  connect(buttonBox, &QDialogButtonBox::accepted, &dialog, &QDialog::accept);
+  connect(buttonBox, &QDialogButtonBox::rejected, &dialog, &QDialog::reject);
+  layout->addWidget(buttonBox);
+
+  /* Initialize server list for default selection */
+  updateServerList();
+
+  if (dialog.exec() == QDialog::Accepted) {
+    QString selectedService = serviceCombo->currentData().toString();
+    QString streamKey = streamKeyEdit->text().trimmed();
+    QString rtmpUrl;
+    streaming_service_t service = SERVICE_CUSTOM;
+
+    if (selectedService == "custom") {
+      rtmpUrl = customUrlEdit->text().trimmed();
+      if (rtmpUrl.isEmpty()) {
+        QMessageBox::warning(this, "Error", "Please enter an RTMP URL.");
+        return;
+      }
+    } else {
+      rtmpUrl = serverCombo->currentData().toString();
+      if (rtmpUrl.isEmpty()) {
+        QMessageBox::warning(this, "Error", "Please select a server.");
+        return;
+      }
+
+      /* Map service name to streaming_service_t */
+      QString serviceLower = selectedService.toLower();
+      if (serviceLower.contains("twitch")) {
+        service = SERVICE_TWITCH;
+      } else if (serviceLower.contains("youtube")) {
+        service = SERVICE_YOUTUBE;
+      } else if (serviceLower.contains("facebook")) {
+        service = SERVICE_FACEBOOK;
+      } else if (serviceLower.contains("kick")) {
+        service = SERVICE_KICK;
+      } else if (serviceLower.contains("tiktok")) {
+        service = SERVICE_TIKTOK;
+      } else if (serviceLower.contains("instagram")) {
+        service = SERVICE_INSTAGRAM;
+      } else if (serviceLower.contains("twitter") || serviceLower.contains("x ")) {
+        service = SERVICE_X_TWITTER;
+      }
+    }
+
+    if (streamKey.isEmpty() && selectedService != "custom") {
+      QMessageBox::warning(this, "Error", "Please enter a stream key.");
+      return;
+    }
+
+    /* Get orientation */
+    stream_orientation_t orientation =
+        (stream_orientation_t)orientationCombo->currentData().toInt();
+
+    /* Build encoding settings */
+    encoding_settings_t encoding = {0};
+    encoding.bitrate = bitrateSpinBox->value();
+    encoding.width = widthSpinBox->value();
+    encoding.height = heightSpinBox->value();
+    encoding.audio_bitrate = audioBitrateSpinBox->value();
+
+    /* Add output to channel */
+    if (channel_add_output(channel, service, streamKey.toUtf8().constData(),
+                           orientation, &encoding)) {
+      /* Update the RTMP URL if custom */
+      if (service == SERVICE_CUSTOM && channel->output_count > 0) {
+        channel_output_t *newOutput =
+            &channel->outputs[channel->output_count - 1];
+        bfree(newOutput->rtmp_url);
+        newOutput->rtmp_url = bstrdup(rtmpUrl.toUtf8().constData());
+
+        /* Set a descriptive service name for custom */
+        bfree(newOutput->service_name);
+        newOutput->service_name = bstrdup("Custom RTMP");
+      }
+
+      obs_log(LOG_INFO, "Added output to channel '%s': %s",
+              channel->channel_name,
+              service == SERVICE_CUSTOM ? "Custom RTMP"
+                                        : selectedService.toUtf8().constData());
+
+      /* Defer update to allow event processing (context menu may still be active) */
+      QTimer::singleShot(0, this, [this]() {
+        updateChannelList();
+        saveSettings();
+      });
+    } else {
+      QMessageBox::warning(this, "Error", "Failed to add output to channel.");
+    }
+  }
+}
+
 void RestreamerDock::onOutputStartRequested(const char *profileId,
                                                  size_t destIndex) {
   if (!channelManager || !api || !profileId) {
@@ -1957,7 +2420,8 @@ void RestreamerDock::onOutputStartRequested(const char *profileId,
   size_t indices[] = {destIndex};
   if (channel_bulk_start_outputs(profile, api, indices, 1)) {
     obs_log(LOG_INFO, "Started output: %s", dest->service_name);
-    updateChannelList();
+    /* Defer update to allow event processing (context menu may still be active) */
+    QTimer::singleShot(0, this, [this]() { updateChannelList(); });
   } else {
     QMessageBox::warning(
         this, "Error",
@@ -2005,7 +2469,8 @@ void RestreamerDock::onOutputStopRequested(const char *profileId,
   size_t indices[] = {destIndex};
   if (channel_bulk_stop_outputs(profile, api, indices, 1)) {
     obs_log(LOG_INFO, "Stopped output: %s", dest->service_name);
-    updateChannelList();
+    /* Defer update to allow event processing (context menu may still be active) */
+    QTimer::singleShot(0, this, [this]() { updateChannelList(); });
   } else {
     QMessageBox::warning(
         this, "Error",
@@ -2131,10 +2596,345 @@ void RestreamerDock::onOutputEditRequested(const char *profileId,
       }
     }
 
-    updateChannelList();
-    saveSettings();
+    /* Defer update to allow event processing (context menu may still be active) */
+    QTimer::singleShot(0, this, [this]() {
+      updateChannelList();
+      saveSettings();
+    });
 
     obs_log(LOG_INFO, "Output '%s' settings updated", dest->service_name);
+  }
+}
+
+void RestreamerDock::onOutputRestartRequested(const char *channelId,
+                                              size_t outputIndex) {
+  if (!channelManager || !api || !channelId) {
+    return;
+  }
+
+  stream_channel_t *channel =
+      channel_manager_get_channel(channelManager, channelId);
+  if (!channel) {
+    obs_log(LOG_ERROR, "Channel not found: %s", channelId);
+    return;
+  }
+
+  if (outputIndex >= channel->output_count) {
+    obs_log(LOG_ERROR, "Invalid output index: %zu", outputIndex);
+    return;
+  }
+
+  channel_output_t *output = &channel->outputs[outputIndex];
+
+  /* Check if channel is active */
+  if (channel->status != CHANNEL_STATUS_ACTIVE) {
+    QMessageBox::warning(
+        this, "Cannot Restart Output",
+        QString("Channel '%1' must be active to restart outputs.")
+            .arg(channel->channel_name));
+    return;
+  }
+
+  obs_log(LOG_INFO, "Restarting output: %s", output->service_name);
+
+  /* Stop then start the output */
+  size_t indices[] = {outputIndex};
+  if (channel_bulk_stop_outputs(channel, api, indices, 1)) {
+    /* Brief delay before restart */
+    QTimer::singleShot(1000, this, [this, channelId, outputIndex]() {
+      stream_channel_t *ch =
+          channel_manager_get_channel(channelManager, channelId);
+      if (ch && outputIndex < ch->output_count) {
+        size_t idx[] = {outputIndex};
+        if (channel_bulk_start_outputs(ch, api, idx, 1)) {
+          obs_log(LOG_INFO, "Output restarted successfully");
+        } else {
+          obs_log(LOG_ERROR, "Failed to restart output");
+        }
+        updateChannelList();
+      }
+    });
+  } else {
+    QMessageBox::warning(this, "Error", "Failed to stop output for restart.");
+  }
+}
+
+void RestreamerDock::onOutputRemoveRequested(const char *channelId,
+                                             size_t outputIndex) {
+  if (!channelManager || !channelId) {
+    return;
+  }
+
+  stream_channel_t *channel =
+      channel_manager_get_channel(channelManager, channelId);
+  if (!channel) {
+    obs_log(LOG_ERROR, "Channel not found: %s", channelId);
+    return;
+  }
+
+  if (outputIndex >= channel->output_count) {
+    obs_log(LOG_ERROR, "Invalid output index: %zu", outputIndex);
+    return;
+  }
+
+  channel_output_t *output = &channel->outputs[outputIndex];
+  QString serviceName = output->service_name ? output->service_name : "Unknown";
+
+  /* Confirm removal */
+  QMessageBox::StandardButton reply = QMessageBox::question(
+      this, "Remove Output",
+      QString("Are you sure you want to remove the '%1' output from channel "
+              "'%2'?")
+          .arg(serviceName)
+          .arg(channel->channel_name),
+      QMessageBox::Yes | QMessageBox::No);
+
+  if (reply == QMessageBox::Yes) {
+    /* Check if channel is active - warn user */
+    if (channel->status == CHANNEL_STATUS_ACTIVE) {
+      QMessageBox::StandardButton activeReply = QMessageBox::warning(
+          this, "Channel Active",
+          "This channel is currently streaming. Removing the output will stop "
+          "streaming to this destination. Continue?",
+          QMessageBox::Yes | QMessageBox::No);
+
+      if (activeReply != QMessageBox::Yes) {
+        return;
+      }
+    }
+
+    if (channel_remove_output(channel, outputIndex)) {
+      obs_log(LOG_INFO, "Removed output '%s' from channel '%s'",
+              serviceName.toUtf8().constData(), channel->channel_name);
+
+      /* Defer update to allow event processing */
+      QTimer::singleShot(0, this, [this]() {
+        updateChannelList();
+        saveSettings();
+      });
+    } else {
+      QMessageBox::warning(this, "Error",
+                           QString("Failed to remove output '%1'.").arg(serviceName));
+    }
+  }
+}
+
+void RestreamerDock::onOutputViewStatsRequested(const char *channelId,
+                                                size_t outputIndex) {
+  if (!channelManager || !channelId) {
+    return;
+  }
+
+  stream_channel_t *channel =
+      channel_manager_get_channel(channelManager, channelId);
+  if (!channel) {
+    obs_log(LOG_ERROR, "Channel not found: %s", channelId);
+    return;
+  }
+
+  if (outputIndex >= channel->output_count) {
+    obs_log(LOG_ERROR, "Invalid output index: %zu", outputIndex);
+    return;
+  }
+
+  channel_output_t *output = &channel->outputs[outputIndex];
+
+  /* Build stats dialog */
+  QString stats = QString("<h3>%1 Stream Statistics</h3>").arg(output->service_name);
+  stats += "<hr>";
+
+  /* Connection Status */
+  QString connectionStatus = output->connected ? "Connected" : "Disconnected";
+  QColor connectionColor =
+      output->connected ? obs_theme_get_success_color() : obs_theme_get_error_color();
+  stats += QString("<p><b>Status:</b> <span style='color:%1'>%2</span></p>")
+               .arg(connectionColor.name())
+               .arg(connectionStatus);
+
+  /* Data Transfer */
+  double bytesSentMB = output->bytes_sent / (1024.0 * 1024.0);
+  double bytesSentGB = bytesSentMB / 1024.0;
+  if (bytesSentGB >= 1.0) {
+    stats += QString("<p><b>Data Sent:</b> %1 GB</p>").arg(bytesSentGB, 0, 'f', 2);
+  } else {
+    stats += QString("<p><b>Data Sent:</b> %1 MB</p>").arg(bytesSentMB, 0, 'f', 2);
+  }
+
+  /* Bitrate */
+  stats += QString("<p><b>Current Bitrate:</b> %1 kbps</p>").arg(output->current_bitrate);
+  stats += QString("<p><b>Target Bitrate:</b> %1 kbps</p>").arg(output->encoding.bitrate);
+
+  /* Frame Stats */
+  stats += QString("<p><b>Dropped Frames:</b> %1</p>").arg(output->dropped_frames);
+
+  /* Encoding Info */
+  stats += "<hr><h4>Encoding Settings</h4>";
+  stats += QString("<p><b>Resolution:</b> %1x%2</p>")
+               .arg(output->encoding.width)
+               .arg(output->encoding.height);
+  if (output->encoding.fps_num > 0) {
+    double fps = (double)output->encoding.fps_num /
+                 (output->encoding.fps_den > 0 ? output->encoding.fps_den : 1);
+    stats += QString("<p><b>Frame Rate:</b> %1 fps</p>").arg(fps, 0, 'f', 2);
+  }
+  stats += QString("<p><b>Audio Bitrate:</b> %1 kbps</p>").arg(output->encoding.audio_bitrate);
+
+  /* Health Info */
+  if (output->last_health_check > 0) {
+    stats += "<hr><h4>Health Monitoring</h4>";
+    time_t now = time(NULL);
+    int secondsSinceCheck = (int)difftime(now, output->last_health_check);
+    stats += QString("<p><b>Last Check:</b> %1 seconds ago</p>").arg(secondsSinceCheck);
+    stats += QString("<p><b>Consecutive Failures:</b> %1</p>").arg(output->consecutive_failures);
+  }
+
+  /* Show dialog */
+  QMessageBox msgBox(this);
+  msgBox.setWindowTitle("Stream Statistics");
+  msgBox.setTextFormat(Qt::RichText);
+  msgBox.setText(stats);
+  msgBox.setIcon(QMessageBox::Information);
+  msgBox.exec();
+}
+
+void RestreamerDock::onOutputViewLogsRequested(const char *channelId,
+                                               size_t outputIndex) {
+  if (!channelManager || !channelId) {
+    return;
+  }
+
+  stream_channel_t *channel =
+      channel_manager_get_channel(channelManager, channelId);
+  if (!channel) {
+    obs_log(LOG_ERROR, "Channel not found: %s", channelId);
+    return;
+  }
+
+  if (outputIndex >= channel->output_count) {
+    obs_log(LOG_ERROR, "Invalid output index: %zu", outputIndex);
+    return;
+  }
+
+  channel_output_t *output = &channel->outputs[outputIndex];
+
+  /* Build log info dialog */
+  QString logInfo = QString("<h3>%1 Stream Logs</h3>").arg(output->service_name);
+  logInfo += "<hr>";
+
+  /* Stream Info */
+  logInfo += "<h4>Stream Configuration</h4>";
+  logInfo += QString("<p><b>Service:</b> %1</p>").arg(output->service_name);
+  logInfo += QString("<p><b>RTMP URL:</b> %1</p>")
+                 .arg(output->rtmp_url ? output->rtmp_url : "N/A");
+  logInfo += QString("<p><b>Stream Key:</b> %1</p>")
+                 .arg(output->stream_key ? "****" : "Not Set");
+
+  /* Connection History */
+  logInfo += "<hr><h4>Connection Status</h4>";
+  logInfo += QString("<p><b>Currently Connected:</b> %1</p>")
+                 .arg(output->connected ? "Yes" : "No");
+  logInfo += QString("<p><b>Enabled:</b> %1</p>")
+                 .arg(output->enabled ? "Yes" : "No");
+  logInfo += QString("<p><b>Auto-Reconnect:</b> %1</p>")
+                 .arg(output->auto_reconnect_enabled ? "Enabled" : "Disabled");
+
+  /* Failover Status */
+  if (output->is_backup || output->failover_active) {
+    logInfo += "<hr><h4>Failover Information</h4>";
+    if (output->is_backup) {
+      logInfo += QString("<p><b>Role:</b> Backup for output #%1</p>")
+                     .arg(output->primary_index);
+    }
+    if (output->failover_active) {
+      time_t now = time(NULL);
+      int failoverDuration = (int)difftime(now, output->failover_start_time);
+      logInfo += QString("<p><b>Failover Active:</b> %1 seconds</p>").arg(failoverDuration);
+    }
+  }
+
+  /* Note about full logs */
+  logInfo += "<hr>";
+  logInfo += "<p><i>For complete stream logs, check the OBS log file at:</i></p>";
+  logInfo += "<p><code>Help → Log Files → View Current Log</code></p>";
+
+  /* Show dialog */
+  QMessageBox msgBox(this);
+  msgBox.setWindowTitle("Stream Logs");
+  msgBox.setTextFormat(Qt::RichText);
+  msgBox.setText(logInfo);
+  msgBox.setIcon(QMessageBox::Information);
+  msgBox.exec();
+}
+
+/* ===== Preview Mode Slot Implementations ===== */
+
+void RestreamerDock::onPreviewStartRequested(const char *channelId,
+                                              uint32_t durationSec) {
+  if (!channelManager || !channelId) {
+    return;
+  }
+
+  obs_log(LOG_INFO, "Preview start requested for channel %s (duration: %u sec)",
+          channelId, durationSec);
+
+  /* Start preview mode */
+  if (channel_start_preview(channelManager, channelId, durationSec)) {
+    /* Defer update to allow event processing (context menu may still be active) */
+    QTimer::singleShot(0, this, [this]() { updateChannelList(); });
+    QString msg = QString("Preview mode started for channel.\nDuration: %1")
+                      .arg(durationSec == 0
+                               ? "Unlimited"
+                               : QString("%1 seconds").arg(durationSec));
+    QMessageBox::information(this, "Preview Started", msg);
+  } else {
+    QMessageBox::warning(this, "Preview Failed",
+                         "Failed to start preview mode. Check logs for details.");
+  }
+}
+
+void RestreamerDock::onPreviewGoLiveRequested(const char *channelId) {
+  if (!channelManager || !channelId) {
+    return;
+  }
+
+  obs_log(LOG_INFO, "Go live requested for channel %s", channelId);
+
+  /* Confirm go live */
+  QMessageBox::StandardButton reply = QMessageBox::question(
+      this, "Go Live",
+      "Are you ready to go live? This will end preview mode and start the "
+      "actual stream.",
+      QMessageBox::Yes | QMessageBox::No, QMessageBox::No);
+
+  if (reply == QMessageBox::Yes) {
+    if (channel_preview_to_live(channelManager, channelId)) {
+      /* Defer update to allow event processing (context menu may still be active) */
+      QTimer::singleShot(0, this, [this]() { updateChannelList(); });
+      QMessageBox::information(this, "Live",
+                               "Channel is now live! Preview mode ended.");
+    } else {
+      QMessageBox::warning(this, "Go Live Failed",
+                           "Failed to transition to live mode. Check logs for details.");
+    }
+  }
+}
+
+void RestreamerDock::onPreviewCancelRequested(const char *channelId) {
+  if (!channelManager || !channelId) {
+    return;
+  }
+
+  obs_log(LOG_INFO, "Cancel preview requested for channel %s", channelId);
+
+  /* Cancel preview mode */
+  if (channel_cancel_preview(channelManager, channelId)) {
+    /* Defer update to allow event processing (context menu may still be active) */
+    QTimer::singleShot(0, this, [this]() { updateChannelList(); });
+    QMessageBox::information(this, "Preview Cancelled",
+                             "Preview mode has been cancelled.");
+  } else {
+    QMessageBox::warning(this, "Cancel Failed",
+                         "Failed to cancel preview mode. Check logs for details.");
   }
 }
 
@@ -2266,12 +3066,14 @@ void RestreamerDock::onReloadConfigClicked() {
       QMessageBox::Yes | QMessageBox::No);
 
   if (reply == QMessageBox::Yes) {
-    /* Refresh profiles list */
-    updateChannelList();
-    QMessageBox::information(
-        this, "Configuration Reloaded",
-        "All profiles and settings have been reloaded from the server.");
-    obs_log(LOG_INFO, "Configuration reloaded from server");
+    /* Defer update to allow any pending event processing */
+    QTimer::singleShot(0, this, [this]() {
+      updateChannelList();
+      QMessageBox::information(
+          this, "Configuration Reloaded",
+          "All profiles and settings have been reloaded from the server.");
+      obs_log(LOG_INFO, "Configuration reloaded from server");
+    });
   }
 }
 
@@ -2535,6 +3337,8 @@ void RestreamerDock::showMonitoringDialog() {
   layout->addLayout(buttonLayout);
 
   dialog->exec();
+  /* Disconnect all signals from dialog and its children to this before deletion */
+  disconnect(dialog, nullptr, this, nullptr);
   dialog->deleteLater();
 }
 
@@ -2715,6 +3519,8 @@ void RestreamerDock::showLogViewer() {
   loadLogs();
 
   dialog->exec();
+  /* Disconnect all signals from dialog and its children to this before deletion */
+  disconnect(dialog, nullptr, this, nullptr);
   dialog->deleteLater();
 }
 

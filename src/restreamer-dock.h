@@ -71,9 +71,19 @@ private slots:
   void onChannelDuplicateRequested(const char *channelId);
 
   /* Output control signal handlers */
+  void onOutputAddRequested(const char *channelId);
   void onOutputStartRequested(const char *channelId, size_t outputIndex);
   void onOutputStopRequested(const char *channelId, size_t outputIndex);
+  void onOutputRestartRequested(const char *channelId, size_t outputIndex);
   void onOutputEditRequested(const char *channelId, size_t outputIndex);
+  void onOutputRemoveRequested(const char *channelId, size_t outputIndex);
+  void onOutputViewStatsRequested(const char *channelId, size_t outputIndex);
+  void onOutputViewLogsRequested(const char *channelId, size_t outputIndex);
+
+  /* Preview mode signal handlers */
+  void onPreviewStartRequested(const char *channelId, uint32_t durationSec);
+  void onPreviewGoLiveRequested(const char *channelId);
+  void onPreviewCancelRequested(const char *channelId);
 
   /* Extended API slots */
   void onProbeInputClicked();

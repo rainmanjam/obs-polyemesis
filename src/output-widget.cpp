@@ -92,12 +92,14 @@ void OutputWidget::setupUI() {
   m_startStopButton = new QPushButton(this);
   m_startStopButton->setFixedSize(28, 24);
   m_startStopButton->setStyleSheet("font-size: 14px;");
+  m_startStopButton->setToolTip("Start or stop this output");
   connect(m_startStopButton, &QPushButton::clicked, this,
           &OutputWidget::onStartStopClicked);
 
   m_settingsButton = new QPushButton("⚙️", this);
   m_settingsButton->setFixedSize(28, 24);
   m_settingsButton->setStyleSheet("font-size: 12px;");
+  m_settingsButton->setToolTip("Edit output settings");
   connect(m_settingsButton, &QPushButton::clicked, this,
           &OutputWidget::onSettingsClicked);
 

@@ -4,6 +4,7 @@
 
 #include "channel-edit-dialog.h"
 #include "obs-helpers.hpp"
+#include "obs-theme-utils.h"
 #include <QFormLayout>
 #include <QGroupBox>
 #include <QHBoxLayout>
@@ -100,9 +101,10 @@ void ChannelEditDialog::setupUI() {
   sourceForm->addRow("Input URL:", m_inputUrlEdit);
 
   QLabel *inputHelpLabel =
-      new QLabel("<small style='color: #888;'>RTMP input URL for this channel "
-                 "(optional)</small>");
+      new QLabel("<small>RTMP input URL for this channel (optional)</small>");
   inputHelpLabel->setWordWrap(true);
+  inputHelpLabel->setStyleSheet(
+      QString("color: %1; font-size: 11px;").arg(obs_theme_get_muted_color().name()));
   sourceForm->addRow("", inputHelpLabel);
 
   generalLayout->addWidget(basicGroup);
@@ -122,9 +124,10 @@ void ChannelEditDialog::setupUI() {
   autoStartLayout->addWidget(m_autoStartCheckBox);
 
   QLabel *autoStartHelp =
-      new QLabel("<small style='color: #888;'>Automatically activate this "
-                 "channel when you start streaming in OBS</small>");
+      new QLabel("<small>Automatically activate this channel when you start streaming in OBS</small>");
   autoStartHelp->setWordWrap(true);
+  autoStartHelp->setStyleSheet(
+      QString("color: %1; font-size: 11px;").arg(obs_theme_get_muted_color().name()));
   autoStartLayout->addWidget(autoStartHelp);
 
   QGroupBox *reconnectGroup = new QGroupBox("Auto-Reconnect Settings");
@@ -153,9 +156,10 @@ void ChannelEditDialog::setupUI() {
   reconnectLayout->addLayout(reconnectForm);
 
   QLabel *reconnectHelp = new QLabel(
-      "<small style='color: #888;'>Automatically reconnect if the stream "
-      "drops. Set max attempts to 0 for unlimited retries.</small>");
+      "<small>Automatically reconnect if the stream drops. Set max attempts to 0 for unlimited retries.</small>");
   reconnectHelp->setWordWrap(true);
+  reconnectHelp->setStyleSheet(
+      QString("color: %1; font-size: 11px;").arg(obs_theme_get_muted_color().name()));
   reconnectLayout->addWidget(reconnectHelp);
 
   streamingLayout->addWidget(autoStartGroup);
@@ -191,19 +195,105 @@ void ChannelEditDialog::setupUI() {
 
   healthGroupLayout->addLayout(healthForm);
 
-  QLabel *healthHelp =
-      new QLabel("<small style='color: #888;'>Monitor stream health and "
-                 "automatically trigger reconnects when issues are detected. "
-                 "The failure threshold determines how many consecutive health "
-                 "check failures trigger a reconnect.</small>");
+  QLabel *healthHelp = new QLabel(
+      "<small>Monitor stream health and automatically trigger reconnects when issues are detected. "
+      "The failure threshold determines how many consecutive health check failures trigger a reconnect.</small>");
   healthHelp->setWordWrap(true);
+  healthHelp->setStyleSheet(
+      QString("color: %1; font-size: 11px;").arg(obs_theme_get_muted_color().name()));
   healthGroupLayout->addWidget(healthHelp);
 
   healthLayout->addWidget(healthGroup);
   healthLayout->addStretch();
 
+  /* ===== Outputs Tab ===== */
+  QWidget *outputsTab = new QWidget();
+  QVBoxLayout *outputsLayout = new QVBoxLayout(outputsTab);
+  outputsLayout->setSpacing(12);
+
+  QGroupBox *outputsGroup = new QGroupBox("Configured Outputs");
+  QVBoxLayout *outputsGroupLayout = new QVBoxLayout(outputsGroup);
+
+  m_outputsList = new QListWidget(this);
+  m_outputsList->setMinimumHeight(120);
+  m_outputsList->setSelectionMode(QAbstractItemView::SingleSelection);
+  connect(m_outputsList, &QListWidget::currentRowChanged, this,
+          &ChannelEditDialog::onOutputSelectionChanged);
+  outputsGroupLayout->addWidget(m_outputsList);
+
+  /* Output action buttons */
+  QHBoxLayout *outputButtonLayout = new QHBoxLayout();
+
+  m_addOutputButton = new QPushButton("Add Output...", this);
+  m_addOutputButton->setToolTip("Add a new streaming output to this channel");
+  connect(m_addOutputButton, &QPushButton::clicked, this,
+          &ChannelEditDialog::onAddOutput);
+  outputButtonLayout->addWidget(m_addOutputButton);
+
+  m_editOutputButton = new QPushButton("Edit...", this);
+  m_editOutputButton->setToolTip("Edit the selected output settings");
+  m_editOutputButton->setEnabled(false);
+  connect(m_editOutputButton, &QPushButton::clicked, this,
+          &ChannelEditDialog::onEditOutput);
+  outputButtonLayout->addWidget(m_editOutputButton);
+
+  m_removeOutputButton = new QPushButton("Remove", this);
+  m_removeOutputButton->setToolTip("Remove the selected output");
+  m_removeOutputButton->setEnabled(false);
+  connect(m_removeOutputButton, &QPushButton::clicked, this,
+          &ChannelEditDialog::onRemoveOutput);
+  outputButtonLayout->addWidget(m_removeOutputButton);
+
+  outputButtonLayout->addStretch();
+  outputsGroupLayout->addLayout(outputButtonLayout);
+
+  /* Bulk action buttons */
+  QHBoxLayout *bulkButtonLayout = new QHBoxLayout();
+
+  QPushButton *enableAllButton = new QPushButton("Enable All", this);
+  enableAllButton->setToolTip("Enable all outputs");
+  connect(enableAllButton, &QPushButton::clicked, this, [this]() {
+    if (!m_channel || !m_channel->outputs)
+      return;
+    for (size_t i = 0; i < m_channel->output_count; i++) {
+      m_channel->outputs[i].enabled = true;
+    }
+    populateOutputsList();
+  });
+  bulkButtonLayout->addWidget(enableAllButton);
+
+  QPushButton *disableAllButton = new QPushButton("Disable All", this);
+  disableAllButton->setToolTip("Disable all outputs");
+  connect(disableAllButton, &QPushButton::clicked, this, [this]() {
+    if (!m_channel || !m_channel->outputs)
+      return;
+    for (size_t i = 0; i < m_channel->output_count; i++) {
+      m_channel->outputs[i].enabled = false;
+    }
+    populateOutputsList();
+  });
+  bulkButtonLayout->addWidget(disableAllButton);
+
+  bulkButtonLayout->addStretch();
+  outputsGroupLayout->addLayout(bulkButtonLayout);
+
+  /* Output details panel */
+  QGroupBox *detailsGroup = new QGroupBox("Output Details");
+  QVBoxLayout *detailsLayout = new QVBoxLayout(detailsGroup);
+
+  m_outputDetailsLabel = new QLabel("Select an output to view details");
+  m_outputDetailsLabel->setWordWrap(true);
+  m_outputDetailsLabel->setStyleSheet(
+      QString("color: %1;").arg(obs_theme_get_muted_color().name()));
+  detailsLayout->addWidget(m_outputDetailsLabel);
+
+  outputsLayout->addWidget(outputsGroup);
+  outputsLayout->addWidget(detailsGroup);
+  outputsLayout->addStretch();
+
   /* Add tabs */
   m_tabWidget->addTab(generalTab, "General");
+  m_tabWidget->addTab(outputsTab, "Outputs");
   m_tabWidget->addTab(streamingTab, "Streaming");
   m_tabWidget->addTab(healthTab, "Health Monitoring");
 
@@ -276,6 +366,9 @@ void ChannelEditDialog::loadChannelSettings() {
   onAutoDetectChanged(m_autoDetectCheckBox->isChecked());
   onAutoReconnectChanged(m_autoReconnectCheckBox->isChecked());
   onHealthMonitoringChanged(m_healthMonitoringCheckBox->isChecked());
+
+  /* Load outputs */
+  populateOutputsList();
 }
 
 void ChannelEditDialog::validateAndSave() {
@@ -301,7 +394,21 @@ void ChannelEditDialog::validateAndSave() {
   m_channel->source_width = m_sourceWidthSpin->value();
   m_channel->source_height = m_sourceHeightSpin->value();
 
+  /* Validate input URL if provided */
   QString inputUrl = m_inputUrlEdit->text().trimmed();
+  if (!inputUrl.isEmpty() && !isValidRtmpUrl(inputUrl)) {
+    m_statusLabel->setText(
+        "⚠️ Invalid RTMP URL format. Must start with rtmp:// or rtmps:// "
+        "and contain a valid host");
+    m_statusLabel->setStyleSheet(
+        "background-color: #5a3a00; color: #ffcc00; padding: 8px; "
+        "border-radius: 4px;");
+    m_statusLabel->show();
+    m_tabWidget->setCurrentIndex(0); /* Switch to General tab */
+    m_inputUrlEdit->setFocus();
+    return;
+  }
+
   bfree(m_channel->input_url);
   m_channel->input_url =
       inputUrl.isEmpty() ? nullptr : bstrdup(inputUrl.toUtf8().constData());
@@ -421,4 +528,547 @@ void ChannelEditDialog::onAutoReconnectChanged(bool checked) {
 void ChannelEditDialog::onHealthMonitoringChanged(bool checked) {
   m_healthCheckIntervalSpin->setEnabled(checked);
   m_failureThresholdSpin->setEnabled(checked);
+}
+
+bool ChannelEditDialog::isValidRtmpUrl(const QString &url) {
+  /* Check if URL starts with rtmp:// or rtmps:// */
+  if (!url.startsWith("rtmp://") && !url.startsWith("rtmps://")) {
+    return false;
+  }
+
+  /* Extract the part after the protocol */
+  int protocolEnd = url.startsWith("rtmps://") ? 8 : 7;
+  QString hostPath = url.mid(protocolEnd);
+
+  /* Host/path must not be empty */
+  if (hostPath.isEmpty()) {
+    return false;
+  }
+
+  /* Extract host part (everything before first / or : for port) */
+  int hostEnd = hostPath.indexOf('/');
+  int portStart = hostPath.indexOf(':');
+
+  /* Determine where host ends */
+  int hostLength = hostPath.length();
+  if (hostEnd >= 0)
+    hostLength = hostEnd;
+  if (portStart >= 0 && portStart < hostLength)
+    hostLength = portStart;
+
+  QString host = hostPath.left(hostLength);
+
+  /* Host must contain at least one character and should be a valid hostname */
+  if (host.isEmpty()) {
+    return false;
+  }
+
+  /* Basic hostname validation: should contain alphanumeric, dots, hyphens */
+  bool hasValidChar = false;
+  for (const QChar &c : host) {
+    if (c.isLetterOrNumber() || c == '.' || c == '-' || c == '_') {
+      hasValidChar = true;
+      break;
+    }
+  }
+
+  return hasValidChar;
+}
+
+void ChannelEditDialog::populateOutputsList() {
+  m_outputsList->clear();
+
+  if (!m_channel || !m_channel->outputs) {
+    return;
+  }
+
+  for (size_t i = 0; i < m_channel->output_count; i++) {
+    channel_output_t *output = &m_channel->outputs[i];
+    QString itemText = QString("%1. %2")
+                           .arg(i + 1)
+                           .arg(getServiceName(output->service));
+
+    if (output->service_name && strlen(output->service_name) > 0) {
+      itemText += QString(" (%1)").arg(output->service_name);
+    }
+
+    if (!output->enabled) {
+      itemText += " [Disabled]";
+    }
+
+    if (output->is_backup) {
+      itemText += " [Backup]";
+    }
+
+    QListWidgetItem *item = new QListWidgetItem(itemText);
+    item->setData(Qt::UserRole, QVariant::fromValue(static_cast<int>(i)));
+    m_outputsList->addItem(item);
+  }
+
+  /* Update button states */
+  onOutputSelectionChanged();
+}
+
+void ChannelEditDialog::updateOutputDetails(int index) {
+  if (!m_channel || !m_channel->outputs || index < 0 ||
+      static_cast<size_t>(index) >= m_channel->output_count) {
+    m_outputDetailsLabel->setText("Select an output to view details");
+    m_outputDetailsLabel->setStyleSheet(
+        QString("color: %1;").arg(obs_theme_get_muted_color().name()));
+    return;
+  }
+
+  channel_output_t *output = &m_channel->outputs[index];
+
+  QString details;
+  details += QString("<b>Service:</b> %1<br>").arg(getServiceName(output->service));
+
+  if (output->rtmp_url && strlen(output->rtmp_url) > 0) {
+    /* Mask stream key in URL for display */
+    QString url = QString(output->rtmp_url);
+    int lastSlash = url.lastIndexOf('/');
+    if (lastSlash > 0 && lastSlash < url.length() - 1) {
+      url = url.left(lastSlash + 1) + "********";
+    }
+    details += QString("<b>URL:</b> %1<br>").arg(url);
+  }
+
+  details += QString("<b>Orientation:</b> %1<br>")
+                 .arg(getOrientationName(output->target_orientation));
+
+  details += QString("<b>Status:</b> %1<br>")
+                 .arg(output->enabled ? "Enabled" : "Disabled");
+
+  if (output->encoding.width > 0 && output->encoding.height > 0) {
+    details += QString("<b>Resolution:</b> %1x%2<br>")
+                   .arg(output->encoding.width)
+                   .arg(output->encoding.height);
+  }
+
+  if (output->encoding.bitrate > 0) {
+    details += QString("<b>Bitrate:</b> %1 kbps<br>").arg(output->encoding.bitrate);
+  }
+
+  if (output->is_backup) {
+    details += QString("<b>Backup for output:</b> #%1<br>")
+                   .arg(output->primary_index + 1);
+  }
+
+  m_outputDetailsLabel->setText(details);
+  m_outputDetailsLabel->setStyleSheet("");
+}
+
+QString ChannelEditDialog::getServiceName(int service) const {
+  switch (service) {
+  case SERVICE_TWITCH:
+    return "Twitch";
+  case SERVICE_YOUTUBE:
+    return "YouTube";
+  case SERVICE_FACEBOOK:
+    return "Facebook";
+  case SERVICE_KICK:
+    return "Kick";
+  case SERVICE_TIKTOK:
+    return "TikTok";
+  case SERVICE_INSTAGRAM:
+    return "Instagram";
+  case SERVICE_X_TWITTER:
+    return "X/Twitter";
+  case SERVICE_CUSTOM:
+    return "Custom RTMP";
+  default:
+    return "Unknown";
+  }
+}
+
+QString ChannelEditDialog::getOrientationName(int orientation) const {
+  switch (orientation) {
+  case ORIENTATION_AUTO:
+    return "Auto";
+  case ORIENTATION_HORIZONTAL:
+    return "Horizontal (16:9)";
+  case ORIENTATION_VERTICAL:
+    return "Vertical (9:16)";
+  case ORIENTATION_SQUARE:
+    return "Square (1:1)";
+  default:
+    return "Unknown";
+  }
+}
+
+void ChannelEditDialog::onOutputSelectionChanged() {
+  int currentRow = m_outputsList->currentRow();
+  bool hasSelection = currentRow >= 0;
+
+  m_editOutputButton->setEnabled(hasSelection);
+  m_removeOutputButton->setEnabled(hasSelection);
+
+  updateOutputDetails(currentRow);
+}
+
+void ChannelEditDialog::onAddOutput() {
+  /* Create a simple dialog to add an output */
+  QDialog addDialog(this);
+  addDialog.setWindowTitle("Add Output");
+  addDialog.setModal(true);
+  addDialog.setMinimumWidth(450);
+
+  QVBoxLayout *layout = new QVBoxLayout(&addDialog);
+  QFormLayout *form = new QFormLayout();
+
+  /* Service selection */
+  QComboBox *serviceCombo = new QComboBox();
+  serviceCombo->addItem("Twitch", SERVICE_TWITCH);
+  serviceCombo->addItem("YouTube", SERVICE_YOUTUBE);
+  serviceCombo->addItem("Facebook", SERVICE_FACEBOOK);
+  serviceCombo->addItem("Kick", SERVICE_KICK);
+  serviceCombo->addItem("TikTok", SERVICE_TIKTOK);
+  serviceCombo->addItem("Instagram", SERVICE_INSTAGRAM);
+  serviceCombo->addItem("X/Twitter", SERVICE_X_TWITTER);
+  serviceCombo->addItem("Custom RTMP", SERVICE_CUSTOM);
+  form->addRow("Service:", serviceCombo);
+
+  /* Stream key */
+  QLineEdit *streamKeyEdit = new QLineEdit();
+  streamKeyEdit->setPlaceholderText("Enter stream key");
+  streamKeyEdit->setEchoMode(QLineEdit::Password);
+  form->addRow("Stream Key:", streamKeyEdit);
+
+  /* Custom RTMP URL (shown only for custom RTMP) */
+  QLabel *rtmpUrlLabel = new QLabel("RTMP URL:");
+  QLineEdit *rtmpUrlEdit = new QLineEdit();
+  rtmpUrlEdit->setPlaceholderText("rtmp://server/app");
+  rtmpUrlLabel->hide();
+  rtmpUrlEdit->hide();
+  form->addRow(rtmpUrlLabel, rtmpUrlEdit);
+
+  /* Show/hide RTMP URL based on service */
+  connect(serviceCombo, QOverload<int>::of(&QComboBox::currentIndexChanged),
+          [serviceCombo, rtmpUrlLabel, rtmpUrlEdit]() {
+            bool isCustom =
+                serviceCombo->currentData().toInt() == SERVICE_CUSTOM;
+            rtmpUrlLabel->setVisible(isCustom);
+            rtmpUrlEdit->setVisible(isCustom);
+          });
+
+  /* Orientation */
+  QComboBox *orientationCombo = new QComboBox();
+  orientationCombo->addItem("Auto", ORIENTATION_AUTO);
+  orientationCombo->addItem("Horizontal (16:9)", ORIENTATION_HORIZONTAL);
+  orientationCombo->addItem("Vertical (9:16)", ORIENTATION_VERTICAL);
+  orientationCombo->addItem("Square (1:1)", ORIENTATION_SQUARE);
+  form->addRow("Orientation:", orientationCombo);
+
+  /* Quality Preset - simplified template feature */
+  QComboBox *qualityPresetCombo = new QComboBox();
+  qualityPresetCombo->addItem("Auto (Use Source)", 0);
+  qualityPresetCombo->addItem("1080p High Quality (6000 kbps)", 6000);
+  qualityPresetCombo->addItem("1080p Standard (4500 kbps)", 4500);
+  qualityPresetCombo->addItem("720p High Quality (4000 kbps)", 4000);
+  qualityPresetCombo->addItem("720p Standard (2500 kbps)", 2500);
+  qualityPresetCombo->addItem("480p (1500 kbps)", 1500);
+  qualityPresetCombo->addItem("Low Bandwidth (800 kbps)", 800);
+  qualityPresetCombo->setToolTip(
+      "Select a quality preset or 'Auto' to use source settings");
+  form->addRow("Quality Preset:", qualityPresetCombo);
+
+  layout->addLayout(form);
+
+  /* Buttons */
+  QHBoxLayout *buttonLayout = new QHBoxLayout();
+  QPushButton *cancelBtn = new QPushButton("Cancel");
+  QPushButton *addBtn = new QPushButton("Add");
+  addBtn->setDefault(true);
+
+  buttonLayout->addStretch();
+  buttonLayout->addWidget(cancelBtn);
+  buttonLayout->addWidget(addBtn);
+  layout->addLayout(buttonLayout);
+
+  connect(cancelBtn, &QPushButton::clicked, &addDialog, &QDialog::reject);
+  connect(addBtn, &QPushButton::clicked, [&]() {
+    QString streamKey = streamKeyEdit->text().trimmed();
+    if (streamKey.isEmpty()) {
+      QMessageBox::warning(&addDialog, "Validation Error",
+                           "Stream key is required.");
+      return;
+    }
+
+    int service = serviceCombo->currentData().toInt();
+    if (service == SERVICE_CUSTOM) {
+      QString rtmpUrl = rtmpUrlEdit->text().trimmed();
+      if (rtmpUrl.isEmpty() || !isValidRtmpUrl(rtmpUrl)) {
+        QMessageBox::warning(&addDialog, "Validation Error",
+                             "Valid RTMP URL is required for custom service.");
+        return;
+      }
+    }
+
+    addDialog.accept();
+  });
+
+  if (addDialog.exec() == QDialog::Accepted) {
+    /* Add the output to the channel */
+    streaming_service_t service =
+        static_cast<streaming_service_t>(serviceCombo->currentData().toInt());
+    stream_orientation_t orientation = static_cast<stream_orientation_t>(
+        orientationCombo->currentData().toInt());
+    QString streamKey = streamKeyEdit->text().trimmed();
+
+    encoding_settings_t encoding = channel_get_default_encoding();
+
+    /* Apply quality preset */
+    uint32_t presetBitrate = qualityPresetCombo->currentData().toUInt();
+    if (presetBitrate > 0) {
+      encoding.bitrate = presetBitrate;
+      /* Set resolution based on bitrate tier */
+      if (presetBitrate >= 4500) {
+        encoding.width = 1920;
+        encoding.height = 1080;
+      } else if (presetBitrate >= 2500) {
+        encoding.width = 1280;
+        encoding.height = 720;
+      } else {
+        encoding.width = 854;
+        encoding.height = 480;
+      }
+    }
+
+    if (channel_add_output(m_channel, service, streamKey.toUtf8().constData(),
+                           orientation, &encoding)) {
+      /* Set custom RTMP URL if needed */
+      if (service == SERVICE_CUSTOM && m_channel->output_count > 0) {
+        channel_output_t *newOutput =
+            &m_channel->outputs[m_channel->output_count - 1];
+        if (newOutput->rtmp_url) {
+          bfree(newOutput->rtmp_url);
+        }
+        QString fullUrl = rtmpUrlEdit->text().trimmed() + "/" + streamKey;
+        newOutput->rtmp_url = bstrdup(fullUrl.toUtf8().constData());
+      }
+
+      populateOutputsList();
+      obs_log(LOG_INFO, "Output added to channel %s", m_channel->channel_name);
+    } else {
+      QMessageBox::critical(this, "Error", "Failed to add output to channel.");
+    }
+  }
+}
+
+void ChannelEditDialog::onEditOutput() {
+  int currentRow = m_outputsList->currentRow();
+  if (currentRow < 0 || !m_channel || !m_channel->outputs ||
+      static_cast<size_t>(currentRow) >= m_channel->output_count) {
+    return;
+  }
+
+  channel_output_t *output = &m_channel->outputs[currentRow];
+
+  /* Create edit dialog */
+  QDialog editDialog(this);
+  editDialog.setWindowTitle("Edit Output");
+  editDialog.setModal(true);
+  editDialog.setMinimumWidth(450);
+
+  QVBoxLayout *layout = new QVBoxLayout(&editDialog);
+  QFormLayout *form = new QFormLayout();
+
+  /* Service (read-only) */
+  QLabel *serviceLabel = new QLabel(getServiceName(output->service));
+  form->addRow("Service:", serviceLabel);
+
+  /* Stream key */
+  QLineEdit *streamKeyEdit = new QLineEdit();
+  if (output->stream_key) {
+    streamKeyEdit->setText(output->stream_key);
+  }
+  streamKeyEdit->setEchoMode(QLineEdit::Password);
+  form->addRow("Stream Key:", streamKeyEdit);
+
+  /* Orientation */
+  QComboBox *orientationCombo = new QComboBox();
+  orientationCombo->addItem("Auto", ORIENTATION_AUTO);
+  orientationCombo->addItem("Horizontal (16:9)", ORIENTATION_HORIZONTAL);
+  orientationCombo->addItem("Vertical (9:16)", ORIENTATION_VERTICAL);
+  orientationCombo->addItem("Square (1:1)", ORIENTATION_SQUARE);
+  orientationCombo->setCurrentIndex(
+      orientationCombo->findData(output->target_orientation));
+  form->addRow("Orientation:", orientationCombo);
+
+  /* Enabled checkbox */
+  QCheckBox *enabledCheckBox = new QCheckBox("Output Enabled");
+  enabledCheckBox->setChecked(output->enabled);
+  form->addRow("", enabledCheckBox);
+
+  /* Encoding settings group */
+  QGroupBox *encodingGroup = new QGroupBox("Encoding Settings");
+  QFormLayout *encodingForm = new QFormLayout(encodingGroup);
+
+  QSpinBox *widthSpin = new QSpinBox();
+  widthSpin->setRange(0, 7680);
+  widthSpin->setValue(output->encoding.width);
+  widthSpin->setSpecialValueText("Auto");
+  encodingForm->addRow("Width:", widthSpin);
+
+  QSpinBox *heightSpin = new QSpinBox();
+  heightSpin->setRange(0, 4320);
+  heightSpin->setValue(output->encoding.height);
+  heightSpin->setSpecialValueText("Auto");
+  encodingForm->addRow("Height:", heightSpin);
+
+  QSpinBox *bitrateSpin = new QSpinBox();
+  bitrateSpin->setRange(0, 50000);
+  bitrateSpin->setValue(output->encoding.bitrate);
+  bitrateSpin->setSuffix(" kbps");
+  bitrateSpin->setSpecialValueText("Default");
+  encodingForm->addRow("Video Bitrate:", bitrateSpin);
+
+  QSpinBox *audioBitrateSpin = new QSpinBox();
+  audioBitrateSpin->setRange(0, 512);
+  audioBitrateSpin->setValue(output->encoding.audio_bitrate);
+  audioBitrateSpin->setSuffix(" kbps");
+  audioBitrateSpin->setSpecialValueText("Default");
+  encodingForm->addRow("Audio Bitrate:", audioBitrateSpin);
+
+  layout->addLayout(form);
+  layout->addWidget(encodingGroup);
+
+  /* Backup/Failover settings group */
+  QGroupBox *backupGroup = new QGroupBox("Backup/Failover Settings");
+  QVBoxLayout *backupLayout = new QVBoxLayout(backupGroup);
+
+  QCheckBox *isBackupCheckBox = new QCheckBox("This is a backup output");
+  isBackupCheckBox->setChecked(output->is_backup);
+  isBackupCheckBox->setToolTip(
+      "Enable to use this output as a backup when a primary output fails");
+  backupLayout->addWidget(isBackupCheckBox);
+
+  QHBoxLayout *primaryLayout = new QHBoxLayout();
+  QLabel *primaryLabel = new QLabel("Primary Output:");
+  QComboBox *primaryCombo = new QComboBox();
+  primaryCombo->addItem("None", -1);
+
+  /* Populate with other outputs (excluding this one) */
+  for (size_t i = 0; i < m_channel->output_count; i++) {
+    if (i != static_cast<size_t>(currentRow)) {
+      channel_output_t *otherOutput = &m_channel->outputs[i];
+      QString name = QString("#%1 - %2")
+                         .arg(i + 1)
+                         .arg(getServiceName(otherOutput->service));
+      primaryCombo->addItem(name, static_cast<int>(i));
+    }
+  }
+
+  if (output->is_backup) {
+    int idx = primaryCombo->findData(static_cast<int>(output->primary_index));
+    if (idx >= 0)
+      primaryCombo->setCurrentIndex(idx);
+  }
+
+  primaryLabel->setEnabled(output->is_backup);
+  primaryCombo->setEnabled(output->is_backup);
+
+  primaryLayout->addWidget(primaryLabel);
+  primaryLayout->addWidget(primaryCombo);
+  primaryLayout->addStretch();
+  backupLayout->addLayout(primaryLayout);
+
+  /* Connect checkbox to enable/disable primary selection */
+  connect(isBackupCheckBox, &QCheckBox::toggled,
+          [primaryLabel, primaryCombo](bool checked) {
+            primaryLabel->setEnabled(checked);
+            primaryCombo->setEnabled(checked);
+          });
+
+  QCheckBox *autoReconnectCheckBox =
+      new QCheckBox("Auto-reconnect on failure");
+  autoReconnectCheckBox->setChecked(output->auto_reconnect_enabled);
+  autoReconnectCheckBox->setToolTip(
+      "Automatically attempt to reconnect if this output disconnects");
+  backupLayout->addWidget(autoReconnectCheckBox);
+
+  QLabel *backupHelp = new QLabel(
+      "<small>Backup outputs activate automatically when the primary fails. "
+      "Auto-reconnect tries to restore the connection before triggering failover.</small>");
+  backupHelp->setWordWrap(true);
+  backupHelp->setStyleSheet(
+      QString("color: %1; font-size: 11px;").arg(obs_theme_get_muted_color().name()));
+  backupLayout->addWidget(backupHelp);
+
+  layout->addWidget(backupGroup);
+
+  /* Buttons */
+  QHBoxLayout *buttonLayout = new QHBoxLayout();
+  QPushButton *cancelBtn = new QPushButton("Cancel");
+  QPushButton *saveBtn = new QPushButton("Save");
+  saveBtn->setDefault(true);
+
+  buttonLayout->addStretch();
+  buttonLayout->addWidget(cancelBtn);
+  buttonLayout->addWidget(saveBtn);
+  layout->addLayout(buttonLayout);
+
+  connect(cancelBtn, &QPushButton::clicked, &editDialog, &QDialog::reject);
+  connect(saveBtn, &QPushButton::clicked, &editDialog, &QDialog::accept);
+
+  if (editDialog.exec() == QDialog::Accepted) {
+    /* Update output settings */
+    if (output->stream_key) {
+      bfree(output->stream_key);
+    }
+    output->stream_key =
+        bstrdup(streamKeyEdit->text().trimmed().toUtf8().constData());
+
+    output->target_orientation = static_cast<stream_orientation_t>(
+        orientationCombo->currentData().toInt());
+    output->enabled = enabledCheckBox->isChecked();
+
+    output->encoding.width = widthSpin->value();
+    output->encoding.height = heightSpin->value();
+    output->encoding.bitrate = bitrateSpin->value();
+    output->encoding.audio_bitrate = audioBitrateSpin->value();
+
+    /* Update backup settings */
+    bool wasBackup = output->is_backup;
+    bool nowBackup = isBackupCheckBox->isChecked();
+    output->auto_reconnect_enabled = autoReconnectCheckBox->isChecked();
+
+    if (nowBackup && primaryCombo->currentData().toInt() >= 0) {
+      size_t primaryIdx = static_cast<size_t>(primaryCombo->currentData().toInt());
+      if (!wasBackup || output->primary_index != primaryIdx) {
+        /* Set up new backup relationship */
+        channel_set_output_backup(m_channel, primaryIdx,
+                                  static_cast<size_t>(currentRow));
+      }
+    } else if (wasBackup && !nowBackup) {
+      /* Remove backup relationship */
+      channel_remove_output_backup(m_channel, output->primary_index);
+    }
+
+    populateOutputsList();
+    obs_log(LOG_INFO, "Output %zu updated in channel %s",
+            static_cast<size_t>(currentRow), m_channel->channel_name);
+  }
+}
+
+void ChannelEditDialog::onRemoveOutput() {
+  int currentRow = m_outputsList->currentRow();
+  if (currentRow < 0 || !m_channel) {
+    return;
+  }
+
+  QMessageBox::StandardButton reply = QMessageBox::question(
+      this, "Remove Output",
+      QString("Are you sure you want to remove output #%1?").arg(currentRow + 1),
+      QMessageBox::Yes | QMessageBox::No, QMessageBox::No);
+
+  if (reply == QMessageBox::Yes) {
+    if (channel_remove_output(m_channel, static_cast<size_t>(currentRow))) {
+      populateOutputsList();
+      obs_log(LOG_INFO, "Output %d removed from channel %s", currentRow,
+              m_channel->channel_name);
+    } else {
+      QMessageBox::critical(this, "Error", "Failed to remove output.");
+    }
+  }
 }

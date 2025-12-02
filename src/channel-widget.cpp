@@ -6,10 +6,13 @@
 #include "output-widget.h"
 #include "obs-theme-utils.h"
 
+#include <QComboBox>
+#include <QDialog>
 #include <QFileDialog>
 #include <QMenu>
 #include <QMessageBox>
 #include <QMouseEvent>
+#include <QPointer>
 #include <QStandardPaths>
 #include <QStyle>
 #include <QTimer>
@@ -70,17 +73,20 @@ void ChannelWidget::setupUI() {
   /* Header actions */
   m_startStopButton = new QPushButton(this);
   m_startStopButton->setFixedSize(70, 28);
+  m_startStopButton->setToolTip("Start or stop streaming on this channel");
   connect(m_startStopButton, &QPushButton::clicked, this,
           &ChannelWidget::onStartStopClicked);
 
   m_editButton = new QPushButton("Edit", this);
   m_editButton->setFixedSize(60, 28);
+  m_editButton->setToolTip("Edit channel settings");
   connect(m_editButton, &QPushButton::clicked, this,
           &ChannelWidget::onEditClicked);
 
   m_menuButton = new QPushButton("⋮", this);
   m_menuButton->setFixedSize(28, 28);
   m_menuButton->setStyleSheet("font-size: 16px;");
+  m_menuButton->setToolTip("More options");
   connect(m_menuButton, &QPushButton::clicked, this,
           &ChannelWidget::onMenuClicked);
 
@@ -110,21 +116,20 @@ void ChannelWidget::setupUI() {
   setMinimumHeight(80);
   m_headerWidget->setMinimumHeight(60);
 
-  /* Style the widget - BRIGHT GREEN BORDER FOR TESTING */
+  /* Style the widget using Qt palette for theme compatibility */
   setStyleSheet("ChannelWidget { "
-                "  background-color: #2d2d30; "
-                "  border: 5px solid #00ff00; "
+                "  background-color: palette(base); "
+                "  border: 1px solid palette(mid); "
                 "  border-radius: 8px; "
-                "  margin: 8px; "
-                "  padding: 4px; "
+                "  margin: 4px; "
                 "} "
                 "#channelHeader { "
-                "  background-color: #3d3d40; "
-                "  border-bottom: 2px solid #00ff00; "
-                "  padding: 8px; "
+                "  background-color: palette(window); "
+                "  border-bottom: 1px solid palette(mid); "
+                "  border-radius: 8px 8px 0 0; "
                 "} "
                 "#channelHeader:hover { "
-                "  background-color: #4d4d50; "
+                "  background-color: palette(button); "
                 "}");
 }
 
@@ -190,8 +195,16 @@ void ChannelWidget::updateOutputs() {
             &ChannelWidget::onOutputStartRequested);
     connect(outputWidget, &OutputWidget::stopRequested, this,
             &ChannelWidget::onOutputStopRequested);
+    connect(outputWidget, &OutputWidget::restartRequested, this,
+            &ChannelWidget::onOutputRestartRequested);
     connect(outputWidget, &OutputWidget::editRequested, this,
             &ChannelWidget::onOutputEditRequested);
+    connect(outputWidget, &OutputWidget::removeRequested, this,
+            &ChannelWidget::onOutputRemoveRequested);
+    connect(outputWidget, &OutputWidget::viewStatsRequested, this,
+            &ChannelWidget::onOutputViewStatsRequested);
+    connect(outputWidget, &OutputWidget::viewLogsRequested, this,
+            &ChannelWidget::onOutputViewLogsRequested);
 
     m_contentLayout->addWidget(outputWidget);
     m_outputWidgets.append(outputWidget);
@@ -322,6 +335,17 @@ QString ChannelWidget::getStatusIcon() const {
   return "⚫";
 }
 
+bool ChannelWidget::eventFilter(QObject *obj, QEvent *event) {
+  if (obj == m_headerWidget && event->type() == QEvent::MouseButtonRelease) {
+    QMouseEvent *mouseEvent = static_cast<QMouseEvent *>(event);
+    if (mouseEvent->button() == Qt::LeftButton) {
+      onHeaderClicked();
+      return true;
+    }
+  }
+  return QWidget::eventFilter(obj, event);
+}
+
 void ChannelWidget::contextMenuEvent(QContextMenuEvent *event) {
   showContextMenu(event->pos());
   event->accept();
@@ -405,6 +429,18 @@ void ChannelWidget::onOutputStopRequested(size_t outputIndex) {
   emit outputStopRequested(m_channel->channel_id, outputIndex);
 }
 
+void ChannelWidget::onOutputRestartRequested(size_t outputIndex) {
+  if (!m_channel || outputIndex >= m_channel->output_count) {
+    obs_log(LOG_ERROR, "Invalid output index: %zu", outputIndex);
+    return;
+  }
+
+  obs_log(LOG_INFO, "Restart output requested: channel=%s, index=%zu",
+          m_channel->channel_id, outputIndex);
+
+  emit outputRestartRequested(m_channel->channel_id, outputIndex);
+}
+
 void ChannelWidget::onOutputEditRequested(size_t outputIndex) {
   if (!m_channel || outputIndex >= m_channel->output_count) {
     obs_log(LOG_ERROR, "Invalid output index: %zu", outputIndex);
@@ -414,15 +450,53 @@ void ChannelWidget::onOutputEditRequested(size_t outputIndex) {
   obs_log(LOG_INFO, "Edit output requested: channel=%s, index=%zu",
           m_channel->channel_id, outputIndex);
 
-  /* Emit signal for dock to handle (dock has access to API and channel manager)
-   */
   emit outputEditRequested(m_channel->channel_id, outputIndex);
+}
+
+void ChannelWidget::onOutputRemoveRequested(size_t outputIndex) {
+  if (!m_channel || outputIndex >= m_channel->output_count) {
+    obs_log(LOG_ERROR, "Invalid output index: %zu", outputIndex);
+    return;
+  }
+
+  obs_log(LOG_INFO, "Remove output requested: channel=%s, index=%zu",
+          m_channel->channel_id, outputIndex);
+
+  emit outputRemoveRequested(m_channel->channel_id, outputIndex);
+}
+
+void ChannelWidget::onOutputViewStatsRequested(size_t outputIndex) {
+  if (!m_channel || outputIndex >= m_channel->output_count) {
+    obs_log(LOG_ERROR, "Invalid output index: %zu", outputIndex);
+    return;
+  }
+
+  obs_log(LOG_INFO, "View stats requested: channel=%s, index=%zu",
+          m_channel->channel_id, outputIndex);
+
+  emit outputViewStatsRequested(m_channel->channel_id, outputIndex);
+}
+
+void ChannelWidget::onOutputViewLogsRequested(size_t outputIndex) {
+  if (!m_channel || outputIndex >= m_channel->output_count) {
+    obs_log(LOG_ERROR, "Invalid output index: %zu", outputIndex);
+    return;
+  }
+
+  obs_log(LOG_INFO, "View logs requested: channel=%s, index=%zu",
+          m_channel->channel_id, outputIndex);
+
+  emit outputViewLogsRequested(m_channel->channel_id, outputIndex);
 }
 
 void ChannelWidget::showContextMenu(const QPoint &pos) {
   if (!m_channel) {
     return;
   }
+
+  /* Capture channel_id early for safe access in lambdas - m_channel pointer
+   * could theoretically become invalid during event processing in menu.exec() */
+  const QString channelId = QString::fromUtf8(m_channel->channel_id);
 
   QMenu menu(this);
 
@@ -433,55 +507,146 @@ void ChannelWidget::showContextMenu(const QPoint &pos) {
   QAction *startAction = menu.addAction("▶ Start Channel");
   startAction->setEnabled(!isActive);
   connect(startAction, &QAction::triggered, this,
-          [this]() { emit startRequested(m_channel->channel_id); });
+          [this, channelId]() { emit startRequested(channelId.toUtf8().constData()); });
 
   QAction *stopAction = menu.addAction("■ Stop Channel");
   stopAction->setEnabled(isActive);
   connect(stopAction, &QAction::triggered, this,
-          [this]() { emit stopRequested(m_channel->channel_id); });
+          [this, channelId]() { emit stopRequested(channelId.toUtf8().constData()); });
 
   QAction *restartAction = menu.addAction("↻ Restart Channel");
   restartAction->setEnabled(isActive);
-  connect(restartAction, &QAction::triggered, this, [this]() {
-    emit stopRequested(m_channel->channel_id);
+  connect(restartAction, &QAction::triggered, this, [this, channelId]() {
+    emit stopRequested(channelId.toUtf8().constData());
 
-    // Store channel ID for lambda capture (m_channel may change)
-    QString channelId = QString::fromUtf8(m_channel->channel_id);
+    // Use QPointer to safely guard 'this' - widget may be deleted before timer fires
+    QPointer<ChannelWidget> guard = this;
 
     // Start after a 2-second delay to ensure clean stop
-    QTimer::singleShot(2000, this, [this, channelId]() {
-      // Verify channel still exists and widget is valid
-      if (m_channel && QString::fromUtf8(m_channel->channel_id) == channelId) {
-        emit startRequested(m_channel->channel_id);
+    QTimer::singleShot(2000, this, [guard, channelId]() {
+      // Verify widget still exists (guard becomes null if deleted)
+      if (!guard) {
+        obs_log(LOG_DEBUG, "Channel restart: widget deleted, skipping start for %s",
+                channelId.toUtf8().constData());
+        return;
+      }
+      // Verify channel still exists and matches
+      if (guard->m_channel &&
+          QString::fromUtf8(guard->m_channel->channel_id) == channelId) {
+        emit guard->startRequested(channelId.toUtf8().constData());
         obs_log(LOG_INFO, "Channel restart: starting %s after delay",
                 channelId.toUtf8().constData());
       }
     });
 
-    obs_log(LOG_INFO, "Channel restart initiated: %s", m_channel->channel_id);
+    obs_log(LOG_INFO, "Channel restart initiated: %s", channelId.toUtf8().constData());
   });
+
+  menu.addSeparator();
+
+  /* Preview mode actions */
+  bool isInPreview = (m_channel->status == CHANNEL_STATUS_PREVIEW);
+  bool canStartPreview = !isActive && !isInPreview;
+
+  QAction *previewAction = menu.addAction("👁 Start Preview");
+  previewAction->setEnabled(canStartPreview);
+  connect(previewAction, &QAction::triggered, this, [this, channelId]() {
+    /* Show duration selection dialog - stack-allocated modal is safe */
+    QDialog durationDialog(this);
+    durationDialog.setWindowTitle("Preview Duration");
+    durationDialog.setModal(true);
+
+    QVBoxLayout *layout = new QVBoxLayout(&durationDialog);
+    QLabel *label = new QLabel("Select preview duration:");
+    layout->addWidget(label);
+
+    QComboBox *durationCombo = new QComboBox();
+    durationCombo->addItem("30 seconds", 30);
+    durationCombo->addItem("1 minute", 60);
+    durationCombo->addItem("2 minutes", 120);
+    durationCombo->addItem("5 minutes", 300);
+    durationCombo->addItem("10 minutes", 600);
+    durationCombo->addItem("Unlimited", 0);
+    durationCombo->setCurrentIndex(1); /* Default: 1 minute */
+    layout->addWidget(durationCombo);
+
+    QLabel *helpLabel = new QLabel(
+        "<small>Preview mode allows you to test your stream without going live. "
+        "Select 'Go Live' when ready.</small>");
+    helpLabel->setWordWrap(true);
+    helpLabel->setStyleSheet(
+        QString("color: %1; font-size: 11px;").arg(obs_theme_get_muted_color().name()));
+    layout->addWidget(helpLabel);
+
+    QHBoxLayout *buttonLayout = new QHBoxLayout();
+    QPushButton *cancelBtn = new QPushButton("Cancel");
+    QPushButton *startBtn = new QPushButton("Start Preview");
+    startBtn->setDefault(true);
+    buttonLayout->addStretch();
+    buttonLayout->addWidget(cancelBtn);
+    buttonLayout->addWidget(startBtn);
+    layout->addLayout(buttonLayout);
+
+    connect(cancelBtn, &QPushButton::clicked, &durationDialog, &QDialog::reject);
+    connect(startBtn, &QPushButton::clicked, &durationDialog, &QDialog::accept);
+
+    if (durationDialog.exec() == QDialog::Accepted) {
+      uint32_t duration = durationCombo->currentData().toUInt();
+      emit previewStartRequested(channelId.toUtf8().constData(), duration);
+      obs_log(LOG_INFO, "Preview requested for channel %s (duration: %u sec)",
+              channelId.toUtf8().constData(), duration);
+    }
+  });
+
+  QAction *goLiveAction = menu.addAction("🎬 Go Live");
+  goLiveAction->setEnabled(isInPreview);
+  connect(goLiveAction, &QAction::triggered, this, [this, channelId]() {
+    emit previewGoLiveRequested(channelId.toUtf8().constData());
+    obs_log(LOG_INFO, "Go live requested for channel: %s", channelId.toUtf8().constData());
+  });
+
+  QAction *cancelPreviewAction = menu.addAction("✖ Cancel Preview");
+  cancelPreviewAction->setEnabled(isInPreview);
+  connect(cancelPreviewAction, &QAction::triggered, this, [this, channelId]() {
+    emit previewCancelRequested(channelId.toUtf8().constData());
+    obs_log(LOG_INFO, "Cancel preview requested for channel: %s",
+            channelId.toUtf8().constData());
+  });
+
+  menu.addSeparator();
+
+  /* Output management */
+  QAction *addOutputAction = menu.addAction("+ Add Output...");
+  connect(addOutputAction, &QAction::triggered, this,
+          [this, channelId]() { emit outputAddRequested(channelId.toUtf8().constData()); });
 
   menu.addSeparator();
 
   /* Edit actions */
   QAction *editAction = menu.addAction("✎ Edit Channel...");
   connect(editAction, &QAction::triggered, this,
-          [this]() { emit editRequested(m_channel->channel_id); });
+          [this, channelId]() { emit editRequested(channelId.toUtf8().constData()); });
 
   QAction *duplicateAction = menu.addAction("📋 Duplicate Channel");
   connect(duplicateAction, &QAction::triggered, this,
-          [this]() { emit duplicateRequested(m_channel->channel_id); });
+          [this, channelId]() { emit duplicateRequested(channelId.toUtf8().constData()); });
 
   QAction *deleteAction = menu.addAction("🗑️ Delete Channel");
   connect(deleteAction, &QAction::triggered, this,
-          [this]() { emit deleteRequested(m_channel->channel_id); });
+          [this, channelId]() { emit deleteRequested(channelId.toUtf8().constData()); });
 
   menu.addSeparator();
 
   /* Info actions */
   QAction *statsAction = menu.addAction("📊 View Statistics");
-  connect(statsAction, &QAction::triggered, this, [this]() {
-    obs_log(LOG_INFO, "View stats for channel: %s", m_channel->channel_id);
+  connect(statsAction, &QAction::triggered, this, [this, channelId]() {
+    /* Validate m_channel still exists before accessing detailed data */
+    if (!m_channel) {
+      obs_log(LOG_WARNING, "Channel data no longer available for stats: %s",
+              channelId.toUtf8().constData());
+      return;
+    }
+    obs_log(LOG_INFO, "View stats for channel: %s", channelId.toUtf8().constData());
 
     /* Build comprehensive statistics message */
     QString stats;
@@ -587,14 +752,25 @@ void ChannelWidget::showContextMenu(const QPoint &pos) {
   });
 
   QAction *exportAction = menu.addAction("📝 Export Configuration");
-  connect(exportAction, &QAction::triggered, this, [this]() {
-    obs_log(LOG_INFO, "Export config for channel: %s", m_channel->channel_id);
+  connect(exportAction, &QAction::triggered, this, [this, channelId]() {
+    /* Validate m_channel still exists before accessing detailed data */
+    if (!m_channel) {
+      obs_log(LOG_WARNING, "Channel data no longer available for export: %s",
+              channelId.toUtf8().constData());
+      return;
+    }
+    obs_log(LOG_INFO, "Export config for channel: %s", channelId.toUtf8().constData());
 
     /* Build JSON configuration */
+    /* Helper lambda for JSON escaping */
+    auto escapeJson = [](const QString &str) {
+      return QString(str).replace("\\", "\\\\").replace("\"", "\\\"");
+    };
+
     QString config = "{\n";
     config +=
-        QString("  \"channel_name\": \"%1\",\n").arg(m_channel->channel_name);
-    config += QString("  \"channel_id\": \"%1\",\n").arg(m_channel->channel_id);
+        QString("  \"channel_name\": \"%1\",\n").arg(escapeJson(m_channel->channel_name));
+    config += QString("  \"channel_id\": \"%1\",\n").arg(escapeJson(m_channel->channel_id));
 
     /* Source configuration */
     config += "  \"source\": {\n";
@@ -612,7 +788,7 @@ void ChannelWidget::showContextMenu(const QPoint &pos) {
     config += QString("    \"height\": %1").arg(m_channel->source_height);
     if (m_channel->input_url) {
       config +=
-          QString(",\n    \"input_url\": \"%1\"\n").arg(m_channel->input_url);
+          QString(",\n    \"input_url\": \"%1\"\n").arg(escapeJson(m_channel->input_url));
     } else {
       config += "\n";
     }
@@ -668,12 +844,6 @@ void ChannelWidget::showContextMenu(const QPoint &pos) {
       }
     }
   });
-
-  menu.addSeparator();
-
-  QAction *settingsAction = menu.addAction("⚙️ Channel Settings...");
-  connect(settingsAction, &QAction::triggered, this,
-          [this]() { emit editRequested(m_channel->channel_id); });
 
   /* Show menu at global position */
   QPoint globalPos = mapToGlobal(pos);

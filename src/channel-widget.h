@@ -54,15 +54,26 @@ signals:
   void duplicateRequested(const char *channelId);
 
   /* Emitted when output-specific actions are requested */
+  void outputAddRequested(const char *channelId);
   void outputStartRequested(const char *channelId, size_t outputIndex);
   void outputStopRequested(const char *channelId, size_t outputIndex);
+  void outputRestartRequested(const char *channelId, size_t outputIndex);
   void outputEditRequested(const char *channelId, size_t outputIndex);
+  void outputRemoveRequested(const char *channelId, size_t outputIndex);
+  void outputViewStatsRequested(const char *channelId, size_t outputIndex);
+  void outputViewLogsRequested(const char *channelId, size_t outputIndex);
+
+  /* Emitted when preview mode actions are requested */
+  void previewStartRequested(const char *channelId, uint32_t durationSec);
+  void previewGoLiveRequested(const char *channelId);
+  void previewCancelRequested(const char *channelId);
 
   /* Emitted when expanded state changes */
   void expandedChanged(bool expanded);
 
 protected:
   /* Event handlers */
+  bool eventFilter(QObject *obj, QEvent *event) override;
   void contextMenuEvent(QContextMenuEvent *event) override;
   void mouseDoubleClickEvent(QMouseEvent *event) override;
   void enterEvent(QEnterEvent *event) override;
@@ -77,7 +88,11 @@ private slots:
   /* Output widget signals */
   void onOutputStartRequested(size_t outputIndex);
   void onOutputStopRequested(size_t outputIndex);
+  void onOutputRestartRequested(size_t outputIndex);
   void onOutputEditRequested(size_t outputIndex);
+  void onOutputRemoveRequested(size_t outputIndex);
+  void onOutputViewStatsRequested(size_t outputIndex);
+  void onOutputViewLogsRequested(size_t outputIndex);
 
 private:
   void setupUI();
