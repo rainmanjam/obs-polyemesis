@@ -38,7 +38,7 @@
     },
     "name": "obs-polyemesis",
     "displayName": "Restreamer Control for OBS",
-    "version": "0.9.6",
+    "version": "0.9.7",
     "author": "obs-polyemesis",
     "website": "https://github.com/rainmanjam/obs-polyemesis",
     "email": "rainmanjam@gmail.com"

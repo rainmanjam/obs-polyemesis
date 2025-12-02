@@ -7,6 +7,51 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.9.7] - 2025-12-02
+
+### Fixed
+- **Critical: Use-After-Free Crash Prevention**
+  - Fixed SIGABRT crash when using context menu actions (Add Output, Start/Stop, Edit)
+  - Deferred `updateChannelList()` calls using `QTimer::singleShot(0, ...)` pattern
+  - Added QPointer guards for delayed timer callbacks
+  - Captured channel IDs by value in lambdas instead of pointer access
+  - Added `disconnect()` before `deleteLater()` for safe dialog cleanup
+  - Added null checks for channel pointer in stats/export actions
+
+### Added
+- **Channel Edit Dialog - Outputs Tab**
+  - Full CRUD functionality for output management
+  - List view showing all configured outputs with status
+  - Add/Edit/Remove buttons with dedicated dialogs
+  - Output details panel showing configuration
+  - Bulk Enable All/Disable All buttons
+
+- **Backup/Failover Settings**
+  - "This is a backup output" checkbox in output configuration
+  - Primary output selection dropdown
+  - Auto-reconnect option
+
+- **Preview Mode Controls**
+  - "Start Preview" menu item with duration selection dialog
+  - "Go Live" to transition from preview to live streaming
+  - "Cancel Preview" to abort preview mode
+
+- **OBS Bridge Settings**
+  - Horizontal RTMP URL configuration in Advanced Settings
+  - Vertical RTMP URL configuration
+  - Auto-start option for bridge
+
+- **Quality Presets**
+  - Dropdown in Add Output dialog
+  - Options: Auto, 1080p High/Standard, 720p High/Standard, 480p, Low Bandwidth
+  - Automatically sets resolution and bitrate
+
+- **UI Improvements**
+  - Added tooltips to all buttons (Start/Stop, Edit, Menu, Settings)
+  - RTMP URL validation with format guidance
+  - Fixed JSON export escaping for special characters
+  - Removed duplicate "Channel Settings..." context menu item
+
 ### Changed
 - **UI Streamlining**
   - Replaced collapsible connection section with persistent connection status bar
