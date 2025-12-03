@@ -92,20 +92,20 @@ VIAddVersionKey "FileVersion" "${VERSION}"
 Section "OBS Polyemesis Plugin (required)" SEC01
   SectionIn RO
 
-  ; Set output path to the installation directory.
-  SetOutPath "$INSTDIR"
+  ; Set output path to bin/64bit subdirectory (required by OBS plugin structure)
+  SetOutPath "$INSTDIR\bin\64bit"
 
-  ; Put files there
+  ; Put plugin DLL in bin/64bit
   File "..\..\build\Release\obs-polyemesis.dll"
   File /nonfatal "..\..\build\Release\obs-polyemesis.pdb"
 
   ; Write the installation path into the registry
-  WriteRegStr HKCU "${PRODUCT_DIR_REGKEY}" "" "$INSTDIR\obs-polyemesis.dll"
+  WriteRegStr HKCU "${PRODUCT_DIR_REGKEY}" "" "$INSTDIR\bin\64bit\obs-polyemesis.dll"
 
   ; Write the uninstall keys for Windows
   WriteRegStr ${PRODUCT_UNINST_ROOT_KEY} "${PRODUCT_UNINST_KEY}" "DisplayName" "$(^Name)"
   WriteRegStr ${PRODUCT_UNINST_ROOT_KEY} "${PRODUCT_UNINST_KEY}" "UninstallString" "$INSTDIR\uninst.exe"
-  WriteRegStr ${PRODUCT_UNINST_ROOT_KEY} "${PRODUCT_UNINST_KEY}" "DisplayIcon" "$INSTDIR\obs-polyemesis.dll"
+  WriteRegStr ${PRODUCT_UNINST_ROOT_KEY} "${PRODUCT_UNINST_KEY}" "DisplayIcon" "$INSTDIR\bin\64bit\obs-polyemesis.dll"
   WriteRegStr ${PRODUCT_UNINST_ROOT_KEY} "${PRODUCT_UNINST_KEY}" "DisplayVersion" "${VERSION}"
   WriteRegStr ${PRODUCT_UNINST_ROOT_KEY} "${PRODUCT_UNINST_KEY}" "URLInfoAbout" "${PRODUCT_WEB_SITE}"
   WriteRegStr ${PRODUCT_UNINST_ROOT_KEY} "${PRODUCT_UNINST_KEY}" "Publisher" "${PRODUCT_PUBLISHER}"
@@ -171,8 +171,7 @@ Section Uninstall
 
   ; Remove files and directories
   RMDir /r "$INSTDIR\data"
-  Delete "$INSTDIR\obs-polyemesis.dll"
-  Delete "$INSTDIR\*.pdb"
+  RMDir /r "$INSTDIR\bin"
   Delete "$INSTDIR\uninst.exe"
 
   ; Remove installation directory if empty
