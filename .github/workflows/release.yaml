@@ -308,9 +308,9 @@ jobs:
         with:
           submodules: recursive
 
-      - name: Setup NSIS
+      - name: Setup InnoSetup
         run: |
-          choco install nsis -y
+          choco install innosetup -y
 
       - name: Install Qt
         uses: jurplel/install-qt-action@v3
@@ -331,8 +331,17 @@ jobs:
         env:
           VERSION: ${{ needs.create-release.outputs.version }}
         run: |
-          mkdir -p build/installers
-          makensis /DVERSION=$env:VERSION packaging/windows/installer.nsi
+          # Strip any suffix from version for InnoSetup (e.g., "0.9.10-beta" -> "0.9.10")
+          $cleanVersion = $env:VERSION -replace '-.*$', ''
+
+          # Create installers directory
+          New-Item -ItemType Directory -Force -Path build\installers
+
+          # Build InnoSetup installer
+          # InnoSetup installs to: C:\Program Files (x86)\Inno Setup 6
+          & "C:\Program Files (x86)\Inno Setup 6\ISCC.exe" `
+            /DVERSION=$cleanVersion `
+            packaging\windows\installer.iss
 
       - name: Upload Installer
         uses: actions/upload-release-asset@v1

@@ -7,6 +7,28 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.9.10] - 2025-12-02
+
+### Changed
+- **Windows Installer: Switched from NSIS to InnoSetup**
+  - Follows OBS Plugin Template recommendations
+  - Better compatibility with OBS plugin ecosystem
+  - Improved upgrade detection via unique AppId UUID
+  - Multi-language installer support (8 languages)
+  - Component selection (plugin vs locales)
+
+- **Windows Installer: Fixed Installation Path**
+  - Changed from `%APPDATA%` (per-user) to `%PROGRAMDATA%` (system-wide)
+  - `C:\ProgramData\obs-studio\plugins\obs-polyemesis` is the OBS-recommended location
+  - Ensures plugin is available for all users on the system
+  - Matches OBS Plugin Template best practices
+
+### Technical
+- Created `packaging/windows/installer.iss` (InnoSetup script)
+- Created `packaging/windows/installer.iss.in` (CMake template)
+- Updated `.github/workflows/create-packages.yaml` for InnoSetup
+- Updated `.github/workflows/release.yaml` for InnoSetup
+
 ## [0.9.9] - 2025-12-02
 
 ### Fixed
