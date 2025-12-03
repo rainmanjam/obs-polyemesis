@@ -812,9 +812,62 @@ void ChannelWidget::showContextMenu(const QPoint &pos) {
                   .arg(m_channel->failure_threshold);
     config += "  },\n";
 
-    /* Outputs */
-    config += QString("  \"output_count\": %1\n")
+    /* Outputs - export full configuration for each output */
+    config += QString("  \"output_count\": %1,\n")
                   .arg(m_channel->output_count);
+    config += "  \"outputs\": [\n";
+
+    for (size_t i = 0; i < m_channel->output_count; i++) {
+      channel_output_t *output = &m_channel->outputs[i];
+      config += "    {\n";
+
+      /* Service name */
+      QString serviceName;
+      switch (output->service) {
+        case SERVICE_CUSTOM: serviceName = "custom"; break;
+        case SERVICE_TWITCH: serviceName = "twitch"; break;
+        case SERVICE_YOUTUBE: serviceName = "youtube"; break;
+        case SERVICE_FACEBOOK: serviceName = "facebook"; break;
+        case SERVICE_KICK: serviceName = "kick"; break;
+        case SERVICE_TIKTOK: serviceName = "tiktok"; break;
+        case SERVICE_INSTAGRAM: serviceName = "instagram"; break;
+        case SERVICE_X_TWITTER: serviceName = "x_twitter"; break;
+        default: serviceName = QString("unknown_%1").arg(output->service); break;
+      }
+      config += QString("      \"service\": \"%1\",\n").arg(serviceName);
+      config += QString("      \"service_id\": %1,\n").arg(output->service);
+
+      /* Stream key - mask for security but indicate if present */
+      bool hasStreamKey = output->stream_key && strlen(output->stream_key) > 0;
+      config += QString("      \"has_stream_key\": %1,\n")
+                    .arg(hasStreamKey ? "true" : "false");
+
+      /* Target orientation */
+      QString targetOrientation;
+      switch (output->target_orientation) {
+        case ORIENTATION_AUTO: targetOrientation = "auto"; break;
+        case ORIENTATION_HORIZONTAL: targetOrientation = "horizontal"; break;
+        case ORIENTATION_VERTICAL: targetOrientation = "vertical"; break;
+        case ORIENTATION_SQUARE: targetOrientation = "square"; break;
+        default: targetOrientation = "unknown"; break;
+      }
+      config += QString("      \"target_orientation\": \"%1\",\n").arg(targetOrientation);
+      config += QString("      \"enabled\": %1,\n")
+                    .arg(output->enabled ? "true" : "false");
+
+      /* Encoding settings */
+      config += "      \"encoding\": {\n";
+      config += QString("        \"width\": %1,\n").arg(output->encoding.width);
+      config += QString("        \"height\": %1,\n").arg(output->encoding.height);
+      config += QString("        \"bitrate\": %1,\n").arg(output->encoding.bitrate);
+      config += QString("        \"audio_bitrate\": %1,\n").arg(output->encoding.audio_bitrate);
+      config += QString("        \"audio_track\": %1\n").arg(output->encoding.audio_track);
+      config += "      }\n";
+
+      config += QString("    }%1\n").arg(i < m_channel->output_count - 1 ? "," : "");
+    }
+
+    config += "  ]\n";
     config += "}\n";
 
     /* Save to file */

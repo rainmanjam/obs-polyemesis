@@ -15,6 +15,7 @@
 #include <QVBoxLayout>
 #include <obs-frontend-api.h>
 #include <obs-module.h>
+#include <util/platform.h>
 
 extern "C" {
 #include <plugin-support.h>
@@ -202,18 +203,34 @@ void ConnectionConfigDialog::saveSettings() {
   obs_data_set_string(settings, "password",
                       m_passwordEdit->text().toUtf8().constData());
 
-  /* Save to module config file */
-  const char *config_path = obs_module_config_path("config.json");
-  if (!obs_data_save_json_safe(settings, config_path, "tmp", "bak")) {
-    obs_log(LOG_ERROR, "Failed to save connection settings to %s", config_path);
-    return;
-  }
+  /* CRITICAL: Update global config FIRST so current session works
+   * This must happen before file save attempt because:
+   * 1. The file save might fail (e.g., directory doesn't exist)
+   * 2. We want the connection to work in the current session regardless
+   */
+  restreamer_config_load(settings);
 
-  obs_log(LOG_INFO, "Connection settings saved: host=%s, port=%d, use_https=%d",
+  obs_log(LOG_INFO, "Connection settings updated: host=%s, port=%d, use_https=%d",
           host.toUtf8().constData(), port, use_https);
 
-  /* Call restreamer_config_load() to update global connection */
-  restreamer_config_load(settings);
+  /* Ensure config directory exists (cross-platform: macOS, Windows, Linux) */
+  const char *config_dir = obs_module_config_path("");
+  if (config_dir) {
+    int ret = os_mkdirs(config_dir);
+    if (ret == MKDIR_ERROR) {
+      obs_log(LOG_WARNING, "Failed to create config directory: %s", config_dir);
+    }
+  }
+
+  /* Save to module config file for persistence across sessions */
+  const char *config_path = obs_module_config_path("config.json");
+  if (!obs_data_save_json_safe(settings, config_path, "tmp", "bak")) {
+    obs_log(LOG_WARNING, "Failed to save connection settings to %s (settings will "
+            "not persist after restart)", config_path);
+    /* Don't return early - in-memory config is already updated */
+  } else {
+    obs_log(LOG_INFO, "Connection settings saved to: %s", config_path);
+  }
 }
 
 QString ConnectionConfigDialog::getUrl() const { return m_urlEdit->text(); }

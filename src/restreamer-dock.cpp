@@ -33,6 +33,7 @@
 #include <QTimer>
 #include <obs-frontend-api.h>
 #include <obs-module.h>
+#include <util/platform.h>
 
 extern "C" {
 #include "obs-bridge.h"
@@ -693,6 +694,15 @@ void RestreamerDock::setupUI() {
         bfree(bridgeConfig.rtmp_vertical_url);
       }
 
+      /* Ensure config directory exists (cross-platform: macOS, Windows, Linux) */
+      const char *config_dir = obs_module_config_path("");
+      if (config_dir) {
+        int ret = os_mkdirs(config_dir);
+        if (ret == MKDIR_ERROR) {
+          obs_log(LOG_WARNING, "Failed to create config directory: %s", config_dir);
+        }
+      }
+
       /* Save to config file */
       const char *config_path = obs_module_config_path("config.json");
       if (!obs_data_save_json_safe(settings, config_path, "tmp", "bak")) {
@@ -813,6 +823,15 @@ void RestreamerDock::setupUI() {
                        updateIntervalSpin->value());
       obs_data_set_bool(saveSettings, "show_notifications",
                         showNotificationsCheck->isChecked());
+
+      /* Ensure config directory exists (cross-platform: macOS, Windows, Linux) */
+      const char *config_dir = obs_module_config_path("");
+      if (config_dir) {
+        int ret = os_mkdirs(config_dir);
+        if (ret == MKDIR_ERROR) {
+          obs_log(LOG_WARNING, "Failed to create config directory: %s", config_dir);
+        }
+      }
 
       /* Save to file */
       const char *config_path = obs_module_config_path("config.json");
@@ -976,6 +995,15 @@ void RestreamerDock::saveSettings() {
   if (bridgeAutoStartCheckbox) {
     obs_data_set_bool(settings, "bridge_auto_start",
                       bridgeAutoStartCheckbox->isChecked());
+  }
+
+  /* Ensure config directory exists (cross-platform: macOS, Windows, Linux) */
+  const char *config_dir = obs_module_config_path("");
+  if (config_dir) {
+    int ret = os_mkdirs(config_dir);
+    if (ret == MKDIR_ERROR) {
+      obs_log(LOG_WARNING, "Failed to create config directory: %s", config_dir);
+    }
   }
 
   /* Safe file writing: writes to .tmp first, then creates .bak backup,
@@ -1963,7 +1991,10 @@ void RestreamerDock::onChannelEditRequested(const char *profileId) {
     obs_log(LOG_INFO, "Channel '%s' updated successfully",
             profile->channel_name);
     /* Defer update to allow event processing (context menu may still be active) */
-    QTimer::singleShot(0, this, [this]() { updateChannelList(); });
+    QTimer::singleShot(0, this, [this]() {
+      updateChannelList();
+      saveSettings(); /* Persist channel changes to disk */
+    });
   }
 
   /* Disconnect all signals from dialog before deletion to prevent dangling connections */

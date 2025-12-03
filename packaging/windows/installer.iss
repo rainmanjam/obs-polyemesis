@@ -16,7 +16,7 @@
 
 ; Version can be overridden via command line: /DVERSION=x.y.z
 #ifndef VERSION
-  #define VERSION "0.9.10"
+  #define VERSION "0.9.11"
 #endif
 
 #define AppName "Restreamer Control for OBS"

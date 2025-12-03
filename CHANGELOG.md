@@ -7,6 +7,36 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.9.11] - 2025-12-02
+
+### Fixed
+- **Critical: Connection Settings Not Saving**
+  - Fixed config directory not being created on first use
+  - Connection now works immediately after entering settings (in-memory update first)
+  - Settings persist across OBS restarts (file save with directory creation)
+  - Cross-platform fix for macOS, Windows, and Linux
+
+- **Channel Edit Changes Not Persisting**
+  - Fixed channel edits not being saved to disk after dialog closes
+  - All channel modifications now properly persist
+
+- **Global Settings Save Reliability**
+  - Added config directory creation before saving global settings
+  - Added config directory creation before saving advanced settings
+
+### Improved
+- **Export Configuration Now Includes Full Output Details**
+  - Service name and ID
+  - Target orientation
+  - Enabled status
+  - Encoding settings (resolution, bitrate, audio settings)
+  - Stream key presence indicator (masked for security)
+
+### Technical
+- Added `util/platform.h` include for `os_mkdirs()` cross-platform support
+- Reordered save flow: update in-memory config before attempting file save
+- Changed save failures from errors to warnings (session still works)
+
 ## [0.9.10] - 2025-12-02
 
 ### Changed
