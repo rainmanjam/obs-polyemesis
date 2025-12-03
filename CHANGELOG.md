@@ -7,6 +7,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.9.8] - 2025-12-02
+
+### Fixed
+- **Critical: Windows Plugin Folder Structure**
+  - Fixed incorrect folder structure that prevented OBS from loading the plugin
+  - DLL now correctly installed to `bin/64bit/` subdirectory as required by OBS
+  - Updated registry paths and uninstaller accordingly
+
+### Added
+- Added `.clang-format` configuration (matches OBS Studio code style)
+
 ## [0.9.7] - 2025-12-02
 
 ### Fixed
