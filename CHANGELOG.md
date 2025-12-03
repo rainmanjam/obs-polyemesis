@@ -7,6 +7,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.9.9] - 2025-12-02
+
+### Fixed
+- **Windows Installer: Improved OBS Detection**
+  - Added file system checks for OBS in common installation paths
+  - Now detects OBS at `Program Files`, `Program Files (x86)`, and `LocalAppData`
+  - Works with portable OBS installations that don't have registry entries
+  - Fixed existing plugin detection to check correct `bin/64bit/` path
+  - Updated success message to show actual installation location
+
 ## [0.9.8] - 2025-12-02
 
 ### Fixed

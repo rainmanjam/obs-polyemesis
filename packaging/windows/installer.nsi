@@ -136,9 +136,21 @@ SectionEnd
 
 Function .onInit
   ; Check if OBS Studio is installed
+  ; First try registry keys
   ReadRegStr $0 HKLM "SOFTWARE\OBS Studio" "InstallLocation"
   ${If} $0 == ""
     ReadRegStr $0 HKCU "SOFTWARE\OBS Studio" "InstallLocation"
+  ${EndIf}
+
+  ; Also check common installation paths if registry fails
+  ${If} $0 == ""
+    ${If} ${FileExists} "$PROGRAMFILES64\obs-studio\bin\64bit\obs64.exe"
+      StrCpy $0 "$PROGRAMFILES64\obs-studio"
+    ${ElseIf} ${FileExists} "$PROGRAMFILES\obs-studio\bin\64bit\obs64.exe"
+      StrCpy $0 "$PROGRAMFILES\obs-studio"
+    ${ElseIf} ${FileExists} "$LOCALAPPDATA\Programs\obs-studio\bin\64bit\obs64.exe"
+      StrCpy $0 "$LOCALAPPDATA\Programs\obs-studio"
+    ${EndIf}
   ${EndIf}
 
   ${If} $0 == ""
@@ -148,8 +160,9 @@ Function .onInit
     Abort
   ${EndIf}
 
-  ; Check if plugin is already installed
-  ${If} ${FileExists} "$INSTDIR\obs-polyemesis.dll"
+  ; Check if plugin is already installed (check both old and new paths)
+  ${If} ${FileExists} "$INSTDIR\bin\64bit\obs-polyemesis.dll"
+  ${OrIf} ${FileExists} "$INSTDIR\obs-polyemesis.dll"
     MessageBox MB_YESNO|MB_ICONQUESTION \
       "An existing installation of ${PRODUCT_NAME} was detected.$\r$\n$\r$\nDo you want to overwrite it?" \
       IDYES +2
@@ -158,7 +171,7 @@ Function .onInit
 FunctionEnd
 
 Function .onInstSuccess
-  MessageBox MB_OK "Installation complete!$\r$\n$\r$\nThe plugin has been installed to:$\r$\n$INSTDIR$\r$\n$\r$\nPlease restart OBS Studio if it is currently running."
+  MessageBox MB_OK "Installation complete!$\r$\n$\r$\nThe plugin has been installed to:$\r$\n$INSTDIR\bin\64bit\$\r$\n$\r$\nPlease restart OBS Studio if it is currently running."
 FunctionEnd
 
 ;--------------------------------
