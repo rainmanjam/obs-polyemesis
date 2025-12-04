@@ -353,7 +353,7 @@ void restreamer_multistream_load_from_settings(multistream_config_t *config,
   config->auto_detect_orientation =
       obs_data_get_bool(settings, "auto_detect_orientation");
 
-  int source_orientation_int = obs_data_get_int(settings, "source_orientation");
+  int source_orientation_int = (int)obs_data_get_int(settings, "source_orientation");
   if (source_orientation_int < ORIENTATION_AUTO || source_orientation_int > ORIENTATION_SQUARE) {
     config->source_orientation = ORIENTATION_AUTO;
   } else {
@@ -373,7 +373,7 @@ void restreamer_multistream_load_from_settings(multistream_config_t *config,
           (streaming_service_t)obs_data_get_int(dest_data, "service");
       const char *stream_key = obs_data_get_string(dest_data, "stream_key");
 
-      int orientation_int = obs_data_get_int(dest_data, "orientation");
+      int orientation_int = (int)obs_data_get_int(dest_data, "orientation");
       stream_orientation_t orientation;
       if (orientation_int < ORIENTATION_AUTO || orientation_int > ORIENTATION_SQUARE) {
         orientation = ORIENTATION_AUTO;
