@@ -623,15 +623,16 @@ set_tests_properties(
 )
 
 # E2E Streaming Workflow Tests (requires live Restreamer server)
-add_executable(test_e2e_streaming_workflow e2e/test_streaming_workflow.c)
+add_executable(test_e2e_streaming_workflow e2e/test_streaming_workflow.c obs_stubs.c)
 target_sources(
   test_e2e_streaming_workflow
   PRIVATE
     ${CMAKE_SOURCE_DIR}/src/restreamer-api.c
+    ${CMAKE_SOURCE_DIR}/src/restreamer-api-utils.c
 )
 target_include_directories(
   test_e2e_streaming_workflow
-  PRIVATE ${CMAKE_SOURCE_DIR}/src ${JANSSON_INCLUDE_DIRS} ${CURL_INCLUDE_DIRS}
+  PRIVATE ${CMAKE_SOURCE_DIR}/src ${CMAKE_SOURCE_DIR}/tests ${JANSSON_INCLUDE_DIRS} ${CURL_INCLUDE_DIRS}
 )
 target_link_libraries(test_e2e_streaming_workflow PRIVATE ${JANSSON_LIBRARIES} CURL::libcurl)
 target_compile_definitions(test_e2e_streaming_workflow PRIVATE TESTING_MODE)
@@ -653,7 +654,7 @@ set_tests_properties(
 )
 
 # Comprehensive E2E Streaming Tests (requires live Restreamer server)
-add_executable(test_streaming_e2e e2e/test_streaming_e2e.c)
+add_executable(test_streaming_e2e e2e/test_streaming_e2e.c obs_stubs.c)
 target_sources(
   test_streaming_e2e
   PRIVATE
