@@ -527,6 +527,7 @@ endif()
 if(UNIX)
   target_link_libraries(test_restreamer_api_integration PRIVATE pthread)
 endif()
+target_compile_definitions(test_restreamer_api_integration PRIVATE TESTING_MODE)
 
 # Fix rpath for integration test executable
 if(APPLE)
@@ -593,6 +594,7 @@ endif()
 if(UNIX)
   target_link_libraries(test_channel_api_integration PRIVATE pthread)
 endif()
+target_compile_definitions(test_channel_api_integration PRIVATE TESTING_MODE)
 
 # Fix rpath for integration test executable
 if(APPLE)
@@ -632,6 +634,7 @@ target_include_directories(
   PRIVATE ${CMAKE_SOURCE_DIR}/src ${JANSSON_INCLUDE_DIRS} ${CURL_INCLUDE_DIRS}
 )
 target_link_libraries(test_e2e_streaming_workflow PRIVATE ${JANSSON_LIBRARIES} CURL::libcurl)
+target_compile_definitions(test_e2e_streaming_workflow PRIVATE TESTING_MODE)
 
 # Add E2E streaming workflow test to CTest (disabled by default - requires live server)
 # To run: ctest -R e2e_streaming_workflow
@@ -675,6 +678,7 @@ endif()
 if(UNIX)
   target_link_libraries(test_streaming_e2e PRIVATE pthread)
 endif()
+target_compile_definitions(test_streaming_e2e PRIVATE TESTING_MODE)
 
 # Fix rpath for comprehensive E2E test executable
 if(APPLE)
@@ -760,6 +764,7 @@ endif()
 if(UNIX)
   target_link_libraries(test_channel_extended PRIVATE pthread)
 endif()
+target_compile_definitions(test_channel_extended PRIVATE TESTING_MODE)
 
 # Fix rpath for test executable
 if(APPLE)
@@ -812,6 +817,7 @@ endif()
 if(UNIX)
   target_link_libraries(test_ui_workflows PRIVATE pthread)
 endif()
+target_compile_definitions(test_ui_workflows PRIVATE TESTING_MODE)
 
 # Fix rpath for test executable
 if(APPLE)
