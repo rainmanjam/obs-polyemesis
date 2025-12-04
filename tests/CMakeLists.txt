@@ -622,7 +622,10 @@ set_tests_properties(
     WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}
 )
 
-# E2E Streaming Workflow Tests (requires live Restreamer server)
+# E2E Streaming Workflow Tests (requires live Restreamer server AND OBS)
+# These tests compile restreamer-api.c which needs OBS headers
+# Only build when OBS is available (not in CI without OBS)
+if(TARGET OBS::libobs)
 add_executable(test_e2e_streaming_workflow e2e/test_streaming_workflow.c obs_stubs.c)
 target_sources(
   test_e2e_streaming_workflow
@@ -652,8 +655,12 @@ set_tests_properties(
     WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}
     TIMEOUT 300
 )
+endif() # End if(TARGET OBS::libobs) for test_e2e_streaming_workflow
 
-# Comprehensive E2E Streaming Tests (requires live Restreamer server)
+# Comprehensive E2E Streaming Tests (requires live Restreamer server AND OBS)
+# These tests compile restreamer-api.c which needs OBS headers
+# Only build when OBS is available (not in CI without OBS)
+if(TARGET OBS::libobs)
 add_executable(test_streaming_e2e e2e/test_streaming_e2e.c obs_stubs.c)
 target_sources(
   test_streaming_e2e
@@ -707,6 +714,7 @@ set_tests_properties(
     WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}
     TIMEOUT 600
 )
+endif() # End if(TARGET OBS::libobs) for test_streaming_e2e
 
 if(FALSE) # Temporarily disabled
   # End-to-End workflow tests
