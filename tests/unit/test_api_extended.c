@@ -24,9 +24,17 @@
 #endif
 
 /* Enable access to internal functions for testing */
+#ifndef TESTING_MODE
 #define TESTING_MODE
+#endif
 #include "restreamer-api.h"
 #include "test_framework.h"
+
+/* Memory struct for CURL callbacks - must be defined before extern declarations */
+struct memory_struct {
+  char *memory;
+  size_t size;
+};
 
 /* External declarations for TESTING_MODE */
 extern void secure_memzero(void *ptr, size_t len);
@@ -35,12 +43,6 @@ extern json_t *parse_json_response(restreamer_api_t *api, struct memory_struct *
 extern void parse_process_fields(const json_t *json_obj, restreamer_process_t *process);
 extern void handle_login_failure(restreamer_api_t *api, long http_code);
 extern bool is_login_throttled(restreamer_api_t *api);
-
-/* Memory struct for CURL callbacks */
-struct memory_struct {
-  char *memory;
-  size_t size;
-};
 
 /* ========================================================================
  * Token Management Tests
