@@ -48,6 +48,54 @@ add_executable(
   obs_stubs.c
 )
 
+# Extended API tests executable (standalone unit tests)
+add_executable(
+  test_api_extended
+  unit/test_api_extended.c
+  obs_stubs.c
+)
+
+target_sources(
+  test_api_extended
+  PRIVATE
+    ${CMAKE_SOURCE_DIR}/src/restreamer-api.c
+    ${CMAKE_SOURCE_DIR}/src/restreamer-api-utils.c
+)
+
+# Define TESTING_MODE to expose internal functions
+target_compile_definitions(test_api_extended PRIVATE TESTING_MODE)
+
+# Include directories for extended tests
+target_include_directories(
+  test_api_extended
+  PRIVATE ${CMAKE_SOURCE_DIR}/src ${CMAKE_SOURCE_DIR}/tests ${JANSSON_INCLUDE_DIRS} ${CURL_INCLUDE_DIRS}
+)
+
+# Link libraries for extended tests
+if(TARGET Jansson::Jansson)
+  target_link_libraries(test_api_extended PRIVATE Jansson::Jansson CURL::libcurl OBS::libobs)
+else()
+  target_link_libraries(test_api_extended PRIVATE ${JANSSON_LIBRARIES} CURL::libcurl OBS::libobs)
+  if(JANSSON_LIBRARY_DIRS)
+    target_link_directories(test_api_extended PRIVATE ${JANSSON_LIBRARY_DIRS})
+  endif()
+endif()
+
+if(UNIX)
+  target_link_libraries(test_api_extended PRIVATE pthread)
+endif()
+
+# Fix rpath for extended test executable
+if(APPLE)
+  add_custom_command(
+    TARGET test_api_extended
+    POST_BUILD
+    COMMAND install_name_tool -add_rpath "${CMAKE_SOURCE_DIR}/.deps/Frameworks" "$<TARGET_FILE:test_api_extended>"
+    COMMAND install_name_tool -add_rpath "/Applications/OBS.app/Contents/Frameworks" "$<TARGET_FILE:test_api_extended>"
+    COMMENT "Adding rpaths to extended test executable"
+  )
+endif()
+
 # Link against main project sources (we'll need to adjust the main CMakeLists.txt)
 target_sources(
   obs-polyemesis-tests
@@ -143,6 +191,9 @@ add_test(NAME stream_channel_tests COMMAND $<TARGET_FILE:obs-polyemesis-tests> -
 add_test(NAME source_tests COMMAND $<TARGET_FILE:obs-polyemesis-tests> --test-suite=source)
 add_test(NAME output_tests COMMAND $<TARGET_FILE:obs-polyemesis-tests> --test-suite=output)
 
+# Extended API tests (standalone executable)
+add_test(NAME api_extended_tests COMMAND $<TARGET_FILE:test_api_extended>)
+
 # Set working directory for tests to ensure they run from the correct location
 set_tests_properties(
   api_client_tests
@@ -183,6 +234,7 @@ set_tests_properties(
   stream_channel_tests
   source_tests
   output_tests
+  api_extended_tests
   PROPERTIES WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}
 )
 
@@ -440,6 +492,217 @@ if(FALSE) # Temporarily disabled
   add_test(NAME integration_restreamer_api COMMAND $<TARGET_FILE:test_integration_restreamer_standalone>)
 endif() # End of integration tests
 
+# ========================================================================
+# Live Restreamer Server Integration Tests
+# Tests against a live Restreamer server (requires server access)
+# ========================================================================
+add_executable(
+  test_restreamer_api_integration
+  integration/test_restreamer_api_integration.c
+  obs_stubs.c
+)
+
+target_sources(
+  test_restreamer_api_integration
+  PRIVATE
+    ${CMAKE_SOURCE_DIR}/src/restreamer-api.c
+    ${CMAKE_SOURCE_DIR}/src/restreamer-api-utils.c
+)
+
+target_include_directories(
+  test_restreamer_api_integration
+  PRIVATE ${CMAKE_SOURCE_DIR}/src ${CMAKE_SOURCE_DIR}/tests ${JANSSON_INCLUDE_DIRS} ${CURL_INCLUDE_DIRS}
+)
+
+# Link libraries for integration test
+if(TARGET Jansson::Jansson)
+  target_link_libraries(test_restreamer_api_integration PRIVATE Jansson::Jansson CURL::libcurl OBS::libobs)
+else()
+  target_link_libraries(test_restreamer_api_integration PRIVATE ${JANSSON_LIBRARIES} CURL::libcurl OBS::libobs)
+  if(JANSSON_LIBRARY_DIRS)
+    target_link_directories(test_restreamer_api_integration PRIVATE ${JANSSON_LIBRARY_DIRS})
+  endif()
+endif()
+
+if(UNIX)
+  target_link_libraries(test_restreamer_api_integration PRIVATE pthread)
+endif()
+
+# Fix rpath for integration test executable
+if(APPLE)
+  add_custom_command(
+    TARGET test_restreamer_api_integration
+    POST_BUILD
+    COMMAND install_name_tool -add_rpath "${CMAKE_SOURCE_DIR}/.deps/Frameworks" "$<TARGET_FILE:test_restreamer_api_integration>"
+    COMMAND install_name_tool -add_rpath "/Applications/OBS.app/Contents/Frameworks" "$<TARGET_FILE:test_restreamer_api_integration>"
+    COMMENT "Adding rpaths to integration test executable"
+  )
+endif()
+
+# Add integration test to CTest (disabled by default - requires live server)
+# To run: ctest -R restreamer_api_integration
+add_test(
+  NAME restreamer_api_integration
+  COMMAND $<TARGET_FILE:test_restreamer_api_integration>
+)
+
+# Mark as requiring network/server access
+set_tests_properties(
+  restreamer_api_integration
+  PROPERTIES
+    LABELS "integration;network;live-server"
+    WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}
+)
+
+# ========================================================================
+# Channel-API-Multistream Integration Tests
+# Tests integration between channel, API, and multistream modules
+# ========================================================================
+add_executable(
+  test_channel_api_integration
+  integration/test_channel_api_integration.c
+  mock_restreamer.c
+  obs_stubs.c
+)
+
+target_sources(
+  test_channel_api_integration
+  PRIVATE
+    ${CMAKE_SOURCE_DIR}/src/restreamer-api.c
+    ${CMAKE_SOURCE_DIR}/src/restreamer-api-utils.c
+    ${CMAKE_SOURCE_DIR}/src/restreamer-channel.c
+    ${CMAKE_SOURCE_DIR}/src/restreamer-multistream.c
+    ${CMAKE_SOURCE_DIR}/src/restreamer-config.c
+)
+
+target_include_directories(
+  test_channel_api_integration
+  PRIVATE ${CMAKE_SOURCE_DIR}/src ${CMAKE_SOURCE_DIR}/tests ${JANSSON_INCLUDE_DIRS} ${CURL_INCLUDE_DIRS}
+)
+
+# Link libraries for integration test
+if(TARGET Jansson::Jansson)
+  target_link_libraries(test_channel_api_integration PRIVATE Jansson::Jansson CURL::libcurl OBS::libobs)
+else()
+  target_link_libraries(test_channel_api_integration PRIVATE ${JANSSON_LIBRARIES} CURL::libcurl OBS::libobs)
+  if(JANSSON_LIBRARY_DIRS)
+    target_link_directories(test_channel_api_integration PRIVATE ${JANSSON_LIBRARY_DIRS})
+  endif()
+endif()
+
+if(UNIX)
+  target_link_libraries(test_channel_api_integration PRIVATE pthread)
+endif()
+
+# Fix rpath for integration test executable
+if(APPLE)
+  add_custom_command(
+    TARGET test_channel_api_integration
+    POST_BUILD
+    COMMAND install_name_tool -add_rpath "${CMAKE_SOURCE_DIR}/.deps/Frameworks" "$<TARGET_FILE:test_channel_api_integration>"
+    COMMAND install_name_tool -add_rpath "/Applications/OBS.app/Contents/Frameworks" "$<TARGET_FILE:test_channel_api_integration>"
+    COMMENT "Adding rpaths to channel-api integration test executable"
+  )
+endif()
+
+# Add integration test to CTest
+# Can run in mock mode (default) or live mode (LIVE_TEST_SERVER=1)
+add_test(
+  NAME channel_api_integration
+  COMMAND $<TARGET_FILE:test_channel_api_integration>
+)
+
+# Mark as integration test
+set_tests_properties(
+  channel_api_integration
+  PROPERTIES
+    LABELS "integration;mock;channel;api;multistream"
+    WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}
+)
+
+# E2E Streaming Workflow Tests (requires live Restreamer server)
+add_executable(test_e2e_streaming_workflow e2e/test_streaming_workflow.c)
+target_sources(
+  test_e2e_streaming_workflow
+  PRIVATE
+    ${CMAKE_SOURCE_DIR}/src/restreamer-api.c
+)
+target_include_directories(
+  test_e2e_streaming_workflow
+  PRIVATE ${CMAKE_SOURCE_DIR}/src ${JANSSON_INCLUDE_DIRS} ${CURL_INCLUDE_DIRS}
+)
+target_link_libraries(test_e2e_streaming_workflow PRIVATE ${JANSSON_LIBRARIES} CURL::libcurl)
+
+# Add E2E streaming workflow test to CTest (disabled by default - requires live server)
+# To run: ctest -R e2e_streaming_workflow
+add_test(
+  NAME e2e_streaming_workflow
+  COMMAND $<TARGET_FILE:test_e2e_streaming_workflow>
+)
+
+# Mark as requiring network/server access
+set_tests_properties(
+  e2e_streaming_workflow
+  PROPERTIES
+    LABELS "e2e;integration;network;live-server;streaming"
+    WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}
+    TIMEOUT 300
+)
+
+# Comprehensive E2E Streaming Tests (requires live Restreamer server)
+add_executable(test_streaming_e2e e2e/test_streaming_e2e.c)
+target_sources(
+  test_streaming_e2e
+  PRIVATE
+    ${CMAKE_SOURCE_DIR}/src/restreamer-api.c
+    ${CMAKE_SOURCE_DIR}/src/restreamer-api-utils.c
+)
+target_include_directories(
+  test_streaming_e2e
+  PRIVATE ${CMAKE_SOURCE_DIR}/src ${CMAKE_SOURCE_DIR}/tests ${JANSSON_INCLUDE_DIRS} ${CURL_INCLUDE_DIRS}
+)
+
+# Link libraries for comprehensive E2E test
+if(TARGET Jansson::Jansson)
+  target_link_libraries(test_streaming_e2e PRIVATE Jansson::Jansson CURL::libcurl)
+else()
+  target_link_libraries(test_streaming_e2e PRIVATE ${JANSSON_LIBRARIES} CURL::libcurl)
+  if(JANSSON_LIBRARY_DIRS)
+    target_link_directories(test_streaming_e2e PRIVATE ${JANSSON_LIBRARY_DIRS})
+  endif()
+endif()
+
+if(UNIX)
+  target_link_libraries(test_streaming_e2e PRIVATE pthread)
+endif()
+
+# Fix rpath for comprehensive E2E test executable
+if(APPLE)
+  add_custom_command(
+    TARGET test_streaming_e2e
+    POST_BUILD
+    COMMAND install_name_tool -add_rpath "${CMAKE_SOURCE_DIR}/.deps/Frameworks" "$<TARGET_FILE:test_streaming_e2e>"
+    COMMAND install_name_tool -add_rpath "/Applications/OBS.app/Contents/Frameworks" "$<TARGET_FILE:test_streaming_e2e>"
+    COMMENT "Adding rpaths to comprehensive E2E streaming test executable"
+  )
+endif()
+
+# Add comprehensive E2E streaming test to CTest (disabled by default - requires live server)
+# To run: ctest -R streaming_e2e
+add_test(
+  NAME streaming_e2e
+  COMMAND $<TARGET_FILE:test_streaming_e2e>
+)
+
+# Mark as requiring network/server access
+set_tests_properties(
+  streaming_e2e
+  PROPERTIES
+    LABELS "e2e;integration;network;live-server;streaming;comprehensive"
+    WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}
+    TIMEOUT 600
+)
+
 if(FALSE) # Temporarily disabled
   # End-to-End workflow tests
   add_executable(test_e2e_workflows_standalone test_e2e_workflows.c obs_stubs.c)
@@ -465,6 +728,113 @@ endif() # End of e2e workflow tests
 # See docs/testing-strategy.md for alternative testing approaches
 # add_subdirectory(unit)
 
+# ========================================================================
+# Extended Channel Management Unit Tests (C-based, standalone)
+# ========================================================================
+add_executable(test_channel_extended unit/test_channel_extended.c)
+target_sources(
+  test_channel_extended
+  PRIVATE
+    ${CMAKE_SOURCE_DIR}/src/restreamer-channel.c
+    ${CMAKE_SOURCE_DIR}/src/restreamer-multistream.c
+    ${CMAKE_SOURCE_DIR}/src/restreamer-api.c
+    ${CMAKE_SOURCE_DIR}/src/restreamer-api-utils.c
+    ${CMAKE_SOURCE_DIR}/tests/mock_restreamer.c
+    ${CMAKE_SOURCE_DIR}/tests/obs_stubs.c
+)
+target_include_directories(
+  test_channel_extended
+  PRIVATE ${CMAKE_SOURCE_DIR}/src ${CMAKE_SOURCE_DIR}/tests ${JANSSON_INCLUDE_DIRS} ${CURL_INCLUDE_DIRS}
+)
+
+# Link libraries for channel extended test
+if(TARGET Jansson::Jansson)
+  target_link_libraries(test_channel_extended PRIVATE Jansson::Jansson CURL::libcurl OBS::libobs)
+else()
+  target_link_libraries(test_channel_extended PRIVATE ${JANSSON_LIBRARIES} CURL::libcurl OBS::libobs)
+  if(JANSSON_LIBRARY_DIRS)
+    target_link_directories(test_channel_extended PRIVATE ${JANSSON_LIBRARY_DIRS})
+  endif()
+endif()
+
+if(UNIX)
+  target_link_libraries(test_channel_extended PRIVATE pthread)
+endif()
+
+# Fix rpath for test executable
+if(APPLE)
+  add_custom_command(
+    TARGET test_channel_extended
+    POST_BUILD
+    COMMAND install_name_tool -add_rpath "${CMAKE_SOURCE_DIR}/.deps/Frameworks" "$<TARGET_FILE:test_channel_extended>"
+    COMMAND install_name_tool -add_rpath "/Applications/OBS.app/Contents/Frameworks" "$<TARGET_FILE:test_channel_extended>"
+    COMMENT "Adding rpaths to channel extended test executable"
+  )
+endif()
+
+# Add test to CTest
+add_test(NAME channel_extended_tests COMMAND $<TARGET_FILE:test_channel_extended>)
+set_tests_properties(
+  channel_extended_tests
+  PROPERTIES
+    LABELS "unit;channel;extended"
+    WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}
+)
+
+# ========================================================================
+# UI Workflow Tests (Backend Functions that UI Calls)
+# ========================================================================
+add_executable(test_ui_workflows ui/test_ui_workflows.c)
+target_sources(
+  test_ui_workflows
+  PRIVATE
+    ${CMAKE_SOURCE_DIR}/src/restreamer-channel.c
+    ${CMAKE_SOURCE_DIR}/src/restreamer-multistream.c
+    ${CMAKE_SOURCE_DIR}/src/restreamer-api.c
+    ${CMAKE_SOURCE_DIR}/src/restreamer-api-utils.c
+    ${CMAKE_SOURCE_DIR}/tests/obs_stubs.c
+)
+target_include_directories(
+  test_ui_workflows
+  PRIVATE ${CMAKE_SOURCE_DIR}/src ${CMAKE_SOURCE_DIR}/tests ${JANSSON_INCLUDE_DIRS} ${CURL_INCLUDE_DIRS}
+)
+
+# Link libraries for UI workflow test
+if(TARGET Jansson::Jansson)
+  target_link_libraries(test_ui_workflows PRIVATE Jansson::Jansson CURL::libcurl OBS::libobs)
+else()
+  target_link_libraries(test_ui_workflows PRIVATE ${JANSSON_LIBRARIES} CURL::libcurl OBS::libobs)
+  if(JANSSON_LIBRARY_DIRS)
+    target_link_directories(test_ui_workflows PRIVATE ${JANSSON_LIBRARY_DIRS})
+  endif()
+endif()
+
+if(UNIX)
+  target_link_libraries(test_ui_workflows PRIVATE pthread)
+endif()
+
+# Fix rpath for test executable
+if(APPLE)
+  add_custom_command(
+    TARGET test_ui_workflows
+    POST_BUILD
+    COMMAND install_name_tool -add_rpath "${CMAKE_SOURCE_DIR}/.deps/Frameworks" "$<TARGET_FILE:test_ui_workflows>"
+    COMMAND install_name_tool -add_rpath "/Applications/OBS.app/Contents/Frameworks" "$<TARGET_FILE:test_ui_workflows>"
+    COMMENT "Adding rpaths to UI workflow test executable"
+  )
+endif()
+
+# Add test to CTest (requires live server)
+# To run: ctest -R ui_workflows
+add_test(NAME ui_workflows COMMAND $<TARGET_FILE:test_ui_workflows>)
+set_tests_properties(
+  ui_workflows
+  PROPERTIES
+    LABELS "ui;integration;network;live-server"
+    WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}
+    TIMEOUT 300
+)
+
 # Print test configuration
 message(STATUS "Test suite configuration:")
 message(STATUS "  - Core tests: ENABLED")
@@ -474,6 +844,11 @@ message(STATUS "  - Edge case tests: ENABLED (12 tests)")
 message(STATUS "  - Platform compat tests: ENABLED (15 tests)")
 message(STATUS "  - Integration tests: ENABLED (5 tests)")
 message(STATUS "  - E2E workflow tests: ENABLED (5 tests)")
+message(STATUS "  - E2E streaming workflow: ENABLED (6 tests against live server)")
+message(STATUS "  - Live API integration: ENABLED (9 tests against live server)")
+message(STATUS "  - Channel-API-Multistream integration: ENABLED (12 tests, mock+live modes)")
+message(STATUS "  - Extended Channel Management: ENABLED (21 unit tests)")
+message(STATUS "  - UI Workflow tests: ENABLED (14 tests against live server)")
 message(STATUS "  - Google Test unit tests: DISABLED (OBS coupling)")
 message(STATUS "  - UI tests: ${Qt6Test_FOUND}")
 message(STATUS "  - Coverage: ${ENABLE_COVERAGE}")

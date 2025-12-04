@@ -2,9 +2,30 @@
 #include <obs-module.h>
 #include <util/bmem.h>
 #include <util/platform.h>
+#include <string.h>
 
 static restreamer_connection_t global_connection = {0};
 static bool initialized = false;
+
+/* Security: Securely clear memory that won't be optimized away by compiler.
+ * Uses volatile pointer to prevent dead-store elimination. */
+static void secure_memzero(void *ptr, size_t len) {
+  volatile unsigned char *p = (volatile unsigned char *)ptr;
+  while (len--) {
+    *p++ = 0;
+  }
+}
+
+/* Security: Securely free password string by clearing memory first */
+static void secure_password_free(char *password) {
+  if (password) {
+    size_t len = strlen(password);
+    if (len > 0) {
+      secure_memzero(password, len);
+    }
+    bfree(password);
+  }
+}
 
 // cppcheck-suppress staticFunction
 void restreamer_config_init(void) {
@@ -41,7 +62,7 @@ void restreamer_config_set_global_connection(
   /* Free old values */
   bfree(global_connection.host);
   bfree(global_connection.username);
-  bfree(global_connection.password);
+  secure_password_free(global_connection.password);
 
   /* Copy new values */
   global_connection.host = connection->host ? bstrdup(connection->host) : NULL;
@@ -70,23 +91,23 @@ void restreamer_config_load(obs_data_t *settings) {
     restreamer_config_init();
   }
 
-  bfree(global_connection.host);
-  bfree(global_connection.username);
-  bfree(global_connection.password);
+  if (initialized) {
+    bfree(global_connection.host);
+    bfree(global_connection.username);
+    secure_password_free(global_connection.password);
+  }
 
-  global_connection.host = bstrdup(obs_data_get_string(settings, "host"));
+  const char *host = obs_data_get_string(settings, "host");
+  const char *username = obs_data_get_string(settings, "username");
+  const char *password = obs_data_get_string(settings, "password");
+
+  global_connection.host = (host && strlen(host) > 0) ? bstrdup(host) : bstrdup("localhost");
   global_connection.port = (uint16_t)obs_data_get_int(settings, "port");
-  global_connection.username =
-      bstrdup(obs_data_get_string(settings, "username"));
-  global_connection.password =
-      bstrdup(obs_data_get_string(settings, "password"));
+  global_connection.username = (username && strlen(username) > 0) ? bstrdup(username) : NULL;
+  global_connection.password = (password && strlen(password) > 0) ? bstrdup(password) : NULL;
   global_connection.use_https = obs_data_get_bool(settings, "use_https");
 
   /* Set defaults if not present */
-  if (!global_connection.host || strlen(global_connection.host) == 0) {
-    bfree(global_connection.host);
-    global_connection.host = bstrdup("localhost");
-  }
   if (global_connection.port == 0) {
     global_connection.port = 8080;
   }
@@ -97,7 +118,8 @@ void restreamer_config_save(obs_data_t *settings) {
     return;
   }
 
-  obs_data_set_string(settings, "host", global_connection.host);
+  obs_data_set_string(settings, "host",
+                      global_connection.host ? global_connection.host : "localhost");
   obs_data_set_int(settings, "port", global_connection.port);
   obs_data_set_string(settings, "username",
                       global_connection.username ? global_connection.username
@@ -129,7 +151,7 @@ void restreamer_config_destroy(void) {
 
   bfree(global_connection.host);
   bfree(global_connection.username);
-  bfree(global_connection.password);
+  secure_password_free(global_connection.password);
 
   memset(&global_connection, 0, sizeof(restreamer_connection_t));
   initialized = false;
@@ -176,8 +198,13 @@ void restreamer_config_save_to_settings(obs_data_t *settings,
 
   obs_data_set_string(settings, "host",
                       connection->host ? connection->host : "localhost");
-  obs_data_set_int(settings, "port",
-                   connection->port ? connection->port : 8080);
+
+  int port = connection->port;
+  if (port <= 0 || port > 65535) {
+    port = 8080;
+  }
+  obs_data_set_int(settings, "port", port);
+
   obs_data_set_string(settings, "username",
                       connection->username ? connection->username : "");
   obs_data_set_string(settings, "password",
@@ -192,6 +219,6 @@ void restreamer_config_free_connection(restreamer_connection_t *connection) {
 
   bfree(connection->host);
   bfree(connection->username);
-  bfree(connection->password);
+  secure_password_free(connection->password);
   bfree(connection);
 }

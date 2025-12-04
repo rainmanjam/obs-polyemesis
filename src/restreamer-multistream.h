@@ -33,6 +33,7 @@ typedef struct {
   char *service_name;
   char *stream_key;
   char *rtmp_url;
+  char *output_id;  /* Actual output ID used in restreamer process */
   stream_orientation_t supported_orientation;
   bool enabled;
 } stream_destination_t;

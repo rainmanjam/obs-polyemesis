@@ -282,6 +282,7 @@ struct obs_output_info restreamer_output_info = {
     .id = "restreamer_output",
     .flags = OBS_OUTPUT_AV | OBS_OUTPUT_ENCODED | OBS_OUTPUT_MULTI_TRACK |
              OBS_OUTPUT_SERVICE,
+    .protocols = "RTMP;RTMPS",
     .get_name = restreamer_output_getname,
     .create = restreamer_output_create,
     .destroy = restreamer_output_destroy,

@@ -70,6 +70,15 @@ void channel_manager_destroy(channel_manager_t *manager) {
   obs_log(LOG_INFO, "Channel manager destroyed");
 }
 
+void channel_manager_set_api(channel_manager_t *manager, restreamer_api_t *api) {
+  if (!manager) {
+    return;
+  }
+
+  manager->api = api;
+  obs_log(LOG_DEBUG, "Channel manager API updated: %p", (void *)api);
+}
+
 char *channel_generate_id(void) {
   struct dstr id = {0};
   dstr_init(&id);
@@ -150,6 +159,7 @@ bool channel_manager_delete_channel(channel_manager_t *manager,
       bfree(channel->channel_id);
       bfree(channel->last_error);
       bfree(channel->process_reference);
+      bfree(channel->input_url);  // FIX: Free input_url to prevent memory leak
       bfree(channel);
 
       /* Shift remaining channels */
@@ -494,6 +504,12 @@ bool channel_start(channel_manager_t *manager, const char *channel_id) {
   obs_log(LOG_INFO, "Starting channel: %s with %zu outputs (input: %s)",
           channel->channel_name, enabled_count, input_url);
 
+  /* Delete any existing process with the same ID to avoid 400 "process already exists" error.
+   * This handles cases where OBS was closed without stopping channels, or if the server
+   * still has a stale process from a previous session. */
+  obs_log(LOG_DEBUG, "Checking for existing process: %s", channel->channel_id);
+  restreamer_api_delete_process(manager->api, channel->channel_id);
+
   /* Start multistream */
   if (!restreamer_multistream_start(manager->api, config, input_url)) {
     obs_log(LOG_ERROR, "Failed to start multistream for channel: %s",
@@ -837,8 +853,14 @@ stream_channel_t *channel_load_from_settings(obs_data_t *settings) {
   stream_channel_t *channel = bzalloc(sizeof(stream_channel_t));
 
   /* Load basic properties */
-  channel->channel_name = bstrdup(obs_data_get_string(settings, "name"));
-  channel->channel_id = bstrdup(obs_data_get_string(settings, "id"));
+  const char *name = obs_data_get_string(settings, "name");
+  const char *id = obs_data_get_string(settings, "id");
+  if (!name || name[0] == '\0' || !id || id[0] == '\0') {
+    bfree(channel);
+    return NULL;
+  }
+  channel->channel_name = bstrdup(name);
+  channel->channel_id = bstrdup(id);
   channel->source_orientation =
       (stream_orientation_t)obs_data_get_int(settings, "source_orientation");
   channel->auto_detect_orientation =
@@ -859,6 +881,16 @@ stream_channel_t *channel_load_from_settings(obs_data_t *settings) {
   channel->auto_reconnect = obs_data_get_bool(settings, "auto_reconnect");
   channel->reconnect_delay_sec =
       (uint32_t)obs_data_get_int(settings, "reconnect_delay_sec");
+  channel->max_reconnect_attempts =
+      (uint32_t)obs_data_get_int(settings, "max_reconnect_attempts");
+
+  /* Load health monitoring settings */
+  channel->health_monitoring_enabled =
+      obs_data_get_bool(settings, "health_monitoring_enabled");
+  channel->health_check_interval_sec =
+      (uint32_t)obs_data_get_int(settings, "health_check_interval_sec");
+  channel->failure_threshold =
+      (uint32_t)obs_data_get_int(settings, "failure_threshold");
 
   /* Load outputs */
   obs_data_array_t *outputs_array = obs_data_get_array(settings, "outputs");
@@ -871,9 +903,13 @@ stream_channel_t *channel_load_from_settings(obs_data_t *settings) {
       enc.width = (uint32_t)obs_data_get_int(output_data, "width");
       enc.height = (uint32_t)obs_data_get_int(output_data, "height");
       enc.bitrate = (uint32_t)obs_data_get_int(output_data, "bitrate");
+      enc.fps_num = (uint32_t)obs_data_get_int(output_data, "fps_num");
+      enc.fps_den = (uint32_t)obs_data_get_int(output_data, "fps_den");
       enc.audio_bitrate =
           (uint32_t)obs_data_get_int(output_data, "audio_bitrate");
       enc.audio_track = (uint32_t)obs_data_get_int(output_data, "audio_track");
+      enc.max_bandwidth = (uint32_t)obs_data_get_int(output_data, "max_bandwidth");
+      enc.low_latency = obs_data_get_bool(output_data, "low_latency");
 
       channel_add_output(
           channel, (streaming_service_t)obs_data_get_int(output_data, "service"),
@@ -884,6 +920,16 @@ stream_channel_t *channel_load_from_settings(obs_data_t *settings) {
 
       channel->outputs[i].enabled =
           obs_data_get_bool(output_data, "enabled");
+
+      /* Load backup/failover settings */
+      channel->outputs[i].is_backup =
+          obs_data_get_bool(output_data, "is_backup");
+      channel->outputs[i].primary_index =
+          (size_t)obs_data_get_int(output_data, "primary_index");
+      channel->outputs[i].backup_index =
+          (size_t)obs_data_get_int(output_data, "backup_index");
+      channel->outputs[i].auto_reconnect_enabled =
+          obs_data_get_bool(output_data, "auto_reconnect_enabled");
 
       obs_data_release(output_data);
     }
@@ -915,6 +961,16 @@ void channel_save_to_settings(stream_channel_t *channel, obs_data_t *settings) {
   obs_data_set_bool(settings, "auto_reconnect", channel->auto_reconnect);
   obs_data_set_int(settings, "reconnect_delay_sec",
                    channel->reconnect_delay_sec);
+  obs_data_set_int(settings, "max_reconnect_attempts",
+                   channel->max_reconnect_attempts);
+
+  /* Save health monitoring settings */
+  obs_data_set_bool(settings, "health_monitoring_enabled",
+                    channel->health_monitoring_enabled);
+  obs_data_set_int(settings, "health_check_interval_sec",
+                   channel->health_check_interval_sec);
+  obs_data_set_int(settings, "failure_threshold",
+                   channel->failure_threshold);
 
   /* Save outputs */
   obs_data_array_t *outputs_array = obs_data_array_create();
@@ -932,8 +988,19 @@ void channel_save_to_settings(stream_channel_t *channel, obs_data_t *settings) {
     obs_data_set_int(output_data, "width", output->encoding.width);
     obs_data_set_int(output_data, "height", output->encoding.height);
     obs_data_set_int(output_data, "bitrate", output->encoding.bitrate);
+    obs_data_set_int(output_data, "fps_num", output->encoding.fps_num);
+    obs_data_set_int(output_data, "fps_den", output->encoding.fps_den);
     obs_data_set_int(output_data, "audio_bitrate", output->encoding.audio_bitrate);
     obs_data_set_int(output_data, "audio_track", output->encoding.audio_track);
+    obs_data_set_int(output_data, "max_bandwidth", output->encoding.max_bandwidth);
+    obs_data_set_bool(output_data, "low_latency", output->encoding.low_latency);
+
+    /* Backup/failover settings */
+    obs_data_set_bool(output_data, "is_backup", output->is_backup);
+    obs_data_set_int(output_data, "primary_index", (int64_t)output->primary_index);
+    obs_data_set_int(output_data, "backup_index", (int64_t)output->backup_index);
+    obs_data_set_bool(output_data, "auto_reconnect_enabled",
+                      output->auto_reconnect_enabled);
 
     obs_data_array_push_back(outputs_array, output_data);
     obs_data_release(output_data);
@@ -958,6 +1025,7 @@ stream_channel_t *channel_duplicate(stream_channel_t *source,
   duplicate->auto_detect_orientation = source->auto_detect_orientation;
   duplicate->source_width = source->source_width;
   duplicate->source_height = source->source_height;
+  duplicate->input_url = source->input_url ? bstrdup(source->input_url) : bstrdup("rtmp://localhost/live/obs_input");
   duplicate->auto_start = source->auto_start;
   duplicate->auto_reconnect = source->auto_reconnect;
   duplicate->reconnect_delay_sec = source->reconnect_delay_sec;
@@ -1668,7 +1736,7 @@ bool channel_trigger_failover(stream_channel_t *channel, restreamer_api_t *api,
 
     /* Enable backup */
     bool added = restreamer_multistream_add_destination_live(
-        api, NULL, backup->backup_index);
+        api, NULL, primary->backup_index);
     if (!added) {
       obs_log(LOG_ERROR, "Failed to enable backup output");
       return false;
@@ -1727,7 +1795,7 @@ bool channel_restore_primary(stream_channel_t *channel, restreamer_api_t *api,
 
     /* Disable backup */
     bool removed = restreamer_multistream_enable_destination_live(
-        api, NULL, backup->backup_index, false);
+        api, NULL, primary->backup_index, false);
     if (!removed) {
       obs_log(LOG_WARNING, "Failed to disable backup during restore");
     }
@@ -1895,6 +1963,18 @@ bool channel_bulk_delete_outputs(stream_channel_t *channel,
       success_count++;
     } else {
       fail_count++;
+    }
+  }
+
+  /* After deletions, validate remaining indices */
+  for (size_t i = 0; i < channel->output_count; i++) {
+    channel_output_t *output = &channel->outputs[i];
+    if (output->backup_index >= channel->output_count) {
+      output->backup_index = (size_t)-1;
+    }
+    if (output->primary_index >= channel->output_count) {
+      output->is_backup = false;
+      output->primary_index = (size_t)-1;
     }
   }
 

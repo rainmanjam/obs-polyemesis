@@ -22,6 +22,7 @@ void restreamer_multistream_destroy(multistream_config_t *config) {
     bfree(config->destinations[i].service_name);
     bfree(config->destinations[i].stream_key);
     bfree(config->destinations[i].rtmp_url);
+    bfree(config->destinations[i].output_id);
   }
 
   bfree(config->destinations);
@@ -33,6 +34,11 @@ void restreamer_multistream_destroy(multistream_config_t *config) {
 const char *
 restreamer_multistream_get_service_url(streaming_service_t service,
                                        stream_orientation_t orientation) {
+  /* Treat AUTO as HORIZONTAL (landscape) for URL selection */
+  if (orientation == ORIENTATION_AUTO) {
+    orientation = ORIENTATION_HORIZONTAL;
+  }
+
   /* Return RTMP ingest URLs for various services */
   switch (service) {
   case SERVICE_TWITCH:
@@ -131,6 +137,7 @@ void restreamer_multistream_remove_destination(multistream_config_t *config,
   bfree(config->destinations[index].service_name);
   bfree(config->destinations[index].stream_key);
   bfree(config->destinations[index].rtmp_url);
+  bfree(config->destinations[index].output_id);
 
   /* Shift remaining destinations */
   if (index < config->destination_count - 1) {
@@ -176,6 +183,7 @@ char *restreamer_multistream_build_video_filter(stream_orientation_t source,
 
   /* If same orientation, no filter needed */
   if (source == target) {
+    dstr_free(&filter);  // FIX: Free before returning
     return NULL;
   }
 
@@ -307,6 +315,7 @@ bool restreamer_multistream_stop(restreamer_api_t *api,
   /* Find the process by reference and stop it */
   restreamer_process_list_t list = {0};
   if (!restreamer_api_get_processes(api, &list)) {
+    restreamer_api_free_process_list(&list);  // FIX: Ensure cleanup on failure
     return false;
   }
 
@@ -343,8 +352,13 @@ void restreamer_multistream_load_from_settings(multistream_config_t *config,
 
   config->auto_detect_orientation =
       obs_data_get_bool(settings, "auto_detect_orientation");
-  config->source_orientation =
-      (stream_orientation_t)obs_data_get_int(settings, "source_orientation");
+
+  int source_orientation_int = obs_data_get_int(settings, "source_orientation");
+  if (source_orientation_int < ORIENTATION_AUTO || source_orientation_int > ORIENTATION_SQUARE) {
+    config->source_orientation = ORIENTATION_AUTO;
+  } else {
+    config->source_orientation = (stream_orientation_t)source_orientation_int;
+  }
 
   /* Load destinations */
   obs_data_array_t *destinations_array =
@@ -358,8 +372,15 @@ void restreamer_multistream_load_from_settings(multistream_config_t *config,
       streaming_service_t service =
           (streaming_service_t)obs_data_get_int(dest_data, "service");
       const char *stream_key = obs_data_get_string(dest_data, "stream_key");
-      stream_orientation_t orientation =
-          (stream_orientation_t)obs_data_get_int(dest_data, "orientation");
+
+      int orientation_int = obs_data_get_int(dest_data, "orientation");
+      stream_orientation_t orientation;
+      if (orientation_int < ORIENTATION_AUTO || orientation_int > ORIENTATION_SQUARE) {
+        orientation = ORIENTATION_AUTO;
+      } else {
+        orientation = (stream_orientation_t)orientation_int;
+      }
+
       bool enabled = obs_data_get_bool(dest_data, "enabled");
 
       if (stream_key && strlen(stream_key) > 0) {
@@ -447,17 +468,22 @@ bool restreamer_multistream_add_destination_live(restreamer_api_t *api,
   bool found = false;
   char *process_id = NULL;
 
-  if (restreamer_api_get_processes(api, &list)) {
-    for (size_t i = 0; i < list.count; i++) {
-      if (list.processes[i].reference &&
-          strcmp(list.processes[i].reference, config->process_reference) == 0) {
-        process_id = bstrdup(list.processes[i].id);
-        found = true;
-        break;
-      }
-    }
-    restreamer_api_free_process_list(&list);
+  if (!restreamer_api_get_processes(api, &list)) {
+    dstr_free(&output_id);
+    dstr_free(&output_url);
+    bfree(video_filter);
+    return false;
   }
+
+  for (size_t i = 0; i < list.count; i++) {
+    if (list.processes[i].reference &&
+        strcmp(list.processes[i].reference, config->process_reference) == 0) {
+      process_id = bstrdup(list.processes[i].id);
+      found = true;
+      break;
+    }
+  }
+  restreamer_api_free_process_list(&list);
 
   if (!found) {
     obs_log(LOG_ERROR, "Process not found: %s", config->process_reference);
@@ -508,17 +534,20 @@ bool restreamer_multistream_remove_destination_live(
   bool found = false;
   char *process_id = NULL;
 
-  if (restreamer_api_get_processes(api, &list)) {
-    for (size_t i = 0; i < list.count; i++) {
-      if (list.processes[i].reference &&
-          strcmp(list.processes[i].reference, config->process_reference) == 0) {
-        process_id = bstrdup(list.processes[i].id);
-        found = true;
-        break;
-      }
-    }
-    restreamer_api_free_process_list(&list);
+  if (!restreamer_api_get_processes(api, &list)) {
+    dstr_free(&output_id);
+    return false;
   }
+
+  for (size_t i = 0; i < list.count; i++) {
+    if (list.processes[i].reference &&
+        strcmp(list.processes[i].reference, config->process_reference) == 0) {
+      process_id = bstrdup(list.processes[i].id);
+      found = true;
+      break;
+    }
+  }
+  restreamer_api_free_process_list(&list);
 
   if (!found) {
     obs_log(LOG_ERROR, "Process not found: %s", config->process_reference);
@@ -606,17 +635,22 @@ bool restreamer_multistream_update_destination_live(
   bool found = false;
   char *process_id = NULL;
 
-  if (restreamer_api_get_processes(api, &list)) {
-    for (size_t i = 0; i < list.count; i++) {
-      if (list.processes[i].reference &&
-          strcmp(list.processes[i].reference, config->process_reference) == 0) {
-        process_id = bstrdup(list.processes[i].id);
-        found = true;
-        break;
-      }
-    }
-    restreamer_api_free_process_list(&list);
+  if (!restreamer_api_get_processes(api, &list)) {
+    dstr_free(&output_id);
+    dstr_free(&output_url);
+    bfree(video_filter);
+    return false;
   }
+
+  for (size_t i = 0; i < list.count; i++) {
+    if (list.processes[i].reference &&
+        strcmp(list.processes[i].reference, config->process_reference) == 0) {
+      process_id = bstrdup(list.processes[i].id);
+      found = true;
+      break;
+    }
+  }
+  restreamer_api_free_process_list(&list);
 
   if (!found) {
     obs_log(LOG_ERROR, "Process not found: %s", config->process_reference);

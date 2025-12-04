@@ -139,6 +139,9 @@ channel_manager_t *channel_manager_create(restreamer_api_t *api);
 /* Destroy channel manager */
 void channel_manager_destroy(channel_manager_t *manager);
 
+/* Set/update API client for channel manager */
+void channel_manager_set_api(channel_manager_t *manager, restreamer_api_t *api);
+
 /* Channel Management */
 
 /* Create new channel */

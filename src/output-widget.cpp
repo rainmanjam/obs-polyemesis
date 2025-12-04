@@ -134,16 +134,26 @@ void OutputWidget::updateFromOutput() {
 }
 
 void OutputWidget::updateStatus() {
+  /* NULL safety check */
+  if (!m_output) {
+    obs_log(LOG_WARNING, "OutputWidget::updateStatus: m_output is NULL");
+    return;
+  }
+
   /* Update status indicator */
   QString statusIcon = getStatusIcon();
   QColor statusColor = getStatusColor();
 
-  m_statusIndicator->setText(statusIcon);
-  m_statusIndicator->setStyleSheet(
-      QString("font-size: 16px; color: %1;").arg(statusColor.name()));
+  if (m_statusIndicator) {
+    m_statusIndicator->setText(statusIcon);
+    m_statusIndicator->setStyleSheet(
+        QString("font-size: 16px; color: %1;").arg(statusColor.name()));
+  }
 
   /* Update service name */
-  m_serviceLabel->setText(m_output->service_name);
+  if (m_serviceLabel && m_output->service_name) {
+    m_serviceLabel->setText(m_output->service_name);
+  }
 
   /* Update details - use encoding settings */
   QString resolution = QString("%1x%2")
@@ -160,25 +170,41 @@ void OutputWidget::updateStatus() {
     details << fps;
   }
 
-  m_detailsLabel->setText(details.join(" • "));
+  if (m_detailsLabel) {
+    m_detailsLabel->setText(details.join(" • "));
+  }
 
   /* Update start/stop button - status based on connected && enabled */
-  bool isActive = (m_output->connected && m_output->enabled);
-  if (isActive) {
-    m_startStopButton->setText("■");
-    m_startStopButton->setProperty("danger", true);
-  } else {
-    m_startStopButton->setText("▶");
-    m_startStopButton->setProperty("danger", false);
+  if (m_startStopButton) {
+    bool isActive = (m_output->connected && m_output->enabled);
+    if (isActive) {
+      m_startStopButton->setText("■");
+      m_startStopButton->setProperty("danger", true);
+    } else {
+      m_startStopButton->setText("▶");
+      m_startStopButton->setProperty("danger", false);
+    }
+    m_startStopButton->style()->unpolish(m_startStopButton);
+    m_startStopButton->style()->polish(m_startStopButton);
+    m_startStopButton->setEnabled(true); /* Re-enable after operation */
   }
-  m_startStopButton->style()->unpolish(m_startStopButton);
-  m_startStopButton->style()->polish(m_startStopButton);
 }
 
 void OutputWidget::updateStats() {
+  /* NULL safety check */
+  if (!m_output) {
+    obs_log(LOG_WARNING, "OutputWidget::updateStats: m_output is NULL");
+    if (m_statsWidget) {
+      m_statsWidget->setVisible(false);
+    }
+    return;
+  }
+
   /* Show stats only when active (connected and enabled) */
   bool showStats = (m_output->connected && m_output->enabled);
-  m_statsWidget->setVisible(showStats);
+  if (m_statsWidget) {
+    m_statsWidget->setVisible(showStats);
+  }
 
   if (!showStats) {
     return;
@@ -187,9 +213,11 @@ void OutputWidget::updateStats() {
   /* Update bitrate from current_bitrate field */
   int currentBitrate = m_output->current_bitrate;
   QColor bitrateColor = obs_theme_get_success_color();
-  m_bitrateLabel->setText(QString("↑ %1").arg(formatBitrate(currentBitrate)));
-  m_bitrateLabel->setStyleSheet(
-      QString("font-size: 11px; color: %1;").arg(bitrateColor.name()));
+  if (m_bitrateLabel) {
+    m_bitrateLabel->setText(QString("↑ %1").arg(formatBitrate(currentBitrate)));
+    m_bitrateLabel->setStyleSheet(
+        QString("font-size: 11px; color: %1;").arg(bitrateColor.name()));
+  }
 
   /* Update dropped frames from dropped_frames field */
   uint32_t droppedFrames = m_output->dropped_frames;
@@ -239,9 +267,11 @@ void OutputWidget::updateStats() {
     droppedColor = obs_theme_get_success_color();
   }
 
-  m_droppedLabel->setText(droppedText);
-  m_droppedLabel->setStyleSheet(
-      QString("font-size: 11px; color: %1;").arg(droppedColor.name()));
+  if (m_droppedLabel) {
+    m_droppedLabel->setText(droppedText);
+    m_droppedLabel->setStyleSheet(
+        QString("font-size: 11px; color: %1;").arg(droppedColor.name()));
+  }
 
   /* Update duration */
   /* Calculate actual duration from last_health_check as a proxy for start time
@@ -266,13 +296,20 @@ void OutputWidget::updateStats() {
     duration = (int)difftime(now, m_output->failover_start_time);
   }
 
-  m_durationLabel->setText(formatDuration(duration));
-  QColor mutedColor = obs_theme_get_muted_color();
-  m_durationLabel->setStyleSheet(
-      QString("font-size: 11px; color: %1;").arg(mutedColor.name()));
+  if (m_durationLabel) {
+    m_durationLabel->setText(formatDuration(duration));
+    QColor mutedColor = obs_theme_get_muted_color();
+    m_durationLabel->setStyleSheet(
+        QString("font-size: 11px; color: %1;").arg(mutedColor.name()));
+  }
 }
 
 QColor OutputWidget::getStatusColor() const {
+  /* NULL safety check */
+  if (!m_output) {
+    return obs_theme_get_muted_color();
+  }
+
   /* Status based on connected and enabled flags */
   if (m_output->connected && m_output->enabled) {
     return obs_theme_get_success_color();
@@ -284,6 +321,11 @@ QColor OutputWidget::getStatusColor() const {
 }
 
 QString OutputWidget::getStatusIcon() const {
+  /* NULL safety check */
+  if (!m_output) {
+    return "⚫";
+  }
+
   /* Status based on connected and enabled flags */
   if (m_output->connected && m_output->enabled) {
     return "🟢"; // Active
@@ -296,6 +338,11 @@ QString OutputWidget::getStatusIcon() const {
 }
 
 QString OutputWidget::getStatusText() const {
+  /* NULL safety check */
+  if (!m_output) {
+    return "Unknown";
+  }
+
   /* Status based on connected and enabled flags */
   if (m_output->connected && m_output->enabled) {
     return "Active";
@@ -353,12 +400,25 @@ void OutputWidget::leaveEvent(QEvent *event) {
 }
 
 void OutputWidget::onStartStopClicked() {
+  /* NULL safety check */
+  if (!m_output) {
+    obs_log(LOG_ERROR, "OutputWidget::onStartStopClicked: m_output is NULL");
+    return;
+  }
+
+  /* Disable button to prevent double-clicks */
+  if (m_startStopButton) {
+    m_startStopButton->setEnabled(false);
+  }
+
   bool isActive = (m_output->connected && m_output->enabled);
   if (isActive) {
     emit stopRequested(m_outputIndex);
   } else {
     emit startRequested(m_outputIndex);
   }
+
+  /* Button will be re-enabled in updateStatus() when state changes */
 }
 
 void OutputWidget::onSettingsClicked() {
@@ -397,11 +457,20 @@ void OutputWidget::showContextMenu(const QPoint &pos) {
 
   QAction *copyUrlAction = menu.addAction("📋 Copy Stream URL");
   connect(copyUrlAction, &QAction::triggered, this, [this]() {
+    /* NULL safety check before dereferencing m_output */
+    if (!m_output) {
+      QMessageBox::warning(this, "Error", "Output data is not available.");
+      obs_log(LOG_ERROR, "Copy URL: m_output is NULL for output: %zu",
+              m_outputIndex);
+      return;
+    }
+
     if (m_output->rtmp_url && strlen(m_output->rtmp_url) > 0) {
       QApplication::clipboard()->setText(m_output->rtmp_url);
       obs_log(LOG_INFO, "Copied URL to clipboard for output: %zu",
               m_outputIndex);
     } else {
+      QMessageBox::information(this, "No URL", "Stream URL is not configured for this output.");
       obs_log(LOG_WARNING, "No URL available for output: %zu",
               m_outputIndex);
     }
@@ -409,11 +478,20 @@ void OutputWidget::showContextMenu(const QPoint &pos) {
 
   QAction *copyKeyAction = menu.addAction("📋 Copy Stream Key");
   connect(copyKeyAction, &QAction::triggered, this, [this]() {
+    /* NULL safety check before dereferencing m_output */
+    if (!m_output) {
+      QMessageBox::warning(this, "Error", "Output data is not available.");
+      obs_log(LOG_ERROR, "Copy key: m_output is NULL for output: %zu",
+              m_outputIndex);
+      return;
+    }
+
     if (m_output->stream_key && strlen(m_output->stream_key) > 0) {
       QApplication::clipboard()->setText(m_output->stream_key);
       obs_log(LOG_INFO, "Copied stream key to clipboard for output: %zu",
               m_outputIndex);
     } else {
+      QMessageBox::information(this, "No Stream Key", "Stream key is not configured for this output.");
       obs_log(LOG_WARNING, "No stream key available for output: %zu",
               m_outputIndex);
     }
@@ -434,10 +512,18 @@ void OutputWidget::showContextMenu(const QPoint &pos) {
   connect(testAction, &QAction::triggered, this, [this]() {
     obs_log(LOG_INFO, "Test health for output: %zu", m_outputIndex);
 
+    /* NULL safety check */
+    if (!m_output) {
+      QMessageBox::warning(this, "Error", "Output data is not available.");
+      obs_log(LOG_ERROR, "Health check: m_output is NULL for output: %zu",
+              m_outputIndex);
+      return;
+    }
+
     /* Build health report */
     QString health = "<h3>Stream Health Check</h3>";
     health += QString("<p><b>Output:</b> %1</p>")
-                  .arg(m_output->service_name);
+                  .arg(m_output->service_name ? m_output->service_name : "Unknown");
     health += "<hr>";
 
     /* Connection Status */
@@ -620,6 +706,12 @@ void OutputWidget::showContextMenu(const QPoint &pos) {
 }
 
 void OutputWidget::toggleDetailsPanel() {
+  /* NULL safety check */
+  if (!m_output) {
+    obs_log(LOG_ERROR, "OutputWidget::toggleDetailsPanel: m_output is NULL");
+    return;
+  }
+
   if (!m_detailsPanel) {
     /* Create details panel */
     m_detailsPanel = new QWidget(this);

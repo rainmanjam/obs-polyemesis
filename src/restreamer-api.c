@@ -346,91 +346,117 @@ static bool restreamer_api_login(restreamer_api_t *api) {
 static bool make_request(restreamer_api_t *api, const char *endpoint,
                          const char *method, const char *post_data,
                          struct memory_struct *response) {
-  /* Check if we need to login or refresh token */
-  if (!api->access_token || time(NULL) >= api->token_expires) {
-    if (!restreamer_api_login(api)) {
+  /* W2: Retry once on 401 (Unauthorized) by forcing re-authentication */
+  for (int retry = 0; retry < 2; retry++) {
+    /* Check if we need to login or refresh token */
+    /* W1: Proactively refresh 60 seconds before expiry to avoid edge cases */
+    if (!api->access_token || time(NULL) >= (api->token_expires - 60)) {
+      bool refreshed = false;
+      if (api->refresh_token) {
+        refreshed = restreamer_api_refresh_token(api);
+      }
+      if (!refreshed && !restreamer_api_login(api)) {
+        return false;
+      }
+    }
+
+    /* Add Authorization header with Bearer token */
+    struct dstr auth_header;
+    dstr_init(&auth_header);
+    dstr_printf(&auth_header, "Authorization: Bearer %s", api->access_token);
+
+    /* Create temporary headers list for this request */
+    struct curl_slist *temp_headers = NULL;
+    temp_headers =
+        curl_slist_append(temp_headers, "Content-Type: application/json");
+    temp_headers = curl_slist_append(temp_headers, auth_header.array);
+    curl_easy_setopt(api->curl, CURLOPT_HTTPHEADER, temp_headers);
+
+    struct dstr url;
+    dstr_init(&url);
+
+    const char *protocol = api->connection.use_https ? "https" : "http";
+    dstr_printf(&url, "%s://%s:%d%s", protocol, api->connection.host,
+                api->connection.port, endpoint);
+
+    curl_easy_setopt(api->curl, CURLOPT_URL, url.array);
+    curl_easy_setopt(api->curl, CURLOPT_WRITEDATA, (void *)response);
+
+    if (strcmp(method, "POST") == 0) {
+      curl_easy_setopt(api->curl, CURLOPT_POST, 1L);
+      if (post_data) {
+        curl_easy_setopt(api->curl, CURLOPT_POSTFIELDS, post_data);
+        curl_easy_setopt(api->curl, CURLOPT_POSTFIELDSIZE, strlen(post_data));
+      }
+    } else if (strcmp(method, "DELETE") == 0) {
+      curl_easy_setopt(api->curl, CURLOPT_CUSTOMREQUEST, "DELETE");
+    } else if (strcmp(method, "PUT") == 0) {
+      curl_easy_setopt(api->curl, CURLOPT_CUSTOMREQUEST, "PUT");
+      if (post_data) {
+        curl_easy_setopt(api->curl, CURLOPT_POSTFIELDS, post_data);
+        curl_easy_setopt(api->curl, CURLOPT_POSTFIELDSIZE, strlen(post_data));
+      }
+    } else {
+      curl_easy_setopt(api->curl, CURLOPT_HTTPGET, 1L);
+    }
+
+    CURLcode res = curl_easy_perform(api->curl);
+
+    /* Reset POST state to avoid affecting subsequent requests */
+    curl_easy_setopt(api->curl, CURLOPT_POST, 0L);
+    curl_easy_setopt(api->curl, CURLOPT_POSTFIELDS, NULL);
+    curl_easy_setopt(api->curl, CURLOPT_POSTFIELDSIZE, 0L);
+    curl_easy_setopt(api->curl, CURLOPT_CUSTOMREQUEST, NULL);
+
+    /* Clean up temporary headers */
+    curl_slist_free_all(temp_headers);
+    curl_easy_setopt(api->curl, CURLOPT_HTTPHEADER, NULL);
+    dstr_free(&auth_header);
+    dstr_free(&url);
+
+    if (res != CURLE_OK) {
+      dstr_copy(&api->last_error, api->error_buffer);
+      if (response->memory) {
+        free(response->memory);
+        response->memory = NULL;
+      }
+      response->size = 0;
       return false;
     }
+
+    long http_code = 0;
+    curl_easy_getinfo(api->curl, CURLINFO_RESPONSE_CODE, &http_code);
+
+    /* W2: If we get 401 on first attempt, invalidate token and retry */
+    if (http_code == 401 && retry == 0) {
+      obs_log(LOG_WARNING, "[obs-polyemesis] Got 401 Unauthorized, forcing re-authentication");
+      /* Invalidate current token to force re-authentication */
+      secure_free(api->access_token);
+      api->access_token = NULL;
+      api->token_expires = 0;
+      if (response->memory) {
+        free(response->memory);
+        response->memory = NULL;
+      }
+      response->size = 0;
+      continue; /* Retry the request */
+    }
+
+    if (http_code < 200 || http_code >= 300) {
+      dstr_printf(&api->last_error, "HTTP Error: %ld", http_code);
+      if (response->memory) {
+        free(response->memory);
+        response->memory = NULL;
+      }
+      response->size = 0;
+      return false;
+    }
+
+    return true;
   }
 
-  /* Add Authorization header with Bearer token */
-  struct dstr auth_header;
-  dstr_init(&auth_header);
-  dstr_printf(&auth_header, "Authorization: Bearer %s", api->access_token);
-
-  /* Create temporary headers list for this request */
-  struct curl_slist *temp_headers = NULL;
-  temp_headers =
-      curl_slist_append(temp_headers, "Content-Type: application/json");
-  temp_headers = curl_slist_append(temp_headers, auth_header.array);
-  curl_easy_setopt(api->curl, CURLOPT_HTTPHEADER, temp_headers);
-
-  struct dstr url;
-  dstr_init(&url);
-
-  const char *protocol = api->connection.use_https ? "https" : "http";
-  dstr_printf(&url, "%s://%s:%d%s", protocol, api->connection.host,
-              api->connection.port, endpoint);
-
-  curl_easy_setopt(api->curl, CURLOPT_URL, url.array);
-  curl_easy_setopt(api->curl, CURLOPT_WRITEDATA, (void *)response);
-
-  if (strcmp(method, "POST") == 0) {
-    curl_easy_setopt(api->curl, CURLOPT_POST, 1L);
-    if (post_data) {
-      curl_easy_setopt(api->curl, CURLOPT_POSTFIELDS, post_data);
-      curl_easy_setopt(api->curl, CURLOPT_POSTFIELDSIZE, strlen(post_data));
-    }
-  } else if (strcmp(method, "DELETE") == 0) {
-    curl_easy_setopt(api->curl, CURLOPT_CUSTOMREQUEST, "DELETE");
-  } else if (strcmp(method, "PUT") == 0) {
-    curl_easy_setopt(api->curl, CURLOPT_CUSTOMREQUEST, "PUT");
-    if (post_data) {
-      curl_easy_setopt(api->curl, CURLOPT_POSTFIELDS, post_data);
-      curl_easy_setopt(api->curl, CURLOPT_POSTFIELDSIZE, strlen(post_data));
-    }
-  } else {
-    curl_easy_setopt(api->curl, CURLOPT_HTTPGET, 1L);
-  }
-
-  CURLcode res = curl_easy_perform(api->curl);
-
-  /* Reset POST state to avoid affecting subsequent requests */
-  curl_easy_setopt(api->curl, CURLOPT_POST, 0L);
-  curl_easy_setopt(api->curl, CURLOPT_POSTFIELDS, NULL);
-  curl_easy_setopt(api->curl, CURLOPT_POSTFIELDSIZE, 0L);
-  curl_easy_setopt(api->curl, CURLOPT_CUSTOMREQUEST, NULL);
-
-  /* Clean up temporary headers */
-  curl_slist_free_all(temp_headers);
-  curl_easy_setopt(api->curl, CURLOPT_HTTPHEADER, NULL);
-  dstr_free(&auth_header);
-  dstr_free(&url);
-
-  if (res != CURLE_OK) {
-    dstr_copy(&api->last_error, api->error_buffer);
-    if (response->memory) {
-      free(response->memory);
-      response->memory = NULL;
-    }
-    response->size = 0;
-    return false;
-  }
-
-  long http_code = 0;
-  curl_easy_getinfo(api->curl, CURLINFO_RESPONSE_CODE, &http_code);
-
-  if (http_code < 200 || http_code >= 300) {
-    dstr_printf(&api->last_error, "HTTP Error: %ld", http_code);
-    if (response->memory) {
-      free(response->memory);
-      response->memory = NULL;
-    }
-    response->size = 0;
-    return false;
-  }
-
-  return true;
+  /* If we get here, both attempts failed */
+  return false;
 }
 
 bool restreamer_api_test_connection(restreamer_api_t *api) {
@@ -702,7 +728,7 @@ static bool process_command_helper(restreamer_api_t *api,
   json_decref(root);
 
   struct memory_struct response = {NULL, 0};
-  bool result = make_request(api, endpoint.array, "POST", post_data, &response);
+  bool result = make_request(api, endpoint.array, "PUT", post_data, &response);
 
   free(post_data);
   dstr_free(&endpoint);
@@ -850,41 +876,129 @@ bool restreamer_api_create_process(restreamer_api_t *api, const char *reference,
     return false;
   }
 
+  /*
+   * datarhei Restreamer API v3 process creation format:
+   * {
+   *   "id": "process_id",
+   *   "type": "ffmpeg",
+   *   "reference": "description",
+   *   "input": [{"id": "input_0", "address": "rtmp://...", "options": [...]}],
+   *   "output": [{"id": "output_0", "address": "rtmp://...", "options": [...]}],
+   *   "options": ["-err_detect", "ignore_err"],
+   *   "autostart": true,
+   *   "reconnect": true,
+   *   "reconnect_delay_seconds": 15,
+   *   "stale_timeout_seconds": 30
+   * }
+   */
+
   json_t *root = json_object();
+
+  /* Generate unique process ID from reference */
+  json_object_set_new(root, "id", json_string(reference));
+  json_object_set_new(root, "type", json_string("ffmpeg"));
   json_object_set_new(root, "reference", json_string(reference));
 
-  /* Build FFmpeg command for multistreaming
-   * Security: This command contains stream keys in output_urls - never log it
-   */
-  struct dstr command;
-  dstr_init(&command);
-  dstr_printf(&command,
-              "-re -i %s -c:v copy -c:a copy -f tee -map 0:v -map 0:a ",
-              input_url);
+  /* Build input array */
+  json_t *input_array = json_array();
+  json_t *input_obj = json_object();
+  json_object_set_new(input_obj, "id", json_string("input_0"));
+  json_object_set_new(input_obj, "address", json_string(input_url));
 
-  if (video_filter) {
-    dstr_cat(&command, "-vf ");
-    dstr_cat(&command, video_filter);
-    dstr_cat(&command, " ");
-  }
+  /* Input options for stable streaming */
+  json_t *input_options = json_array();
+  json_array_append_new(input_options, json_string("-fflags"));
+  json_array_append_new(input_options, json_string("+genpts"));
+  json_array_append_new(input_options, json_string("-re"));
+  json_object_set_new(input_obj, "options", input_options);
 
-  /* Add output URLs */
-  dstr_cat(&command, "\"");
+  /* Add cleanup array to input object */
+  json_t *input_cleanup_array = json_array();
+  json_object_set_new(input_obj, "cleanup", input_cleanup_array);
+
+  json_array_append_new(input_array, input_obj);
+  json_object_set_new(root, "input", input_array);
+
+  /* Build output array - one entry per destination */
+  json_t *output_array = json_array();
+
   for (size_t i = 0; i < output_count; i++) {
-    if (i > 0) {
-      dstr_cat(&command, "|");
+    json_t *output_obj = json_object();
+
+    /* Generate output ID */
+    struct dstr output_id;
+    dstr_init(&output_id);
+    dstr_printf(&output_id, "output_%zu", i);
+    json_object_set_new(output_obj, "id", json_string(output_id.array));
+    dstr_free(&output_id);
+
+    /* Output address (RTMP URL with stream key) */
+    json_object_set_new(output_obj, "address", json_string(output_urls[i]));
+
+    /* Output options for RTMP streaming */
+    json_t *output_options = json_array();
+
+    /* Handle video codec - use re-encoding if filter is applied */
+    if (video_filter && strlen(video_filter) > 0) {
+      json_array_append_new(output_options, json_string("-c:v"));
+      json_array_append_new(output_options, json_string("libx264"));
+      json_array_append_new(output_options, json_string("-preset"));
+      json_array_append_new(output_options, json_string("veryfast"));
+      json_array_append_new(output_options, json_string("-vf"));
+      json_array_append_new(output_options, json_string(video_filter));
+    } else {
+      json_array_append_new(output_options, json_string("-c:v"));
+      json_array_append_new(output_options, json_string("copy"));
     }
-    dstr_cat(&command, "[f=flv]");
-    dstr_cat(&command, output_urls[i]);
+
+    json_array_append_new(output_options, json_string("-c:a"));
+    json_array_append_new(output_options, json_string("aac"));
+    json_array_append_new(output_options, json_string("-b:a"));
+    json_array_append_new(output_options, json_string("128k"));
+    json_array_append_new(output_options, json_string("-f"));
+    json_array_append_new(output_options, json_string("flv"));
+
+    json_object_set_new(output_obj, "options", output_options);
+
+    /* Add cleanup array to output object */
+    json_t *cleanup_array = json_array();
+    json_object_set_new(output_obj, "cleanup", cleanup_array);
+
+    json_array_append_new(output_array, output_obj);
   }
-  dstr_cat(&command, "\"");
 
-  json_object_set_new(root, "command", json_string(command.array));
+  json_object_set_new(root, "output", output_array);
+
+  /* Global process options */
+  json_t *global_options = json_array();
+  json_array_append_new(global_options, json_string("-loglevel"));
+  json_array_append_new(global_options, json_string("warning"));
+  json_object_set_new(root, "options", global_options);
+
+  /* Process behavior settings */
   json_object_set_new(root, "autostart", json_true());
+  json_object_set_new(root, "reconnect", json_true());
+  json_object_set_new(root, "reconnect_delay_seconds", json_integer(15));
+  json_object_set_new(root, "stale_timeout_seconds", json_integer(30));
 
-  char *post_data = json_dumps(root, 0);
+  /* Process limits */
+  json_t *limits = json_object();
+  json_object_set_new(limits, "cpu_usage", json_integer(0));
+  json_object_set_new(limits, "memory_mbytes", json_integer(0));
+  json_object_set_new(limits, "waitfor_seconds", json_integer(0));
+  json_object_set_new(root, "limits", limits);
+
+  char *post_data = json_dumps(root, JSON_COMPACT);
   json_decref(root);
-  dstr_free(&command);
+
+  if (!post_data) {
+    dstr_copy(&api->last_error, "Failed to serialize process JSON");
+    return false;
+  }
+
+  /* Log process creation (without sensitive data) */
+  obs_log(LOG_INFO, "Creating Restreamer process: id=%s, outputs=%zu",
+          reference, output_count);
 
   struct memory_struct response = {NULL, 0};
   bool result =
@@ -893,7 +1007,11 @@ bool restreamer_api_create_process(restreamer_api_t *api, const char *reference,
   free(post_data);
 
   if (result) {
+    obs_log(LOG_INFO, "Restreamer process created successfully: %s", reference);
     free(response.memory);
+  } else {
+    obs_log(LOG_ERROR, "Failed to create Restreamer process: %s",
+            api->last_error.array);
   }
 
   return result;
@@ -2198,7 +2316,7 @@ bool restreamer_api_refresh_token(restreamer_api_t *api) {
   struct dstr url;
   dstr_init(&url);
   const char *protocol = api->connection.use_https ? "https" : "http";
-  dstr_printf(&url, "%s://%s:%d/api/v3/refresh", protocol, api->connection.host,
+  dstr_printf(&url, "%s://%s:%d/api/login/refresh", protocol, api->connection.host,
               api->connection.port);
 
   struct memory_struct response;
@@ -2224,6 +2342,11 @@ bool restreamer_api_refresh_token(restreamer_api_t *api) {
   curl_easy_setopt(api->curl, CURLOPT_WRITEDATA, (void *)&response);
 
   CURLcode res = curl_easy_perform(api->curl);
+
+  /* Reset POST state to avoid affecting subsequent requests */
+  curl_easy_setopt(api->curl, CURLOPT_POST, 0L);
+  curl_easy_setopt(api->curl, CURLOPT_POSTFIELDS, NULL);
+  curl_easy_setopt(api->curl, CURLOPT_POSTFIELDSIZE, 0L);
 
   curl_slist_free_all(headers);
   curl_easy_setopt(api->curl, CURLOPT_HTTPHEADER,

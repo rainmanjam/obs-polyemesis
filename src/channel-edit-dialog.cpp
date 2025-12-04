@@ -253,24 +253,44 @@ void ChannelEditDialog::setupUI() {
   QPushButton *enableAllButton = new QPushButton("Enable All", this);
   enableAllButton->setToolTip("Enable all outputs");
   connect(enableAllButton, &QPushButton::clicked, this, [this]() {
-    if (!m_channel || !m_channel->outputs)
+    /* NULL safety check */
+    if (!m_channel) {
+      QMessageBox::warning(this, "Error", "Channel data is not available.");
+      obs_log(LOG_ERROR, "Enable All: m_channel is NULL");
       return;
+    }
+    if (!m_channel->outputs) {
+      obs_log(LOG_WARNING, "Enable All: No outputs available");
+      return;
+    }
     for (size_t i = 0; i < m_channel->output_count; i++) {
       m_channel->outputs[i].enabled = true;
     }
     populateOutputsList();
+    obs_log(LOG_INFO, "Enabled all outputs for channel %s",
+            m_channel->channel_name ? m_channel->channel_name : "Unknown");
   });
   bulkButtonLayout->addWidget(enableAllButton);
 
   QPushButton *disableAllButton = new QPushButton("Disable All", this);
   disableAllButton->setToolTip("Disable all outputs");
   connect(disableAllButton, &QPushButton::clicked, this, [this]() {
-    if (!m_channel || !m_channel->outputs)
+    /* NULL safety check */
+    if (!m_channel) {
+      QMessageBox::warning(this, "Error", "Channel data is not available.");
+      obs_log(LOG_ERROR, "Disable All: m_channel is NULL");
       return;
+    }
+    if (!m_channel->outputs) {
+      obs_log(LOG_WARNING, "Disable All: No outputs available");
+      return;
+    }
     for (size_t i = 0; i < m_channel->output_count; i++) {
       m_channel->outputs[i].enabled = false;
     }
     populateOutputsList();
+    obs_log(LOG_INFO, "Disabled all outputs for channel %s",
+            m_channel->channel_name ? m_channel->channel_name : "Unknown");
   });
   bulkButtonLayout->addWidget(disableAllButton);
 
@@ -372,15 +392,37 @@ void ChannelEditDialog::loadChannelSettings() {
 }
 
 void ChannelEditDialog::validateAndSave() {
+  /* NULL safety check */
+  if (!m_channel) {
+    obs_log(LOG_ERROR, "ChannelEditDialog::validateAndSave: m_channel is NULL");
+    reject();
+    return;
+  }
+
+  /* Disable save button during operation to prevent double-clicks */
+  if (m_saveButton) {
+    m_saveButton->setEnabled(false);
+  }
+
   QString name = m_nameEdit->text().trimmed();
 
   if (name.isEmpty()) {
-    m_statusLabel->setText("⚠️ Channel name cannot be empty");
-    m_statusLabel->setStyleSheet("background-color: #5a3a00; color: #ffcc00; "
-                                 "padding: 8px; border-radius: 4px;");
-    m_statusLabel->show();
-    m_tabWidget->setCurrentIndex(0); /* Switch to General tab */
-    m_nameEdit->setFocus();
+    if (m_statusLabel) {
+      m_statusLabel->setText("⚠️ Channel name cannot be empty");
+      m_statusLabel->setStyleSheet("background-color: #5a3a00; color: #ffcc00; "
+                                   "padding: 8px; border-radius: 4px;");
+      m_statusLabel->show();
+    }
+    if (m_tabWidget) {
+      m_tabWidget->setCurrentIndex(0); /* Switch to General tab */
+    }
+    if (m_nameEdit) {
+      m_nameEdit->setFocus();
+    }
+    /* Re-enable save button */
+    if (m_saveButton) {
+      m_saveButton->setEnabled(true);
+    }
     return;
   }
 
@@ -397,15 +439,25 @@ void ChannelEditDialog::validateAndSave() {
   /* Validate input URL if provided */
   QString inputUrl = m_inputUrlEdit->text().trimmed();
   if (!inputUrl.isEmpty() && !isValidRtmpUrl(inputUrl)) {
-    m_statusLabel->setText(
-        "⚠️ Invalid RTMP URL format. Must start with rtmp:// or rtmps:// "
-        "and contain a valid host");
-    m_statusLabel->setStyleSheet(
-        "background-color: #5a3a00; color: #ffcc00; padding: 8px; "
-        "border-radius: 4px;");
-    m_statusLabel->show();
-    m_tabWidget->setCurrentIndex(0); /* Switch to General tab */
-    m_inputUrlEdit->setFocus();
+    if (m_statusLabel) {
+      m_statusLabel->setText(
+          "⚠️ Invalid RTMP URL format. Must start with rtmp:// or rtmps:// "
+          "and contain a valid host");
+      m_statusLabel->setStyleSheet(
+          "background-color: #5a3a00; color: #ffcc00; padding: 8px; "
+          "border-radius: 4px;");
+      m_statusLabel->show();
+    }
+    if (m_tabWidget) {
+      m_tabWidget->setCurrentIndex(0); /* Switch to General tab */
+    }
+    if (m_inputUrlEdit) {
+      m_inputUrlEdit->setFocus();
+    }
+    /* Re-enable save button */
+    if (m_saveButton) {
+      m_saveButton->setEnabled(true);
+    }
     return;
   }
 
@@ -707,6 +759,13 @@ void ChannelEditDialog::onOutputSelectionChanged() {
 }
 
 void ChannelEditDialog::onAddOutput() {
+  /* NULL safety check */
+  if (!m_channel) {
+    QMessageBox::warning(this, "Error", "Channel data is not available.");
+    obs_log(LOG_ERROR, "ChannelEditDialog::onAddOutput: m_channel is NULL");
+    return;
+  }
+
   /* Create a simple dialog to add an output */
   QDialog addDialog(this);
   addDialog.setWindowTitle("Add Output");
@@ -848,17 +907,34 @@ void ChannelEditDialog::onAddOutput() {
       }
 
       populateOutputsList();
-      obs_log(LOG_INFO, "Output added to channel %s", m_channel->channel_name);
+      obs_log(LOG_INFO, "Output added to channel %s",
+              m_channel->channel_name ? m_channel->channel_name : "Unknown");
     } else {
-      QMessageBox::critical(this, "Error", "Failed to add output to channel.");
+      QMessageBox::critical(this, "Error",
+          "Failed to add output to channel. Please check the configuration and try again.");
+      obs_log(LOG_ERROR, "Failed to add output to channel");
     }
   }
 }
 
 void ChannelEditDialog::onEditOutput() {
   int currentRow = m_outputsList->currentRow();
-  if (currentRow < 0 || !m_channel || !m_channel->outputs ||
-      static_cast<size_t>(currentRow) >= m_channel->output_count) {
+
+  /* NULL safety and bounds check */
+  if (currentRow < 0) {
+    QMessageBox::warning(this, "No Selection", "Please select an output to edit.");
+    return;
+  }
+
+  if (!m_channel) {
+    QMessageBox::warning(this, "Error", "Channel data is not available.");
+    obs_log(LOG_ERROR, "ChannelEditDialog::onEditOutput: m_channel is NULL");
+    return;
+  }
+
+  if (!m_channel->outputs || static_cast<size_t>(currentRow) >= m_channel->output_count) {
+    QMessageBox::warning(this, "Error", "Selected output is no longer available.");
+    obs_log(LOG_ERROR, "ChannelEditDialog::onEditOutput: Invalid output index %d", currentRow);
     return;
   }
 
@@ -1047,13 +1123,23 @@ void ChannelEditDialog::onEditOutput() {
 
     populateOutputsList();
     obs_log(LOG_INFO, "Output %zu updated in channel %s",
-            static_cast<size_t>(currentRow), m_channel->channel_name);
+            static_cast<size_t>(currentRow),
+            m_channel->channel_name ? m_channel->channel_name : "Unknown");
   }
 }
 
 void ChannelEditDialog::onRemoveOutput() {
   int currentRow = m_outputsList->currentRow();
-  if (currentRow < 0 || !m_channel) {
+
+  /* NULL safety and bounds check */
+  if (currentRow < 0) {
+    QMessageBox::warning(this, "No Selection", "Please select an output to remove.");
+    return;
+  }
+
+  if (!m_channel) {
+    QMessageBox::warning(this, "Error", "Channel data is not available.");
+    obs_log(LOG_ERROR, "ChannelEditDialog::onRemoveOutput: m_channel is NULL");
     return;
   }
 
@@ -1066,9 +1152,11 @@ void ChannelEditDialog::onRemoveOutput() {
     if (channel_remove_output(m_channel, static_cast<size_t>(currentRow))) {
       populateOutputsList();
       obs_log(LOG_INFO, "Output %d removed from channel %s", currentRow,
-              m_channel->channel_name);
+              m_channel->channel_name ? m_channel->channel_name : "Unknown");
     } else {
-      QMessageBox::critical(this, "Error", "Failed to remove output.");
+      QMessageBox::critical(this, "Error",
+          "Failed to remove output. The output may be in use or already removed.");
+      obs_log(LOG_ERROR, "Failed to remove output %d from channel", currentRow);
     }
   }
 }

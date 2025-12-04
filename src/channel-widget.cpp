@@ -148,30 +148,39 @@ void ChannelWidget::updateHeader() {
   }
 
   /* Update name */
-  m_nameLabel->setText(m_channel->channel_name);
+  if (m_nameLabel && m_channel->channel_name) {
+    m_nameLabel->setText(m_channel->channel_name);
+  }
 
   /* Update status indicator */
   QString statusIcon = getStatusIcon();
   QColor statusColor = getStatusColor();
 
-  m_statusIndicator->setText(statusIcon);
-  m_statusIndicator->setStyleSheet(
-      QString("font-size: 18px; color: %1;").arg(statusColor.name()));
+  if (m_statusIndicator) {
+    m_statusIndicator->setText(statusIcon);
+    m_statusIndicator->setStyleSheet(
+        QString("font-size: 18px; color: %1;").arg(statusColor.name()));
+  }
 
   /* Update summary */
-  m_summaryLabel->setText(getSummaryText());
+  if (m_summaryLabel) {
+    m_summaryLabel->setText(getSummaryText());
+  }
 
   /* Update start/stop button */
-  if (m_channel->status == CHANNEL_STATUS_ACTIVE ||
-      m_channel->status == CHANNEL_STATUS_STARTING) {
-    m_startStopButton->setText("■ Stop");
-    m_startStopButton->setProperty("danger", true);
-  } else {
-    m_startStopButton->setText("▶ Start");
-    m_startStopButton->setProperty("danger", false);
+  if (m_startStopButton) {
+    if (m_channel->status == CHANNEL_STATUS_ACTIVE ||
+        m_channel->status == CHANNEL_STATUS_STARTING) {
+      m_startStopButton->setText("■ Stop");
+      m_startStopButton->setProperty("danger", true);
+    } else {
+      m_startStopButton->setText("▶ Start");
+      m_startStopButton->setProperty("danger", false);
+    }
+    m_startStopButton->style()->unpolish(m_startStopButton);
+    m_startStopButton->style()->polish(m_startStopButton);
+    m_startStopButton->setEnabled(true); /* Re-enable after operation */
   }
-  m_startStopButton->style()->unpolish(m_startStopButton);
-  m_startStopButton->style()->polish(m_startStopButton);
 }
 
 void ChannelWidget::updateOutputs() {
@@ -378,7 +387,13 @@ void ChannelWidget::onHeaderClicked() {
 
 void ChannelWidget::onStartStopClicked() {
   if (!m_channel) {
+    obs_log(LOG_ERROR, "ChannelWidget::onStartStopClicked: m_channel is NULL");
     return;
+  }
+
+  /* Disable button to prevent double-clicks */
+  if (m_startStopButton) {
+    m_startStopButton->setEnabled(false);
   }
 
   if (m_channel->status == CHANNEL_STATUS_ACTIVE ||
@@ -387,6 +402,8 @@ void ChannelWidget::onStartStopClicked() {
   } else {
     emit startRequested(m_channel->channel_id);
   }
+
+  /* Button will be re-enabled in updateHeader() when state changes */
 }
 
 void ChannelWidget::onEditClicked() {

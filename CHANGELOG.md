@@ -7,6 +7,45 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.9.12] - 2025-12-03
+
+### Fixed
+- **Critical: Process Creation "Already Exists" Error (HTTP 400)**
+  - Added automatic deletion of stale processes before creating new channels
+  - Handles cases where OBS closed without stopping channels
+  - Fixes server-side orphaned processes from previous sessions
+
+- **Missing OBS Output Protocol Registration**
+  - Added required `protocols` field ("RTMP;RTMPS") to output registration
+  - Eliminates OBS warning about missing protocol definition
+
+- **Token Refresh Endpoint**
+  - Corrected token refresh from `/api/v3/refresh` to `/api/login/refresh`
+  - Fixed CURL state reset after token refresh operations
+
+- **Process JSON Schema Compliance**
+  - Added required `cleanup` arrays to ProcessConfig JSON
+  - Added required `limits` object to ProcessConfig JSON
+  - Ensures full compatibility with Restreamer Core API v3
+
+- **UI NULL Safety**
+  - Added comprehensive NULL checks in channel-widget.cpp
+  - Added comprehensive NULL checks in output-widget.cpp
+  - Added comprehensive NULL checks in channel-edit-dialog.cpp
+  - Prevents crashes during rapid UI interactions
+
+- **Button State Management**
+  - Disabled buttons during async operations to prevent double-clicks
+  - Added proper button re-enabling on operation completion
+
+### Added
+- **Comprehensive Test Suite**
+  - Extended API client unit tests (20 new tests)
+  - Channel management unit tests (21 new tests)
+  - Integration tests for channel-API interactions (12 tests)
+  - End-to-end streaming workflow tests (16 tests)
+  - UI workflow simulation tests (14 tests)
+
 ## [0.9.11] - 2025-12-02
 
 ### Fixed

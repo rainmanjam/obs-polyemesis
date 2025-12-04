@@ -1,16 +1,90 @@
-# Qt Unit Tests for OBS Polyemesis
+# Unit Tests for OBS Polyemesis
 
 ## Overview
 
-This directory contains Qt Test Framework-based unit tests for UI components and business logic.
+This directory contains comprehensive unit tests for the OBS Polyemesis plugin:
+- **C-based tests**: Channel management module tests
+- **Qt-based tests**: UI component and validation tests
 
-## Current Status
+## C-Based Tests
+
+### Extended Channel Management Tests (`test_channel_extended.c`)
+
+Comprehensive unit tests for the channel management module covering all critical functionality.
+
+**Total: 21 comprehensive unit tests**
+
+#### Channel Lifecycle Tests (4 tests)
+- `test_channel_creation_valid`: Tests creating channels with valid inputs
+- `test_channel_creation_invalid`: Tests error handling with NULL/invalid inputs
+- `test_channel_deletion`: Tests channel deletion and cleanup
+- `test_channel_duplication`: Tests channel duplication with all properties
+
+#### Output Management Tests (4 tests)
+- `test_output_addition`: Tests adding outputs to channels with various encoding settings
+- `test_output_removal`: Tests removing outputs and array management
+- `test_output_enable_disable`: Tests enabling/disabling individual outputs
+- `test_bulk_output_operations`: Tests bulk enable/disable, encoding updates, and deletions
+
+#### Start/Stop/Restart Tests (4 tests)
+- `test_channel_start_cleanup`: Tests that starting a channel deletes existing process first (critical fix)
+- `test_channel_stop_cleanup`: Tests proper cleanup on stop (process reference, error state)
+- `test_channel_restart`: Tests restart functionality
+- `test_start_stop_all_channels`: Tests batch operations on multiple channels
+
+#### Persistence Tests (4 tests)
+- `test_save_channels`: Tests saving channels to OBS settings
+- `test_load_channels`: Tests loading channels from settings
+- `test_load_missing_settings`: Tests handling of empty/NULL settings
+- `test_load_corrupt_settings`: Tests handling of malformed settings data
+
+#### Failover Tests (5 tests)
+- `test_backup_configuration`: Tests configuring backup outputs
+- `test_remove_backup`: Tests removing backup relationships
+- `test_failover_trigger`: Tests manual failover triggering
+- `test_primary_restoration`: Tests restoring primary after failover
+- Tests automatic failover based on health monitoring
+
+### Building and Running C Tests
+
+```bash
+# Build the test executable
+cd build
+cmake ..
+make test_channel_extended
+
+# Run with CTest
+ctest -R channel_extended_tests -V
+
+# Or run directly
+./test_channel_extended
+
+# Run with sanitizers (detect memory leaks)
+cmake -DENABLE_ASAN=ON -DENABLE_UBSAN=ON ..
+make test_channel_extended
+./test_channel_extended
+```
+
+## Qt-Based Tests
+
+### Current Status
 
 Qt Test Framework is **configured but not fully implemented** due to architectural constraints:
 
 - Plugin code is tightly coupled to OBS callbacks
 - ProfileManager and RestreamerDock are not separated into testable classes
 - Refactoring required to enable comprehensive UI testing
+
+### Available Qt Tests
+
+The following Qt-based tests are functional:
+
+- `test_url_validation.cpp`: RTMP/SRT URL validation
+- `test_profile_validation.cpp`: Profile validation logic
+- `test_collapsible_section.cpp`: UI collapsible section widget
+- `test_destination_management.cpp`: Destination management logic
+- `test_process_id_generation.cpp`: Process ID generation tests
+- `test_ui_integration.cpp`: UI integration tests
 
 ## Recommended Refactoring
 

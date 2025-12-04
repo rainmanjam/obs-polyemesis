@@ -1088,6 +1088,14 @@ void RestreamerDock::updateConnectionStatus() {
 
   api = restreamer_config_create_global_api();
 
+  /* CRITICAL: Update channel manager's API reference
+   * The channel manager was created with the dock's initial API pointer.
+   * When we recreate the API, we must update the channel manager's reference
+   * so that channel_start() and other operations use the new connection. */
+  if (channelManager) {
+    channel_manager_set_api(channelManager, api);
+  }
+
   /* If API creation failed, no settings are configured */
   if (!api) {
     connectionIndicator->setStyleSheet(
