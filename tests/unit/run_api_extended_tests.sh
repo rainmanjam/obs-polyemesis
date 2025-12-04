@@ -31,7 +31,7 @@ cmake .. -DENABLE_TESTING=ON \
 
 # Build the extended API test executable
 echo "Building test_api_extended..."
-cmake --build . --target test_api_extended -j$(sysctl -n hw.ncpu 2>/dev/null || nproc 2>/dev/null || echo 4) \
+cmake --build . --target test_api_extended -j"$(sysctl -n hw.ncpu 2>/dev/null || nproc 2>/dev/null || echo 4)" \
     || { echo -e "${RED}Build failed${NC}"; exit 1; }
 
 echo -e "${GREEN}Build successful!${NC}"
