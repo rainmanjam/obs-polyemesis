@@ -302,6 +302,14 @@ static void handle_request(socket_t client_fd, const char *request) {
                "Content-Length: 16\r\n"
                "\r\n"
                "{\"status\": \"ok\"}";
+  } else if (strstr(request, "PUT /api/v3/process/") != NULL && strstr(request, "/command") != NULL) {
+    /* Process control command (start/stop/restart) */
+    printf("[MOCK] -> Matched: PUT /api/v3/process/{id}/command\n");
+    response = "HTTP/1.1 200 OK\r\n"
+               "Content-Type: application/json\r\n"
+               "Content-Length: 16\r\n"
+               "\r\n"
+               "{\"status\": \"ok\"}";
   } else if (strstr(request, "GET /api/v3/process/") != NULL && strstr(request, "/outputs/") != NULL && strstr(request, "/encoding") != NULL) {
     /* Get output encoding */
     response = "HTTP/1.1 200 OK\r\n"
@@ -675,10 +683,11 @@ bool mock_restreamer_start(uint16_t port) {
   printf("[MOCK] Cleaning up port %d...\n", port);
   kill_port_process(port);
 
-  /* Ensure server is not already running */
+  /* Stop any existing server before starting a new one */
+  /* This ensures test isolation even when tests fail without proper cleanup */
   if (g_server.running) {
-    fprintf(stderr, "[MOCK] ERROR: Server already running\n");
-    return false;
+    printf("[MOCK] Stopping existing server before starting new one\n");
+    mock_restreamer_stop();
   }
 
   /* Set port for new server instance */
