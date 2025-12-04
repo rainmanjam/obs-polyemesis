@@ -1122,3 +1122,13 @@ bool test_channel_extended_suite(void)
 
 	return all_passed;
 }
+
+/* Main entry point */
+int main(int argc, char *argv[])
+{
+	(void)argc;
+	(void)argv;
+
+	bool passed = test_channel_extended_suite();
+	return passed ? 0 : 1;
+}

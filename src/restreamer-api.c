@@ -477,7 +477,7 @@ bool restreamer_api_is_connected(restreamer_api_t *api) {
 }
 
 /* Forward declarations for helper functions */
-static void parse_process_fields(const json_t *json_obj,
+STATIC_TESTABLE void parse_process_fields(const json_t *json_obj,
                                  restreamer_process_t *process);
 static void parse_log_entry_fields(const json_t *json_obj,
                                    restreamer_log_entry_t *entry);
