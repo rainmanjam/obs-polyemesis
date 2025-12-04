@@ -123,8 +123,9 @@ static void handle_request(socket_t client_fd, const char *request) {
   if (strstr(request, "POST /api/login ") != NULL || strstr(request, "POST /api/v3/login ") != NULL) {
     printf("[MOCK] -> Matched: POST /api/login\n");
     response = RESPONSE_LOGIN;
-  } else if (strstr(request, "POST /api/refresh") != NULL || strstr(request, "POST /api/v3/refresh") != NULL) {
+  } else if (strstr(request, "POST /api/refresh") != NULL || strstr(request, "POST /api/v3/refresh") != NULL || strstr(request, "POST /api/login/refresh") != NULL) {
     /* Refresh token */
+    printf("[MOCK] -> Matched: POST /api/*/refresh\n");
     response = "HTTP/1.1 200 OK\r\n"
                "Content-Type: application/json\r\n"
                "Content-Length: 93\r\n"
